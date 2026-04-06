@@ -1,99 +1,115 @@
-# frugal.sh
+# frugal
 
-**Drop-in LLM proxy that routes every request to the cheapest model that won't compromise quality.**
+**Open-source LLM proxy that routes every request to the cheapest model that won't compromise quality.**
 
-One line. Same responses. Lower bill.
+No account. No code changes. One command.
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:8080/v1
+curl -fsSL https://frugal.sh/install | sh
 ```
 
-That's it. Your existing OpenAI SDK calls now route through Frugal. No SDK. No code changes. No new response format.
+```bash
+frugal python my_app.py
+```
+
+That's it. Frugal starts a local proxy, injects `OPENAI_BASE_URL`, runs your command, and shuts down when it exits. Your app doesn't change. Your API keys stay local. Your bill drops 40-70%.
 
 ---
 
 ## How it works
 
-Every request hits a lightweight query classifier before it reaches a model. The classifier analyzes complexity, domain, required reasoning depth, and output format — then routes to the lowest-cost model that meets the quality bar for that specific request.
-
-A creative brainstorm doesn't need `o3`. A simple extraction doesn't need `claude-opus-4-6`. You're paying for capability you don't use on 60-80% of your LLM calls. Frugal fixes that.
-
-### The routing stack
+Frugal wraps any command. It spins up a lightweight local proxy, sets `OPENAI_BASE_URL` to point at it, and routes every LLM request to the cheapest model that won't degrade quality.
 
 ```
-Your app → frugal → query classifier → model selection → LLM → response
-                          ↓
-                    eval taxonomy
-                    (config/models.yaml)
+frugal python app.py
+       │
+       ├─ starts proxy on a free port
+       ├─ injects OPENAI_BASE_URL into your command's environment
+       ├─ classifies each request (complexity, domain, capabilities)
+       ├─ routes to cheapest model that clears the quality bar
+       └─ shuts down proxy when your command exits
 ```
 
-**Query classifier** — Rule-based heuristics that classify each request across dimensions: reasoning complexity, code presence, math, output structure, context window needs.
+A creative brainstorm doesn't need `o3`. A simple extraction doesn't need `claude-opus`. You're paying for capability you don't use on 60-80% of your LLM calls.
 
-**Eval taxonomy** — Model capabilities and costs defined in `config/models.yaml`. Every model is scored per-category so routing decisions are grounded in measured performance.
+### What the classifier detects
 
-**Model selection** — Matches the classified request to the cheapest model that exceeds the quality threshold for that category.
+| Signal | How |
+|--------|-----|
+| Code | Regex for code blocks, `function`/`def`/`class` keywords |
+| Math | LaTeX patterns, equation keywords |
+| Reasoning depth | System prompt complexity, conversation length |
+| Output format | JSON mode, tool/function calling |
+| Domain | Keyword detection (coding, creative, analysis, math) |
 
-## Quickstart
+These signals combine into a complexity score. The router picks the cheapest model that exceeds the quality threshold for that score.
 
-### 1. Set API keys
+## Install
 
 ```bash
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-export GOOGLE_API_KEY="..."
+curl -fsSL https://frugal.sh/install | sh
 ```
 
-Frugal registers providers based on which API keys are present. No key = provider skipped.
+Downloads a single binary (~10MB), detects your API keys, adds `frugal` to your PATH.
 
-### 2. Run the proxy
+### From source
 
 ```bash
+git clone https://github.com/frugalsh/frugal.git
+cd frugal
 make build
-./bin/frugal
-# frugal listening on :8080
 ```
 
-### 3. Use normally
+## Usage
 
-```python
-from openai import OpenAI
+### Wrap any command
 
-client = OpenAI(
-    api_key="sk-...",
-    base_url="http://localhost:8080/v1"
-)
-
-response = client.chat.completions.create(
-    model="auto",              # let Frugal choose
-    messages=[{"role": "user", "content": "Summarize this PDF"}],
-    temperature=0.3
-)
+```bash
+frugal python my_app.py
+frugal node server.js
+frugal go run ./cmd/myservice
+frugal pytest tests/
+frugal bash -c 'curl https://api.openai.com/v1/...'
 ```
 
-Pass `model="auto"` to let Frugal route. Or pass a specific model name (e.g., `gpt-4o`, `claude-sonnet-4-20250514`) to pin to that model directly.
+Frugal picks a free port, starts the proxy, sets `OPENAI_BASE_URL` in your command's environment, and cleans up on exit. Works with any OpenAI-compatible SDK — Python, Node, Go, Rust, curl.
 
-## Configuration
+### Run as a server
+
+If you want a persistent proxy (e.g., shared across terminals or in Docker):
+
+```bash
+frugal serve
+# or just: frugal (with no arguments)
+```
+
+Then set the env var yourself:
+
+```bash
+export OPENAI_BASE_URL=http://localhost:8080/v1
+```
 
 ### Quality thresholds
 
+Control cost vs. quality per request:
+
 ```python
-headers = {
-    "X-Frugal-Quality": "high"    # high | balanced | cost
-}
+headers = {"X-Frugal-Quality": "cost"}  # high | balanced | cost
 ```
 
 | Threshold | Behavior |
 |-----------|----------|
-| `high` | Routes to top-tier models. Best quality. |
+| `high` | Top-tier models only. |
 | `balanced` | Default. Best cost-quality tradeoff. |
-| `cost` | Aggressively routes to cheapest viable model. |
+| `cost` | Cheapest viable model. Maximum savings. |
 
 ### Model pinning
 
+Skip routing for specific calls:
+
 ```python
-# Frugal passes through to the exact model
 response = client.chat.completions.create(
-    model="claude-sonnet-4-20250514",
+    model="gpt-4o-mini",  # goes straight to this model
     messages=[...]
 )
 ```
@@ -101,33 +117,14 @@ response = client.chat.completions.create(
 ### Fallback chains
 
 ```python
-headers = {
-    "X-Frugal-Fallback": "claude-sonnet-4-20250514,gpt-4o,gemini-2.5-flash"
-}
+headers = {"X-Frugal-Fallback": "gpt-4o,claude-sonnet-4-20250514,gemini-2.5-flash"}
 ```
 
-If the routed model is down or errors, Frugal walks the fallback chain automatically.
+If the routed model errors, Frugal walks the chain.
 
-### Model taxonomy
+## Supported models
 
-Model capabilities and costs are configured in `config/models.yaml`. Add or update models by editing this file — no code changes needed.
-
-## API reference
-
-Frugal is fully OpenAI-compatible:
-
-- `POST /v1/chat/completions` — routed chat (streaming + non-streaming)
-- `GET /v1/models` — list available models across all providers
-- `GET /v1/routing/explain` — returns the last routing decision (debug)
-- `GET /health` — health check
-
-### Response headers
-
-Every response includes:
-- `X-Frugal-Model` — the model that handled the request
-- `X-Frugal-Provider` — the provider that handled the request
-
-## Supported providers
+Pricing synced from [models.dev](https://models.dev) on every startup.
 
 | Provider | Models |
 |----------|--------|
@@ -135,29 +132,36 @@ Every response includes:
 | Anthropic | Claude Opus 4, Claude Sonnet 4, Claude Haiku 3.5 |
 | Google | Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.0 Flash |
 
+Set `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and/or `GOOGLE_API_KEY`. Frugal registers whichever providers have keys.
+
+Add models by editing `~/.frugal/config/models.yaml`.
+
+## Commands
+
+| Command | What it does |
+|---------|-------------|
+| `frugal <cmd>` | Wrap a command with the routing proxy |
+| `frugal serve` | Run the proxy as a persistent server |
+| `frugal sync` | Update model pricing from models.dev |
+
+## API
+
+When running as a server, Frugal exposes an OpenAI-compatible API:
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /v1/chat/completions` | Routed chat (streaming + non-streaming) |
+| `GET /v1/models` | List available models |
+| `GET /v1/routing/explain` | Last routing decision |
+| `GET /health` | Health check |
+
 ## Development
 
 ```bash
-make build    # build binary to bin/frugal
-make test     # run all tests
-make run      # build and run
-make clean    # remove build artifacts
-```
-
-## Architecture
-
-```
-cmd/frugal/main.go           # entrypoint, wiring
-internal/
-  classifier/                 # rule-based query classification
-  router/                     # cost-optimized model selection
-  provider/                   # provider interface + implementations
-    openai/                   # OpenAI API
-    anthropic/                # Anthropic Messages API
-    google/                   # Gemini API
-  proxy/                      # HTTP handlers, middleware, SSE streaming
-  types/                      # shared types (OpenAI-compatible)
-config/models.yaml            # model taxonomy (capabilities, costs)
+make build    # build binary
+make test     # run tests
+make run      # build + run server
+make release  # cross-compile for all platforms
 ```
 
 ## License

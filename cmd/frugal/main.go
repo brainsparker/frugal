@@ -34,7 +34,9 @@ func main() {
 		case "serve":
 			// fall through to server startup
 		default:
-			log.Fatalf("unknown command: %s (available: serve, sync)", os.Args[1])
+			// Anything else is treated as a command to wrap
+			// frugal python app.py → start proxy, run "python app.py" with OPENAI_BASE_URL set
+			os.Exit(runWrap(configPath, os.Args[1:]))
 		}
 	}
 
