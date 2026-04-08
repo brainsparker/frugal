@@ -225,6 +225,44 @@ func TestChatCompletions_ModelPinning(t *testing.T) {
 	}
 }
 
+func TestChatCompletions_RejectsUnknownFields(t *testing.T) {
+	_, ts := setupHandler()
+	defer ts.Close()
+
+	body := []byte(`{"model":"auto","messages":[{"role":"user","content":"hello"}],"unexpected":true}`)
+	resp, err := http.Post(ts.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(b))
+	}
+}
+
+func TestChatCompletions_RejectsOversizedBody(t *testing.T) {
+	_, ts := setupHandler()
+	defer ts.Close()
+
+	oversized := bytes.Repeat([]byte("a"), int(maxChatCompletionsBodyBytes)+1)
+	body := []byte(`{"model":"auto","messages":[{"role":"user","content":"`)
+	body = append(body, oversized...)
+	body = append(body, []byte(`"}]}`)...)
+
+	resp, err := http.Post(ts.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(b))
+	}
+}
+
 func TestChatCompletions_QualityHeader(t *testing.T) {
 	_, ts := setupHandler()
 	defer ts.Close()
