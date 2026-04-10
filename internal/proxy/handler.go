@@ -92,10 +92,6 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	h.recordDecision(decision)
 
-	// Add routing info header
-	w.Header().Set("X-Frugal-Model", decision.SelectedModel)
-	w.Header().Set("X-Frugal-Provider", decision.SelectedProvider)
-
 	if req.Stream {
 		h.handleStream(w, r, prov, decision, &req, fallbacks)
 	} else {
@@ -104,7 +100,10 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, prov provider.Provider, decision types.RoutingDecision, req *types.ChatCompletionRequest, fallbacks []string) {
-	resp, err := prov.ChatCompletion(r.Context(), decision.SelectedModel, req)
+	selectedModel := decision.SelectedModel
+	selectedProvider := prov.Name()
+
+	resp, err := prov.ChatCompletion(r.Context(), selectedModel, req)
 	if err != nil {
 		// Try fallback chain
 		for _, fb := range fallbacks {
@@ -114,6 +113,8 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, prov p
 			}
 			resp, err = fbProv.ChatCompletion(r.Context(), fb, req)
 			if err == nil {
+				selectedModel = fb
+				selectedProvider = fbProv.Name()
 				break
 			}
 			log.Printf("fallback %s failed: %v", fb, err)
@@ -124,12 +125,17 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, prov p
 		}
 	}
 
+	w.Header().Set("X-Frugal-Model", selectedModel)
+	w.Header().Set("X-Frugal-Provider", selectedProvider)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, prov provider.Provider, decision types.RoutingDecision, req *types.ChatCompletionRequest, fallbacks []string) {
-	ch, err := prov.ChatCompletionStream(r.Context(), decision.SelectedModel, req)
+	selectedModel := decision.SelectedModel
+	selectedProvider := prov.Name()
+
+	ch, err := prov.ChatCompletionStream(r.Context(), selectedModel, req)
 	if err != nil {
 		// Try fallback chain
 		for _, fb := range fallbacks {
@@ -139,6 +145,8 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, prov prov
 			}
 			ch, err = fbProv.ChatCompletionStream(r.Context(), fb, req)
 			if err == nil {
+				selectedModel = fb
+				selectedProvider = fbProv.Name()
 				break
 			}
 			log.Printf("fallback stream %s failed: %v", fb, err)
@@ -148,6 +156,9 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, prov prov
 			return
 		}
 	}
+
+	w.Header().Set("X-Frugal-Model", selectedModel)
+	w.Header().Set("X-Frugal-Provider", selectedProvider)
 
 	if err := streamResponse(w, ch); err != nil {
 		log.Printf("stream error: %v", err)
