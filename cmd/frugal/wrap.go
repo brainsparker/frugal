@@ -69,7 +69,7 @@ func runWrap(configPath string, args []string) int {
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d/v1", port)
 
 	// Start proxy in background
-	server := &http.Server{Handler: r}
+	server := newHTTPServer(listener.Addr().String(), r)
 	go func() {
 		if err := server.Serve(listener); err != http.ErrServerClosed {
 			log.Printf("proxy error: %v", err)

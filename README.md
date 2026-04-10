@@ -89,6 +89,16 @@ Then set the env var yourself:
 export OPENAI_BASE_URL=http://localhost:8080/v1
 ```
 
+Optional server hardening knobs (safe defaults are applied automatically):
+
+| Env var | Default | Purpose |
+|---------|---------|---------|
+| `FRUGAL_HTTP_READ_HEADER_TIMEOUT` | `5s` | Limit time to read request headers |
+| `FRUGAL_HTTP_READ_TIMEOUT` | `15s` | Limit total request read time |
+| `FRUGAL_HTTP_WRITE_TIMEOUT` | `30s` | Limit response write time |
+| `FRUGAL_HTTP_IDLE_TIMEOUT` | `60s` | Limit keep-alive idle connections |
+| `FRUGAL_HTTP_MAX_HEADER_BYTES` | `1048576` | Cap request header size (1 MiB) |
+
 ### Quality thresholds
 
 Control cost vs. quality per request:
