@@ -104,8 +104,9 @@ func main() {
 		addr = a
 	}
 
+	server := newHTTPServer(addr, r)
 	log.Printf("frugal listening on %s", addr)
-	if err := http.ListenAndServe(addr, r); err != nil {
+	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }
