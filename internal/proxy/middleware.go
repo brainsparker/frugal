@@ -45,11 +45,23 @@ func HeaderExtractionMiddleware(next http.Handler) http.Handler {
 		}
 
 		if fb := r.Header.Get("X-Frugal-Fallback"); fb != "" {
-			parts := strings.Split(fb, ",")
-			for i := range parts {
-				parts[i] = strings.TrimSpace(parts[i])
+			rawParts := strings.Split(fb, ",")
+			parts := make([]string, 0, len(rawParts))
+			seen := make(map[string]struct{}, len(rawParts))
+			for _, part := range rawParts {
+				part = strings.TrimSpace(part)
+				if part == "" {
+					continue
+				}
+				if _, ok := seen[part]; ok {
+					continue
+				}
+				seen[part] = struct{}{}
+				parts = append(parts, part)
 			}
-			ctx = context.WithValue(ctx, fallbackKey, parts)
+			if len(parts) > 0 {
+				ctx = context.WithValue(ctx, fallbackKey, parts)
+			}
 		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))
