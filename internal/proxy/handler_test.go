@@ -25,7 +25,7 @@ type mockProvider struct {
 	streamErr error
 }
 
-func (m *mockProvider) Name() string    { return m.name }
+func (m *mockProvider) Name() string     { return m.name }
 func (m *mockProvider) Models() []string { return m.models }
 
 func (m *mockProvider) ChatCompletion(ctx context.Context, model string, req *types.ChatCompletionRequest) (*types.ChatCompletionResponse, error) {
@@ -325,6 +325,20 @@ func TestRoutingExplain_AfterRequest(t *testing.T) {
 
 	if decision.SelectedModel == "" {
 		t.Error("expected selected model in routing decision")
+	}
+}
+
+func TestFallbackCandidates_DedupesAndSkipsSelected(t *testing.T) {
+	got := fallbackCandidates("mock-cheap", []string{" mock-cheap ", "", "mock-premium", "mock-premium", "mock-ultra"})
+	want := []string{"mock-premium", "mock-ultra"}
+
+	if len(got) != len(want) {
+		t.Fatalf("expected %d fallback candidates, got %d (%v)", len(want), len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("candidate %d mismatch: want %q, got %q", i, want[i], got[i])
+		}
 	}
 }
 

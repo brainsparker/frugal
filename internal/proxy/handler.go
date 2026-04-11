@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,10 +22,10 @@ type Handler struct {
 	registry   *provider.Registry
 
 	// Ring buffer of recent routing decisions for /v1/routing/explain
-	mu             sync.Mutex
-	decisions      []types.RoutingDecision
-	decisionIdx    int
-	lastDecision   *types.RoutingDecision
+	mu           sync.Mutex
+	decisions    []types.RoutingDecision
+	decisionIdx  int
+	lastDecision *types.RoutingDecision
 }
 
 func NewHandler(cls classifier.Classifier, rtr *router.Router, reg *provider.Registry) *Handler {
@@ -106,8 +107,8 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, prov provider.Provider, decision types.RoutingDecision, req *types.ChatCompletionRequest, fallbacks []string) {
 	resp, err := prov.ChatCompletion(r.Context(), decision.SelectedModel, req)
 	if err != nil {
-		// Try fallback chain
-		for _, fb := range fallbacks {
+		// Try sanitized fallback chain (deduped + excluding selected model)
+		for _, fb := range fallbackCandidates(decision.SelectedModel, fallbacks) {
 			fbProv, fbErr := h.registry.Resolve(fb)
 			if fbErr != nil {
 				continue
@@ -131,8 +132,8 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, prov p
 func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, prov provider.Provider, decision types.RoutingDecision, req *types.ChatCompletionRequest, fallbacks []string) {
 	ch, err := prov.ChatCompletionStream(r.Context(), decision.SelectedModel, req)
 	if err != nil {
-		// Try fallback chain
-		for _, fb := range fallbacks {
+		// Try sanitized fallback chain (deduped + excluding selected model)
+		for _, fb := range fallbackCandidates(decision.SelectedModel, fallbacks) {
 			fbProv, fbErr := h.registry.Resolve(fb)
 			if fbErr != nil {
 				continue
@@ -202,6 +203,27 @@ func (h *Handler) RoutingExplain(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(d)
+}
+
+func fallbackCandidates(selectedModel string, fallbacks []string) []string {
+	seen := make(map[string]struct{}, len(fallbacks)+1)
+	if selectedModel != "" {
+		seen[selectedModel] = struct{}{}
+	}
+
+	result := make([]string, 0, len(fallbacks))
+	for _, fb := range fallbacks {
+		fb = strings.TrimSpace(fb)
+		if fb == "" {
+			continue
+		}
+		if _, ok := seen[fb]; ok {
+			continue
+		}
+		seen[fb] = struct{}{}
+		result = append(result, fb)
+	}
+	return result
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
