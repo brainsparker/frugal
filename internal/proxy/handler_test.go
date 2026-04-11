@@ -225,6 +225,28 @@ func TestChatCompletions_ModelPinning(t *testing.T) {
 	}
 }
 
+func TestChatCompletions_RequestBodyTooLarge(t *testing.T) {
+	_, ts := setupHandler()
+	defer ts.Close()
+
+	bigPrompt := strings.Repeat("a", int(maxChatCompletionBodyBytes)+1024)
+	body, _ := json.Marshal(types.ChatCompletionRequest{
+		Model:    "auto",
+		Messages: []types.Message{{Role: "user", Content: mustMarshalJSON(bigPrompt)}},
+	})
+
+	resp, err := http.Post(ts.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 413, got %d: %s", resp.StatusCode, string(b))
+	}
+}
+
 func TestChatCompletions_QualityHeader(t *testing.T) {
 	_, ts := setupHandler()
 	defer ts.Close()
