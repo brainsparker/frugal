@@ -58,17 +58,22 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	var decision types.RoutingDecision
 	var prov provider.Provider
 
-	// Model pinning: if model is not "auto" and not empty, try to resolve directly
+	// Model pinning: if model is not "auto" and not empty, resolve directly.
+	// Explicit model pins should fail fast when unknown rather than silently rerouting.
 	if req.Model != "" && req.Model != "auto" {
-		if p, err := h.registry.Resolve(req.Model); err == nil {
-			prov = p
-			decision = types.RoutingDecision{
-				SelectedModel:    req.Model,
-				SelectedProvider: p.Name(),
-				Quality:          string(quality),
-				Pinned:           true,
-				Reason:           fmt.Sprintf("model pinned to %s", req.Model),
-			}
+		p, err := h.registry.Resolve(req.Model)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("unknown model %q", req.Model))
+			return
+		}
+
+		prov = p
+		decision = types.RoutingDecision{
+			SelectedModel:    req.Model,
+			SelectedProvider: p.Name(),
+			Quality:          string(quality),
+			Pinned:           true,
+			Reason:           fmt.Sprintf("model pinned to %s", req.Model),
 		}
 	}
 
