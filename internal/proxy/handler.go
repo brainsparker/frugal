@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -44,10 +45,19 @@ func (h *Handler) recordDecision(d types.RoutingDecision) {
 	h.lastDecision = &d
 }
 
+const maxChatCompletionBodyBytes int64 = 2 << 20 // 2 MiB
+
 // ChatCompletions handles POST /v1/chat/completions
 func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxChatCompletionBodyBytes)
+
 	var req types.ChatCompletionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("request body too large (max %d bytes)", maxChatCompletionBodyBytes))
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
 	}
