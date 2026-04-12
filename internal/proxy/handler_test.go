@@ -274,9 +274,48 @@ func TestListModels(t *testing.T) {
 	if result.Object != "list" {
 		t.Errorf("expected object=list, got %s", result.Object)
 	}
-	// Should have mock-cheap, mock-premium, and auto
-	if len(result.Data) < 3 {
-		t.Errorf("expected at least 3 models, got %d", len(result.Data))
+
+	ids := make([]string, 0, len(result.Data))
+	for _, m := range result.Data {
+		ids = append(ids, m.ID)
+	}
+
+	// Deterministic ordering with auto always at the end.
+	expected := []string{"mock-cheap", "mock-premium", "auto"}
+	if strings.Join(ids, ",") != strings.Join(expected, ",") {
+		t.Fatalf("unexpected model list order: got %v want %v", ids, expected)
+	}
+}
+
+func TestListModels_DedupesAutoFromProviders(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Register(&mockProvider{name: "mock", models: []string{"z-model", "auto", "a-model"}})
+
+	cls := classifier.NewRuleBased()
+	rtr := router.New(nil, nil)
+	h := NewHandler(cls, rtr, reg)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	rr := httptest.NewRecorder()
+	h.ListModels(rr, req)
+
+	var result struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&result); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+
+	ids := make([]string, 0, len(result.Data))
+	for _, m := range result.Data {
+		ids = append(ids, m.ID)
+	}
+
+	expected := []string{"a-model", "z-model", "auto"}
+	if strings.Join(ids, ",") != strings.Join(expected, ",") {
+		t.Fatalf("unexpected model list: got %v want %v", ids, expected)
 	}
 }
 
