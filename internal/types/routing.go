@@ -1,5 +1,7 @@
 package types
 
+import "strings"
+
 // QualityThreshold controls how aggressively Frugal routes to cheaper models.
 type QualityThreshold string
 
@@ -11,7 +13,7 @@ const (
 
 // ParseQualityThreshold parses a string into a QualityThreshold, defaulting to balanced.
 func ParseQualityThreshold(s string) QualityThreshold {
-	switch s {
+	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "high":
 		return QualityHigh
 	case "cost":
