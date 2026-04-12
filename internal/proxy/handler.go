@@ -3,6 +3,7 @@ package proxy
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"sync"
@@ -21,10 +22,10 @@ type Handler struct {
 	registry   *provider.Registry
 
 	// Ring buffer of recent routing decisions for /v1/routing/explain
-	mu             sync.Mutex
-	decisions      []types.RoutingDecision
-	decisionIdx    int
-	lastDecision   *types.RoutingDecision
+	mu           sync.Mutex
+	decisions    []types.RoutingDecision
+	decisionIdx  int
+	lastDecision *types.RoutingDecision
 }
 
 func NewHandler(cls classifier.Classifier, rtr *router.Router, reg *provider.Registry) *Handler {
@@ -47,7 +48,7 @@ func (h *Handler) recordDecision(d types.RoutingDecision) {
 // ChatCompletions handles POST /v1/chat/completions
 func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	var req types.ChatCompletionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeChatCompletionRequest(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
 	}
@@ -101,6 +102,24 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	} else {
 		h.handleNonStream(w, r, prov, decision, &req, fallbacks)
 	}
+}
+
+func decodeChatCompletionRequest(r *http.Request, req *types.ChatCompletionRequest) error {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(req); err != nil {
+		return err
+	}
+
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("request body must contain exactly one JSON object")
+		}
+		return err
+	}
+
+	return nil
 }
 
 func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, prov provider.Provider, decision types.RoutingDecision, req *types.ChatCompletionRequest, fallbacks []string) {

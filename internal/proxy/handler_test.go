@@ -25,7 +25,7 @@ type mockProvider struct {
 	streamErr error
 }
 
-func (m *mockProvider) Name() string    { return m.name }
+func (m *mockProvider) Name() string     { return m.name }
 func (m *mockProvider) Models() []string { return m.models }
 
 func (m *mockProvider) ChatCompletion(ctx context.Context, model string, req *types.ChatCompletionRequest) (*types.ChatCompletionResponse, error) {
@@ -292,6 +292,40 @@ func TestRoutingExplain_NoDecisions(t *testing.T) {
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404 when no decisions, got %d", resp.StatusCode)
+	}
+}
+
+func TestChatCompletions_RejectsUnknownFields(t *testing.T) {
+	_, ts := setupHandler()
+	defer ts.Close()
+
+	body := []byte(`{"model":"auto","messages":[],"oops":true}`)
+	resp, err := http.Post(ts.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(b))
+	}
+}
+
+func TestChatCompletions_RejectsMultipleJSONObjects(t *testing.T) {
+	_, ts := setupHandler()
+	defer ts.Close()
+
+	body := []byte(`{"model":"auto","messages":[]} {"model":"auto"}`)
+	resp, err := http.Post(ts.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(b))
 	}
 }
 
