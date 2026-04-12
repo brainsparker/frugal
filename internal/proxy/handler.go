@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -165,20 +166,31 @@ func (h *Handler) ListModels(w http.ResponseWriter, r *http.Request) {
 		OwnedBy string `json:"owned_by"`
 	}
 
-	var data []modelObj
+	// Keep output deterministic and ensure "auto" appears exactly once.
+	nonAuto := make([]string, 0, len(models))
 	for _, m := range models {
+		if m == "auto" {
+			continue
+		}
+		nonAuto = append(nonAuto, m)
+	}
+	sort.Strings(nonAuto)
+
+	created := time.Now().Unix()
+	data := make([]modelObj, 0, len(nonAuto)+1)
+	for _, m := range nonAuto {
 		data = append(data, modelObj{
 			ID:      m,
 			Object:  "model",
-			Created: time.Now().Unix(),
+			Created: created,
 			OwnedBy: "frugal",
 		})
 	}
-	// Add the "auto" model
+
 	data = append(data, modelObj{
 		ID:      "auto",
 		Object:  "model",
-		Created: time.Now().Unix(),
+		Created: created,
 		OwnedBy: "frugal",
 	})
 
