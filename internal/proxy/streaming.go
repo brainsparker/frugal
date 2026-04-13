@@ -24,13 +24,17 @@ func streamResponse(w http.ResponseWriter, ch <-chan provider.StreamChunk) error
 	for chunk := range ch {
 		if chunk.Err != nil {
 			errData := fmt.Sprintf(`{"error":{"message":%q}}`, chunk.Err.Error())
-			fmt.Fprintf(w, "data: %s\n\n", errData)
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", errData); err != nil {
+				return err
+			}
 			flusher.Flush()
 			return chunk.Err
 		}
 
 		if chunk.Done {
-			fmt.Fprint(w, "data: [DONE]\n\n")
+			if _, err := fmt.Fprint(w, "data: [DONE]\n\n"); err != nil {
+				return err
+			}
 			flusher.Flush()
 			return nil
 		}
@@ -39,9 +43,17 @@ func streamResponse(w http.ResponseWriter, ch <-chan provider.StreamChunk) error
 		if err != nil {
 			continue
 		}
-		fmt.Fprintf(w, "data: %s\n\n", data)
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+			return err
+		}
 		flusher.Flush()
 	}
 
+	// Some providers close the stream channel without sending an explicit Done chunk.
+	// Emit the OpenAI-compatible terminator so clients don't wait indefinitely.
+	if _, err := fmt.Fprint(w, "data: [DONE]\n\n"); err != nil {
+		return err
+	}
+	flusher.Flush()
 	return nil
 }
