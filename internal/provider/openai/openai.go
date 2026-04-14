@@ -14,6 +14,19 @@ import (
 	"github.com/frugalsh/frugal/internal/types"
 )
 
+const errorBodyLimit = 8 << 10 // 8 KiB
+
+func readErrorBody(r io.Reader) string {
+	body, err := io.ReadAll(io.LimitReader(r, errorBodyLimit+1))
+	if err != nil {
+		return "<failed to read error body>"
+	}
+	if len(body) > errorBodyLimit {
+		return string(body[:errorBodyLimit]) + "... (truncated)"
+	}
+	return string(body)
+}
+
 type Provider struct {
 	apiKey  string
 	baseURL string
@@ -58,8 +71,7 @@ func (p *Provider) ChatCompletion(ctx context.Context, model string, req *types.
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("openai error %d: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("openai error %d: %s", resp.StatusCode, readErrorBody(resp.Body))
 	}
 
 	var result types.ChatCompletionResponse
@@ -94,8 +106,7 @@ func (p *Provider) ChatCompletionStream(ctx context.Context, model string, req *
 
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
-		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("openai error %d: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("openai error %d: %s", resp.StatusCode, readErrorBody(resp.Body))
 	}
 
 	ch := make(chan provider.StreamChunk, 8)
