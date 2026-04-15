@@ -19,7 +19,7 @@ func New(models []ModelEntry, thresholds map[string]Threshold) *Router {
 
 // Route selects a model based on query features and quality threshold.
 func (r *Router) Route(features types.QueryFeatures, quality types.QualityThreshold, fallbacks []string) types.RoutingDecision {
-	threshold := r.thresholds[string(quality)]
+	threshold := r.thresholdForQuality(quality)
 
 	// Filter candidates
 	var candidates []ModelEntry
@@ -32,8 +32,8 @@ func (r *Router) Route(features types.QueryFeatures, quality types.QualityThresh
 
 	if len(candidates) == 0 {
 		// Fallback: relax threshold to balanced, then cost
-		for _, fallbackQuality := range []string{"balanced", "cost"} {
-			ft := r.thresholds[fallbackQuality]
+		for _, fallbackQuality := range []types.QualityThreshold{types.QualityBalanced, types.QualityCost} {
+			ft := r.thresholdForQuality(fallbackQuality)
 			for _, m := range r.models {
 				if r.meetsRequirements(m, features, ft) {
 					candidates = append(candidates, m)
@@ -74,6 +74,16 @@ func (r *Router) Route(features types.QueryFeatures, quality types.QualityThresh
 		EstimatedCost:    r.estimateCost(selected, features),
 		FallbackChain:    fallbacks,
 	}
+}
+
+func (r *Router) thresholdForQuality(quality types.QualityThreshold) Threshold {
+	if t, ok := r.thresholds[string(quality)]; ok {
+		return t
+	}
+	if t, ok := r.thresholds[string(types.QualityBalanced)]; ok {
+		return t
+	}
+	return Threshold{}
 }
 
 func (r *Router) meetsRequirements(m ModelEntry, f types.QueryFeatures, t Threshold) bool {

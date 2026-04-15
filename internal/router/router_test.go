@@ -162,3 +162,35 @@ func TestRoute_NoModels_ReturnsEmpty(t *testing.T) {
 		t.Errorf("expected empty model when no models available, got %s", d.SelectedModel)
 	}
 }
+
+func TestRoute_UnknownQualityDefaultsToBalancedThreshold(t *testing.T) {
+	r := New(testModels(), testThresholds())
+
+	features := types.QueryFeatures{
+		EstimatedInputTokens:  100,
+		EstimatedOutputTokens: 100,
+	}
+
+	d := r.Route(features, types.QualityThreshold("unknown"), nil)
+
+	if d.SelectedModel != "mid-model" {
+		t.Errorf("expected balanced fallback model mid-model for unknown quality, got %s", d.SelectedModel)
+	}
+}
+
+func TestRoute_MissingRequestedThresholdFallsBackToBalanced(t *testing.T) {
+	thresholds := testThresholds()
+	delete(thresholds, "high")
+	r := New(testModels(), thresholds)
+
+	features := types.QueryFeatures{
+		EstimatedInputTokens:  100,
+		EstimatedOutputTokens: 100,
+	}
+
+	d := r.Route(features, types.QualityHigh, nil)
+
+	if d.SelectedModel != "mid-model" {
+		t.Errorf("expected balanced fallback model mid-model when high threshold missing, got %s", d.SelectedModel)
+	}
+}
