@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/frugalsh/frugal/internal/router"
 	"github.com/frugalsh/frugal/internal/types"
 )
+
+const maxFallbackAttempts = 3
 
 // Handler serves the OpenAI-compatible API endpoints.
 type Handler struct {
@@ -107,7 +110,7 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, prov p
 	resp, err := prov.ChatCompletion(r.Context(), decision.SelectedModel, req)
 	if err != nil {
 		// Try fallback chain
-		for _, fb := range fallbacks {
+		for _, fb := range boundedFallbacks(fallbacks) {
 			fbProv, fbErr := h.registry.Resolve(fb)
 			if fbErr != nil {
 				continue
@@ -132,7 +135,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, prov prov
 	ch, err := prov.ChatCompletionStream(r.Context(), decision.SelectedModel, req)
 	if err != nil {
 		// Try fallback chain
-		for _, fb := range fallbacks {
+		for _, fb := range boundedFallbacks(fallbacks) {
 			fbProv, fbErr := h.registry.Resolve(fb)
 			if fbErr != nil {
 				continue
@@ -152,6 +155,28 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, prov prov
 	if err := streamResponse(w, ch); err != nil {
 		log.Printf("stream error: %v", err)
 	}
+}
+
+func boundedFallbacks(fallbacks []string) []string {
+	if len(fallbacks) == 0 {
+		return nil
+	}
+
+	bounded := make([]string, 0, maxFallbackAttempts)
+	for _, fb := range fallbacks {
+		if len(bounded) >= maxFallbackAttempts {
+			break
+		}
+
+		trimmed := strings.TrimSpace(fb)
+		if trimmed == "" {
+			continue
+		}
+
+		bounded = append(bounded, trimmed)
+	}
+
+	return bounded
 }
 
 // ListModels handles GET /v1/models
