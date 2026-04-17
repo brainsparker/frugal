@@ -1,7 +1,6 @@
 package anthropic
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -259,7 +258,7 @@ func (p *Provider) ChatCompletionStream(ctx context.Context, model string, req *
 		defer resp.Body.Close()
 
 		chunkID := fmt.Sprintf("chatcmpl-%s", ar.Model)
-		scanner := bufio.NewScanner(resp.Body)
+		scanner := provider.NewSSEScanner(resp.Body)
 
 		for scanner.Scan() {
 			line := scanner.Text()

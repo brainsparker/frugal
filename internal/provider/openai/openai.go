@@ -1,7 +1,6 @@
 package openai
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -103,7 +102,7 @@ func (p *Provider) ChatCompletionStream(ctx context.Context, model string, req *
 		defer close(ch)
 		defer resp.Body.Close()
 
-		scanner := bufio.NewScanner(resp.Body)
+		scanner := provider.NewSSEScanner(resp.Body)
 		for scanner.Scan() {
 			line := scanner.Text()
 			if !strings.HasPrefix(line, "data: ") {
