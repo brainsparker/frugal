@@ -122,6 +122,7 @@ headers = {"X-Frugal-Fallback": "gpt-4o,claude-sonnet-4-20250514,gemini-2.5-flas
 
 If the routed model errors, Frugal walks the chain.
 To bound latency and cost, Frugal attempts at most the first 3 fallback models.
+Frugal skips fallbacks that duplicate the routed model and ignores duplicate fallback entries.
 
 ## Supported models
 

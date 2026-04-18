@@ -419,3 +419,33 @@ func TestChatCompletions_FallbackAttemptsAreBounded(t *testing.T) {
 		t.Fatalf("expected last attempted fallback model fb3, got %s", got)
 	}
 }
+
+func TestBoundedFallbacks_SkipsSelectedModelAndDuplicates(t *testing.T) {
+	got := boundedFallbacks([]string{" gpt-4o ", "gpt-4o", "", "claude-3-5-sonnet", "CLAUDE-3-5-SONNET", "gemini-2.5-flash"}, "gpt-4o")
+	want := []string{"claude-3-5-sonnet", "gemini-2.5-flash"}
+
+	if len(got) != len(want) {
+		t.Fatalf("expected %d fallbacks, got %d (%v)", len(want), len(got), got)
+	}
+
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected fallback %d = %s, got %s", i, want[i], got[i])
+		}
+	}
+}
+
+func TestBoundedFallbacks_DedupesBeforeApplyingAttemptLimit(t *testing.T) {
+	got := boundedFallbacks([]string{"a", "a", "b", "c", "d"}, "")
+	want := []string{"a", "b", "c"}
+
+	if len(got) != len(want) {
+		t.Fatalf("expected %d fallbacks, got %d (%v)", len(want), len(got), got)
+	}
+
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected fallback %d = %s, got %s", i, want[i], got[i])
+		}
+	}
+}

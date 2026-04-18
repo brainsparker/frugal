@@ -110,7 +110,7 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, prov p
 	resp, err := prov.ChatCompletion(r.Context(), decision.SelectedModel, req)
 	if err != nil {
 		// Try fallback chain
-		for _, fb := range boundedFallbacks(fallbacks) {
+		for _, fb := range boundedFallbacks(fallbacks, decision.SelectedModel) {
 			fbProv, fbErr := h.registry.Resolve(fb)
 			if fbErr != nil {
 				continue
@@ -135,7 +135,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, prov prov
 	ch, err := prov.ChatCompletionStream(r.Context(), decision.SelectedModel, req)
 	if err != nil {
 		// Try fallback chain
-		for _, fb := range boundedFallbacks(fallbacks) {
+		for _, fb := range boundedFallbacks(fallbacks, decision.SelectedModel) {
 			fbProv, fbErr := h.registry.Resolve(fb)
 			if fbErr != nil {
 				continue
@@ -157,12 +157,13 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, prov prov
 	}
 }
 
-func boundedFallbacks(fallbacks []string) []string {
+func boundedFallbacks(fallbacks []string, selectedModel string) []string {
 	if len(fallbacks) == 0 {
 		return nil
 	}
 
 	bounded := make([]string, 0, maxFallbackAttempts)
+	seen := make(map[string]struct{}, len(fallbacks))
 	for _, fb := range fallbacks {
 		if len(bounded) >= maxFallbackAttempts {
 			break
@@ -172,6 +173,16 @@ func boundedFallbacks(fallbacks []string) []string {
 		if trimmed == "" {
 			continue
 		}
+
+		if strings.EqualFold(trimmed, selectedModel) {
+			continue
+		}
+
+		key := strings.ToLower(trimmed)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
 
 		bounded = append(bounded, trimmed)
 	}
