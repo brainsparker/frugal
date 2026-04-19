@@ -174,4 +174,7 @@ make release  # cross-compile for all platforms
 
 ## License
 
-MIT
+[Business Source License 1.1](./LICENSE) — self-hosting and internal
+production use are permitted; offering Frugal as a competing hosted routing
+service is not. Each version converts to Apache 2.0 four years after release.
+See the [BUSL FAQ](./LICENSE-BUSL-FAQ.md) for a plain-English summary.
