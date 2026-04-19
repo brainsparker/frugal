@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -125,6 +126,7 @@ func newHTTPServer(addr string, handler http.Handler) *http.Server {
 		ReadTimeout:       envDurationOrDefault("FRUGAL_READ_TIMEOUT", 15*time.Second),
 		WriteTimeout:      envDurationOrDefault("FRUGAL_WRITE_TIMEOUT", 120*time.Second),
 		IdleTimeout:       envDurationOrDefault("FRUGAL_IDLE_TIMEOUT", 60*time.Second),
+		MaxHeaderBytes:    envIntOrDefault("FRUGAL_MAX_HEADER_BYTES", http.DefaultMaxHeaderBytes),
 	}
 }
 
@@ -137,6 +139,21 @@ func envDurationOrDefault(key string, fallback time.Duration) time.Duration {
 	parsed, err := time.ParseDuration(value)
 	if err != nil || parsed <= 0 {
 		log.Printf("warning: invalid %s=%q, using default %s", key, value, fallback)
+		return fallback
+	}
+
+	return parsed
+}
+
+func envIntOrDefault(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		log.Printf("warning: invalid %s=%q, using default %d", key, value, fallback)
 		return fallback
 	}
 

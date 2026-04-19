@@ -52,6 +52,7 @@ func TestNewHTTPServerDefaults(t *testing.T) {
 	t.Setenv("FRUGAL_READ_TIMEOUT", "")
 	t.Setenv("FRUGAL_WRITE_TIMEOUT", "")
 	t.Setenv("FRUGAL_IDLE_TIMEOUT", "")
+	t.Setenv("FRUGAL_MAX_HEADER_BYTES", "")
 
 	srv := newHTTPServer(":8080", http.NewServeMux())
 
@@ -67,6 +68,9 @@ func TestNewHTTPServerDefaults(t *testing.T) {
 	if srv.IdleTimeout != 60*time.Second {
 		t.Fatalf("expected default idle timeout 60s, got %s", srv.IdleTimeout)
 	}
+	if srv.MaxHeaderBytes != http.DefaultMaxHeaderBytes {
+		t.Fatalf("expected default max header bytes %d, got %d", http.DefaultMaxHeaderBytes, srv.MaxHeaderBytes)
+	}
 }
 
 func TestNewHTTPServerEnvOverrides(t *testing.T) {
@@ -74,6 +78,7 @@ func TestNewHTTPServerEnvOverrides(t *testing.T) {
 	t.Setenv("FRUGAL_READ_TIMEOUT", "20s")
 	t.Setenv("FRUGAL_WRITE_TIMEOUT", "150s")
 	t.Setenv("FRUGAL_IDLE_TIMEOUT", "75s")
+	t.Setenv("FRUGAL_MAX_HEADER_BYTES", "65536")
 
 	srv := newHTTPServer(":8080", http.NewServeMux())
 
@@ -88,6 +93,9 @@ func TestNewHTTPServerEnvOverrides(t *testing.T) {
 	}
 	if srv.IdleTimeout != 75*time.Second {
 		t.Fatalf("expected idle timeout 75s, got %s", srv.IdleTimeout)
+	}
+	if srv.MaxHeaderBytes != 65536 {
+		t.Fatalf("expected max header bytes 65536, got %d", srv.MaxHeaderBytes)
 	}
 }
 
@@ -107,5 +115,24 @@ func TestEnvDurationOrDefaultInvalidValues(t *testing.T) {
 	t.Setenv(key, "-2s")
 	if got := envDurationOrDefault(key, 3*time.Second); got != 3*time.Second {
 		t.Fatalf("expected fallback for negative duration, got %s", got)
+	}
+}
+
+func TestEnvIntOrDefaultInvalidValues(t *testing.T) {
+	const key = "FRUGAL_INT_TEST"
+
+	t.Setenv(key, "not-an-int")
+	if got := envIntOrDefault(key, 1234); got != 1234 {
+		t.Fatalf("expected fallback for invalid int, got %d", got)
+	}
+
+	t.Setenv(key, "0")
+	if got := envIntOrDefault(key, 1234); got != 1234 {
+		t.Fatalf("expected fallback for zero int, got %d", got)
+	}
+
+	t.Setenv(key, "-10")
+	if got := envIntOrDefault(key, 1234); got != 1234 {
+		t.Fatalf("expected fallback for negative int, got %d", got)
 	}
 }

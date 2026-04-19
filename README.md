@@ -95,6 +95,7 @@ Optional hardening timeouts (Go duration syntax):
 - `FRUGAL_READ_TIMEOUT` (default `15s`)
 - `FRUGAL_WRITE_TIMEOUT` (default `120s`)
 - `FRUGAL_IDLE_TIMEOUT` (default `60s`)
+- `FRUGAL_MAX_HEADER_BYTES` (default `1048576`)
 
 ### Quality thresholds
 
