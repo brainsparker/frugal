@@ -41,7 +41,7 @@ func New(apiKey, baseURL string, models []string) *Provider {
 		apiKey:  apiKey,
 		baseURL: baseURL,
 		models:  models,
-		client:  &http.Client{},
+		client:  provider.NewHTTPClient(),
 	}
 }
 
