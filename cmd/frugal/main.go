@@ -93,6 +93,7 @@ func main() {
 
 	// Wire routes
 	r := chi.NewRouter()
+	r.Use(proxy.RecoverMiddleware)
 	r.Use(proxy.LoggingMiddleware)
 	r.Use(proxy.HeaderExtractionMiddleware)
 

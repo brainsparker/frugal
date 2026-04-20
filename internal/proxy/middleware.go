@@ -2,8 +2,10 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -53,6 +55,27 @@ func HeaderExtractionMiddleware(next http.Handler) http.Handler {
 		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// RecoverMiddleware catches panics from handlers and returns a structured 500.
+func RecoverMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("panic recovered on %s %s: %v\n%s", r.Method, r.URL.Path, rec, debug.Stack())
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error": map[string]any{
+						"message": "internal server error",
+						"type":    "frugal_error",
+					},
+				})
+			}
+		}()
+
+		next.ServeHTTP(w, r)
 	})
 }
 
