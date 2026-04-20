@@ -77,6 +77,24 @@ func TestClassify_MathRequest(t *testing.T) {
 	}
 }
 
+func TestClassify_CaseInsensitiveKeywordDetection(t *testing.T) {
+	c := NewRuleBased()
+	req := &types.ChatCompletionRequest{
+		Messages: []types.Message{
+			msg("user", "Write a Function that solves this Equation"),
+		},
+	}
+
+	f := c.Classify(req)
+
+	if !f.HasCode {
+		t.Error("expected HasCode=true for mixed-case coding keyword")
+	}
+	if !f.HasMath {
+		t.Error("expected HasMath=true for mixed-case math keyword")
+	}
+}
+
 func TestClassify_WithSystemPrompt(t *testing.T) {
 	c := NewRuleBased()
 	longSystem := "You are a helpful assistant. " // short

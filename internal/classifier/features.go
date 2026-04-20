@@ -9,9 +9,9 @@ import (
 
 var (
 	codeBlockRe   = regexp.MustCompile("(?s)```")
-	codeFuncRe    = regexp.MustCompile(`\b(function|def|class|import|export|package|struct|interface|impl|fn|pub|const|let|var)\b`)
+	codeFuncRe    = regexp.MustCompile(`(?i)\b(function|def|class|import|export|package|struct|interface|impl|fn|pub|const|let|var)\b`)
 	mathLatexRe   = regexp.MustCompile(`\$[^$]+\$|\\(begin|end)\{|\\frac|\\sum|\\int|\\sqrt`)
-	mathKeywordRe = regexp.MustCompile(`\b(equation|derivative|integral|matrix|eigenvalue|polynomial|theorem|proof|calculus)\b`)
+	mathKeywordRe = regexp.MustCompile(`(?i)\b(equation|derivative|integral|matrix|eigenvalue|polynomial|theorem|proof|calculus)\b`)
 )
 
 func extractFeatures(req *types.ChatCompletionRequest) types.QueryFeatures {
