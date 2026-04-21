@@ -1,0 +1,40 @@
+id: code-dev
+description: >
+  Code generation, debugging, code review, code explanation, and test
+  authoring. Chat-heavy workload that benefits from targeted doc/Stack
+  Overflow lookups via search but rarely needs reranking. The model's
+  coding-benchmark score (Aider, HumanEval-plus) drives routing more
+  than general reasoning.
+
+source: curated
+as_of: "2026-04-21"
+confidence: medium
+
+bundles:
+  high:
+    chat: gpt-4.1
+    search: null   # Ring 1b will route to Serper (Stack Overflow / docs)
+    rerank: null
+    reason: >
+      GPT-4.1 leads Aider-polyglot and holds up on long-context code
+      reading. Worth the premium on non-trivial refactors and debugging.
+
+  balanced:
+    chat: gpt-4.1-mini
+    search: null
+    rerank: null
+    reason: >
+      4.1-mini is the pragmatic default for day-to-day coding — strong
+      coding scores at mini-tier cost. Claude Sonnet 4 is comparable on
+      quality but measurably pricier per token.
+
+  cost:
+    chat: gpt-4o-mini
+    search: null
+    rerank: null
+    reason: >
+      Good enough for single-file edits, linting-style fixes, and
+      formatting. Breaks down on multi-file reasoning; flag that to
+      callers via bundle `reason`.
+
+workload: config/workloads/use-cases/code-dev.yaml

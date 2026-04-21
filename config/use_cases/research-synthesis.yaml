@@ -1,0 +1,45 @@
+id: research-synthesis
+description: >
+  Long-form research questions requiring multi-source synthesis. Examples:
+  "summarize recent advances in X", "compare architectural approaches across
+  three systems", literature reviews, and analyst reports. Typically needs
+  long-context reasoning plus retrieval and reranking to keep prompt costs
+  under control.
+
+# Curation is author-judgment today. `frugal bench --use-case research-synthesis`
+# produces the data that will eventually flip `source` to `benchmark-derived`.
+source: curated
+as_of: "2026-04-21"
+confidence: medium
+
+# Each bundle declares the recommended (capability → model) map for a quality
+# tier. Ring 1a populates only `chat`. `search` lights up in Ring 1b (web
+# search capability) and `rerank` in Ring 1c. Null fields are intentionally
+# left in place so the schema is stable as capabilities expand.
+bundles:
+  high:
+    chat: claude-opus-4-20250918
+    search: null
+    rerank: null
+    reason: >
+      Opus handles long context and multi-source reasoning best; the cost
+      premium is justified when the caller's work hinges on synthesis quality.
+
+  balanced:
+    chat: claude-sonnet-4-20250514
+    search: null
+    rerank: null
+    reason: >
+      Sonnet 4 is ~80% of Opus quality at 40% of the cost on long-form
+      research tasks. Default choice for the use case.
+
+  cost:
+    chat: gpt-4o-mini
+    search: null
+    rerank: null
+    reason: >
+      Budget tier. Accepts reduced breadth and less nuanced synthesis for
+      ~90% lower per-request cost. Best paired with a stricter rerank
+      pass once Ring 1c lands.
+
+workload: config/workloads/use-cases/research-synthesis.yaml

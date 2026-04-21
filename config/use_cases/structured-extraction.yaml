@@ -1,0 +1,42 @@
+id: structured-extraction
+description: >
+  Free-text to JSON extraction, entity/field extraction, schema filling,
+  and format conversion. No toolchain needed — the bundle deliberately
+  leaves `search` and `rerank` null at every tier. The routing value comes
+  from picking the cheapest JSON-mode-capable model that reliably emits
+  schema-conformant output.
+
+source: curated
+as_of: "2026-04-21"
+confidence: high
+
+bundles:
+  high:
+    chat: gpt-4o-mini
+    search: null
+    rerank: null
+    reason: >
+      Even at the "high" tier this use case doesn't benefit from frontier
+      models — JSON-mode reliability saturates at mini-tier. 4o-mini is
+      the pick for schemas with nested/discriminated unions where
+      schema-conformant output matters more than tone.
+
+  balanced:
+    chat: gemini-2.5-flash
+    search: null
+    rerank: null
+    reason: >
+      Gemini 2.5 Flash is reliable on JSON mode and a bit cheaper than
+      4o-mini per token for the typical extraction request. Default
+      choice for this use case.
+
+  cost:
+    chat: gemini-2.0-flash
+    search: null
+    rerank: null
+    reason: >
+      The absolute floor. Accepts occasional schema drift for the lowest
+      per-request cost; recommend retrying with `balanced` on
+      validation-failure.
+
+workload: config/workloads/use-cases/structured-extraction.yaml

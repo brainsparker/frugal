@@ -20,6 +20,7 @@ type contextKey string
 const (
 	qualityKey  contextKey = "frugal_quality"
 	fallbackKey contextKey = "frugal_fallback"
+	useCaseKey  contextKey = "frugal_use_case"
 )
 
 // QualityFromContext extracts the quality threshold from the request context.
@@ -36,6 +37,16 @@ func FallbacksFromContext(ctx context.Context) []string {
 		return v
 	}
 	return nil
+}
+
+// UseCaseFromContext extracts the caller-declared use case (from
+// X-Frugal-Use-Case header). Returns "" when the header was absent — the
+// handler then falls through to non-use-case routing.
+func UseCaseFromContext(ctx context.Context) string {
+	if v, ok := ctx.Value(useCaseKey).(string); ok {
+		return v
+	}
+	return ""
 }
 
 // RequestIDMiddleware propagates or generates an X-Request-ID header, attaches
@@ -156,6 +167,12 @@ func HeaderExtractionMiddleware(next http.Handler) http.Handler {
 				parts[i] = strings.TrimSpace(parts[i])
 			}
 			ctx = context.WithValue(ctx, fallbackKey, parts)
+		}
+
+		// Use case header is validated against the registry by the handler,
+		// not here — middleware shouldn't need the registry reference.
+		if uc := strings.TrimSpace(r.Header.Get("X-Frugal-Use-Case")); uc != "" {
+			ctx = context.WithValue(ctx, useCaseKey, uc)
 		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))

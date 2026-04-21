@@ -1,0 +1,38 @@
+id: factual-qa
+description: >
+  Short factual lookups, trivia, definitional questions, and one-turn
+  Q&A. The model mostly recalls or does shallow reasoning over a small
+  context. Expensive frontier models are wasted here — the bundle
+  deliberately picks mini/nano tiers.
+
+source: curated
+as_of: "2026-04-21"
+confidence: high
+
+bundles:
+  high:
+    chat: gpt-4o-mini
+    search: null   # Ring 1b will route to a cheap SERP for temporal queries
+    rerank: null
+    reason: >
+      Even at the "high" tier this use case doesn't need frontier models.
+      4o-mini scores within a couple of points of GPT-4o on TriviaQA at
+      a fraction of the cost.
+
+  balanced:
+    chat: gpt-4.1-nano
+    search: null
+    rerank: null
+    reason: >
+      Nano is genuinely good on one-turn factual Q&A. Default for this
+      use case.
+
+  cost:
+    chat: gemini-2.0-flash
+    search: null
+    rerank: null
+    reason: >
+      Flash is the absolute floor — low per-token cost, adequate on
+      factual recall.
+
+workload: config/workloads/use-cases/factual-qa.yaml

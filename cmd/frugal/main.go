@@ -28,6 +28,7 @@ import (
 	"github.com/frugalsh/frugal/internal/provider/openai"
 	"github.com/frugalsh/frugal/internal/proxy"
 	"github.com/frugalsh/frugal/internal/router"
+	"github.com/frugalsh/frugal/internal/usecase"
 )
 
 func main() {
@@ -110,8 +111,21 @@ func main() {
 	}
 	rtr := router.New(modelEntries, thresholds)
 
+	// Load use-case registry. Dir resolves relative to the binary's working
+	// directory; override via FRUGAL_USE_CASES_DIR. An absent or empty dir
+	// disables use-case routing without failing startup.
+	useCaseDir := os.Getenv("FRUGAL_USE_CASES_DIR")
+	if useCaseDir == "" {
+		useCaseDir = "config/use_cases"
+	}
+	useCases, err := usecase.Load(useCaseDir)
+	if err != nil {
+		log.Fatalf("failed to load use cases from %s: %v", useCaseDir, err)
+	}
+	slog.Info("use cases loaded", "dir", useCaseDir, "count", useCases.Len())
+
 	// Build HTTP handler
-	h := proxy.NewHandler(cls, rtr, registry)
+	h := proxy.NewHandlerWithUseCases(cls, rtr, registry, useCases)
 
 	addr := "127.0.0.1:8080"
 	if a := os.Getenv("FRUGAL_ADDR"); a != "" {
@@ -141,6 +155,8 @@ func main() {
 	r.Post("/v1/chat/completions", h.ChatCompletions)
 	r.Get("/v1/models", h.ListModels)
 	r.Get("/v1/routing/explain", h.RoutingExplain)
+	r.Get("/v1/bundles", h.ListBundles)
+	r.Get("/v1/bundles/{useCase}", h.GetBundle)
 
 	// Health check — always unauthenticated so deployment probes keep working.
 	// Reports provider list + model count so operators can distinguish "server

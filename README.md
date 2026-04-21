@@ -42,6 +42,44 @@ billed you for. See [`config/workloads/starter.yaml`](./config/workloads/starter
 for the problem set and [`config/CAPABILITIES.md`](./config/CAPABILITIES.md)
 for the methodology behind the capability scores the router uses.
 
+## Use-case-first routing
+
+Frugal's long-term shape is **use-case-first routing**: tell Frugal what you're
+doing and it delivers the model + toolchain bundle that's proven best for that
+kind of work. Set the `X-Frugal-Use-Case` header and the chat request routes to
+the bundle's chat model for your quality tier.
+
+```bash
+curl -X POST http://localhost:8080/v1/chat/completions \
+  -H "X-Frugal-Use-Case: research-synthesis" \
+  -H "X-Frugal-Quality: balanced" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"auto","messages":[{"role":"user","content":"..."}]}'
+```
+
+The starter catalog ships four use cases in [`config/use_cases/`](./config/use_cases/):
+
+| Use case | What it matches | Balanced tier |
+|---|---|---|
+| `research-synthesis` | Long-form multi-source research | Claude Sonnet 4 |
+| `code-dev` | Code generation, debugging, review | GPT-4.1 mini |
+| `factual-qa` | Short factual lookups, trivia | GPT-4.1 nano |
+| `structured-extraction` | Free text → JSON | Gemini 2.5 Flash |
+
+Inspect bundles directly:
+
+```bash
+curl http://localhost:8080/v1/bundles                           # every use case
+curl http://localhost:8080/v1/bundles/research-synthesis        # default balanced tier
+curl http://localhost:8080/v1/bundles/research-synthesis?quality=high
+```
+
+Bundles today are **curated** (`source: curated` in the YAML), with `as_of`
+dates tracking when each was last refreshed. Upcoming releases add web search
+and reranking as routed capabilities so bundles can declare the full toolchain,
+not just the chat model. When `X-Frugal-Use-Case` is absent the classifier/router
+path runs exactly as before — use-case routing is opt-in.
+
 ---
 
 ## How it works

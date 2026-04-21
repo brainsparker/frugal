@@ -13,12 +13,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/frugalsh/frugal/internal/classifier"
 	"github.com/frugalsh/frugal/internal/metrics"
 	"github.com/frugalsh/frugal/internal/obs"
 	"github.com/frugalsh/frugal/internal/provider"
 	"github.com/frugalsh/frugal/internal/router"
 	"github.com/frugalsh/frugal/internal/types"
+	"github.com/frugalsh/frugal/internal/usecase"
 )
 
 const (
@@ -47,6 +50,10 @@ type Handler struct {
 	classifier classifier.Classifier
 	router     *router.Router
 	registry   *provider.Registry
+	// useCases is optional — a nil or empty registry disables use-case
+	// routing and the /v1/bundles endpoints. The handler still works
+	// exactly as before in that mode.
+	useCases *usecase.Registry
 
 	// Decision storage: the hot path posts to decisionCh (non-blocking send
 	// with a drop-on-full policy so a slow /routing/explain consumer never
@@ -60,6 +67,13 @@ type Handler struct {
 }
 
 func NewHandler(cls classifier.Classifier, rtr *router.Router, reg *provider.Registry) *Handler {
+	return NewHandlerWithUseCases(cls, rtr, reg, nil)
+}
+
+// NewHandlerWithUseCases is the same as NewHandler but wires in a
+// use-case registry. Passing nil preserves the legacy (chat-routing-only)
+// behavior.
+func NewHandlerWithUseCases(cls classifier.Classifier, rtr *router.Router, reg *provider.Registry, uc *usecase.Registry) *Handler {
 	size := envIntOrDefault("FRUGAL_DECISION_BUFFER", defaultDecisionBufferSize)
 	if size <= 0 {
 		size = defaultDecisionBufferSize
@@ -68,6 +82,7 @@ func NewHandler(cls classifier.Classifier, rtr *router.Router, reg *provider.Reg
 		classifier: cls,
 		router:     rtr,
 		registry:   reg,
+		useCases:   uc,
 		decisionCh: make(chan types.RoutingDecision, size),
 		decisions:  make([]types.RoutingDecision, 100),
 	}
@@ -141,12 +156,46 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	quality := QualityFromContext(r.Context())
 	fallbacks := FallbacksFromContext(r.Context())
+	useCaseID := UseCaseFromContext(r.Context())
 
 	var decision types.RoutingDecision
 	var prov provider.Provider
 
-	// Model pinning: if model is not "auto" and not empty, try to resolve directly
-	if req.Model != "" && req.Model != "auto" {
+	// Use-case routing: when X-Frugal-Use-Case is set, look up the bundle's
+	// chat model for the requested quality tier and pin to it. Unknown use
+	// case → 400 so caller typos surface immediately. Unknown tier or an
+	// unregistered bundle model → fall through to the classifier rather than
+	// hard-failing (degrades gracefully if a use case references a model
+	// whose provider key isn't configured).
+	if useCaseID != "" {
+		if h.useCases == nil || h.useCases.Len() == 0 {
+			writeError(w, http.StatusBadRequest, "X-Frugal-Use-Case set but no use cases are configured on this server")
+			return
+		}
+		if _, ok := h.useCases.Get(useCaseID); !ok {
+			known := strings.Join(h.useCases.IDs(), ", ")
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("unknown use case %q; known: %s", useCaseID, known))
+			return
+		}
+		if bundle, ok := h.useCases.Bundle(useCaseID, string(quality)); ok && bundle.Chat != "" {
+			if p, err := h.registry.Resolve(bundle.Chat); err == nil {
+				prov = p
+				decision = types.RoutingDecision{
+					SelectedModel:    bundle.Chat,
+					SelectedProvider: p.Name(),
+					Quality:          string(quality),
+					Pinned:           true,
+					Reason: fmt.Sprintf("pinned by use case %q at %s tier: %s",
+						useCaseID, quality, strings.TrimSpace(bundle.Reason)),
+				}
+				w.Header().Set("X-Frugal-Use-Case", useCaseID)
+			}
+		}
+	}
+
+	// Model pinning: if model is not "auto" and not empty, try to resolve directly.
+	// Skipped if use-case routing already resolved a provider.
+	if prov == nil && req.Model != "" && req.Model != "auto" {
 		if p, err := h.registry.Resolve(req.Model); err == nil {
 			prov = p
 			decision = types.RoutingDecision{
@@ -437,6 +486,82 @@ func (h *Handler) ListModels(w http.ResponseWriter, r *http.Request) {
 }
 
 // RoutingExplain handles GET /v1/routing/explain
+// ListBundles handles GET /v1/bundles — returns the set of known use cases
+// with their bundles at every tier. Frontend-friendly for a "what can I
+// route?" UI or a CLI lister.
+func (h *Handler) ListBundles(w http.ResponseWriter, r *http.Request) {
+	if h.useCases == nil || h.useCases.Len() == 0 {
+		writeError(w, http.StatusNotFound, "no use cases configured")
+		return
+	}
+	type bundleOut struct {
+		Chat   string `json:"chat"`
+		Search string `json:"search,omitempty"`
+		Rerank string `json:"rerank,omitempty"`
+		Reason string `json:"reason,omitempty"`
+	}
+	type caseOut struct {
+		ID          string               `json:"id"`
+		Description string               `json:"description"`
+		Source      string               `json:"source"`
+		AsOf        string               `json:"as_of"`
+		Confidence  string               `json:"confidence"`
+		Bundles     map[string]bundleOut `json:"bundles"`
+	}
+	out := make([]caseOut, 0, h.useCases.Len())
+	for _, id := range h.useCases.IDs() {
+		uc, _ := h.useCases.Get(id)
+		bundles := map[string]bundleOut{}
+		for tier, b := range uc.Bundles {
+			bundles[tier] = bundleOut{Chat: b.Chat, Search: b.Search, Rerank: b.Rerank, Reason: b.Reason}
+		}
+		out = append(out, caseOut{
+			ID: uc.ID, Description: uc.Description, Source: uc.Source,
+			AsOf: uc.AsOf, Confidence: uc.Confidence, Bundles: bundles,
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"data": out})
+}
+
+// GetBundle handles GET /v1/bundles/{use-case}?quality=TIER — returns the
+// (capability → model) map for one use case at one tier. Tier defaults to
+// balanced when the query param is absent.
+func (h *Handler) GetBundle(w http.ResponseWriter, r *http.Request) {
+	if h.useCases == nil || h.useCases.Len() == 0 {
+		writeError(w, http.StatusNotFound, "no use cases configured")
+		return
+	}
+	id := chi.URLParam(r, "useCase")
+	uc, ok := h.useCases.Get(id)
+	if !ok {
+		known := strings.Join(h.useCases.IDs(), ", ")
+		writeError(w, http.StatusNotFound, fmt.Sprintf("unknown use case %q; known: %s", id, known))
+		return
+	}
+	tier := r.URL.Query().Get("quality")
+	if tier == "" {
+		tier = "balanced"
+	}
+	bundle, ok := uc.Bundles[tier]
+	if !ok {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("use case %q has no %q tier", id, tier))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"use_case":   uc.ID,
+		"quality":    tier,
+		"chat":       bundle.Chat,
+		"search":     bundle.Search,
+		"rerank":     bundle.Rerank,
+		"reason":     strings.TrimSpace(bundle.Reason),
+		"source":     uc.Source,
+		"as_of":      uc.AsOf,
+		"confidence": uc.Confidence,
+	})
+}
+
 func (h *Handler) RoutingExplain(w http.ResponseWriter, r *http.Request) {
 	h.mu.Lock()
 	d := h.lastDecision

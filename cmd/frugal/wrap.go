@@ -26,6 +26,7 @@ import (
 	provopenai "github.com/frugalsh/frugal/internal/provider/openai"
 	"github.com/frugalsh/frugal/internal/proxy"
 	"github.com/frugalsh/frugal/internal/router"
+	"github.com/frugalsh/frugal/internal/usecase"
 )
 
 // runWrap starts the proxy on a free port, runs the given command with
@@ -58,7 +59,20 @@ func runWrap(configPath string, args []string) int {
 		return 1
 	}
 	rtr := router.New(modelEntries, thresholds)
-	h := proxy.NewHandler(cls, rtr, registry)
+
+	// Load use cases (same path resolution as serve mode; empty dir is
+	// allowed and silently disables use-case routing).
+	useCaseDir := os.Getenv("FRUGAL_USE_CASES_DIR")
+	if useCaseDir == "" {
+		useCaseDir = "config/use_cases"
+	}
+	useCases, err := usecase.Load(useCaseDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "frugal: failed to load use cases from %s: %v\n", useCaseDir, err)
+		return 1
+	}
+
+	h := proxy.NewHandlerWithUseCases(cls, rtr, registry, useCases)
 
 	// Wrap mode always binds loopback, but shared machines still expose the
 	// port to any local user. Generate a one-shot bearer token per wrap, seal
@@ -77,6 +91,8 @@ func runWrap(configPath string, args []string) int {
 	r.Post("/v1/chat/completions", h.ChatCompletions)
 	r.Get("/v1/models", h.ListModels)
 	r.Get("/v1/routing/explain", h.RoutingExplain)
+	r.Get("/v1/bundles", h.ListBundles)
+	r.Get("/v1/bundles/{useCase}", h.GetBundle)
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
