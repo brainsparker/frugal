@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -91,33 +92,83 @@ func main() {
 	// Build HTTP handler
 	h := proxy.NewHandler(cls, rtr, registry)
 
+	addr := "127.0.0.1:8080"
+	if a := os.Getenv("FRUGAL_ADDR"); a != "" {
+		addr = a
+	}
+
+	authToken := os.Getenv("FRUGAL_AUTH_TOKEN")
+	if err := guardUnauthenticatedBind(addr, authToken); err != nil {
+		log.Fatalf("startup rejected: %v", err)
+	}
+
+	rps := envIntOrDefault("FRUGAL_RPS", 30)
+	burst := envIntOrDefault("FRUGAL_BURST", 60)
+
 	// Wire routes
 	r := chi.NewRouter()
 	r.Use(proxy.RecoverMiddleware)
 	r.Use(proxy.LoggingMiddleware)
+	r.Use(proxy.RateLimitMiddleware(rps, burst))
+	r.Use(proxy.AuthMiddleware(authToken))
 	r.Use(proxy.HeaderExtractionMiddleware)
 
 	r.Post("/v1/chat/completions", h.ChatCompletions)
 	r.Get("/v1/models", h.ListModels)
 	r.Get("/v1/routing/explain", h.RoutingExplain)
 
-	// Health check
+	// Health check — always unauthenticated so deployment probes keep working.
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
 
-	addr := ":8080"
-	if a := os.Getenv("FRUGAL_ADDR"); a != "" {
-		addr = a
-	}
-
 	server := newHTTPServer(addr, r)
 
-	log.Printf("frugal listening on %s", addr)
+	log.Printf("frugal listening on %s (auth=%v)", addr, authToken != "")
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }
+
+// guardUnauthenticatedBind refuses to start an unauthenticated proxy on a
+// non-loopback interface unless the operator has explicitly opted in via
+// FRUGAL_ALLOW_UNAUTH=1. The check keeps "no API keys in config? just run it"
+// working on localhost while preventing the Fly/Docker footgun where :8080
+// binds to 0.0.0.0 and any network traffic can drain the operator's keys.
+func guardUnauthenticatedBind(addr, token string) error {
+	if token != "" {
+		return nil
+	}
+	if os.Getenv("FRUGAL_ALLOW_UNAUTH") == "1" {
+		log.Printf("warning: FRUGAL_ALLOW_UNAUTH=1 set — running without auth on %s", addr)
+		return nil
+	}
+	if isLoopbackBind(addr) {
+		return nil
+	}
+	return &startupError{msg: "refusing to bind " + addr + " without FRUGAL_AUTH_TOKEN; set a token or FRUGAL_ALLOW_UNAUTH=1 to override"}
+}
+
+// isLoopbackBind reports whether addr binds only to the loopback interface.
+// Accepts forms like "127.0.0.1:8080", "[::1]:8080", "localhost:8080".
+func isLoopbackBind(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	switch host {
+	case "127.0.0.1", "localhost", "::1":
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return true
+	}
+	return false
+}
+
+type startupError struct{ msg string }
+
+func (e *startupError) Error() string { return e.msg }
 
 func newHTTPServer(addr string, handler http.Handler) *http.Server {
 	return &http.Server{

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base32"
 	"fmt"
 	"log"
 	"net"
@@ -55,7 +57,17 @@ func runWrap(configPath string, args []string) int {
 	rtr := router.New(modelEntries, thresholds)
 	h := proxy.NewHandler(cls, rtr, registry)
 
+	// Wrap mode always binds loopback, but shared machines still expose the
+	// port to any local user. Generate a one-shot bearer token per wrap, seal
+	// the proxy behind it, and hand the same token to the child via
+	// OPENAI_API_KEY so the SDK authenticates transparently. The user's real
+	// upstream key stays in Frugal's environment and never touches the child.
+	authToken := os.Getenv("FRUGAL_AUTH_TOKEN")
+	if authToken == "" {
+		authToken = newSessionToken()
+	}
 	r := chi.NewRouter()
+	r.Use(proxy.AuthMiddleware(authToken))
 	r.Use(proxy.HeaderExtractionMiddleware)
 	r.Post("/v1/chat/completions", h.ChatCompletions)
 	r.Get("/v1/models", h.ListModels)
@@ -86,12 +98,14 @@ func runWrap(configPath string, args []string) int {
 
 	fmt.Fprintf(os.Stderr, "frugal: proxy running on :%d → routing across %d models\n", port, len(registry.AllModels()))
 
-	// Run the user's command with OPENAI_BASE_URL set
+	// Run the user's command with OPENAI_BASE_URL set. OPENAI_API_KEY is
+	// overwritten with the proxy's session token — the real upstream key
+	// stays in Frugal's environment only.
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = injectEnv(os.Environ(), baseURL)
+	cmd.Env = injectEnv(os.Environ(), baseURL, authToken)
 
 	// Forward signals to the child process
 	sigCh := make(chan os.Signal, 1)
@@ -137,12 +151,28 @@ func registerProviders(cfg *config.Config, registry *provider.Registry) {
 	}
 }
 
-func injectEnv(environ []string, baseURL string) []string {
-	out := make([]string, 0, len(environ)+2)
+func injectEnv(environ []string, baseURL, authToken string) []string {
+	out := make([]string, 0, len(environ)+3)
 	out = append(out, environ...)
 	out = upsertEnv(out, "OPENAI_BASE_URL", baseURL)
 	out = upsertEnv(out, "OPENAI_API_BASE", baseURL) // older Python SDK
+	if authToken != "" {
+		out = upsertEnv(out, "OPENAI_API_KEY", authToken)
+	}
 	return out
+}
+
+// newSessionToken produces a random 128-bit bearer token in unpadded base32
+// for per-wrap auth. It is only ever passed in-process and to the child via
+// environment, never logged.
+func newSessionToken() string {
+	var buf [16]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		// crypto/rand failure is unrecoverable; die rather than silently
+		// downgrade to a weak token.
+		log.Fatalf("frugal: failed to generate session token: %v", err)
+	}
+	return "frugal-" + base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(buf[:])
 }
 
 func upsertEnv(environ []string, key, value string) []string {

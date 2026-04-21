@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +19,24 @@ import (
 	"github.com/frugalsh/frugal/internal/types"
 )
 
-const maxFallbackAttempts = 3
+const (
+	maxFallbackAttempts          = 3
+	defaultMaxCostPerRequestUSD  = 1.0
+)
+
+// maxCostPerRequestUSD reads the per-request spend cap once per process.
+// A non-positive value disables the cap.
+var maxCostPerRequestUSD = func() float64 {
+	raw := os.Getenv("FRUGAL_MAX_COST_PER_REQUEST_USD")
+	if raw == "" {
+		return defaultMaxCostPerRequestUSD
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil || v < 0 {
+		return defaultMaxCostPerRequestUSD
+	}
+	return v
+}()
 
 // Handler serves the OpenAI-compatible API endpoints.
 type Handler struct {
@@ -39,6 +58,17 @@ func NewHandler(cls classifier.Classifier, rtr *router.Router, reg *provider.Reg
 		registry:   reg,
 		decisions:  make([]types.RoutingDecision, 100),
 	}
+}
+
+// allowedFallbackModels returns a set of registered model names for
+// allowlisting caller-supplied fallback chains.
+func (h *Handler) allowedFallbackModels() map[string]struct{} {
+	models := h.registry.AllModels()
+	set := make(map[string]struct{}, len(models))
+	for _, m := range models {
+		set[m] = struct{}{}
+	}
+	return set
 }
 
 func (h *Handler) recordDecision(d types.RoutingDecision) {
@@ -97,6 +127,16 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Per-request cost cap. Skip when the caller pinned a model (they know
+	// what they asked for) and when the cap is disabled. The router already
+	// records decision.EstimatedCost, so this is effectively free.
+	if !decision.Pinned && maxCostPerRequestUSD > 0 && decision.EstimatedCost > maxCostPerRequestUSD {
+		log.Printf("rejecting request: estimated cost $%.4f exceeds cap $%.2f (model=%s)",
+			decision.EstimatedCost, maxCostPerRequestUSD, decision.SelectedModel)
+		writeError(w, http.StatusPaymentRequired, "estimated request cost exceeds configured cap")
+		return
+	}
+
 	h.recordDecision(decision)
 
 	// Add routing info header
@@ -147,7 +187,7 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, prov p
 	resp, err := prov.ChatCompletion(r.Context(), decision.SelectedModel, req)
 	if err != nil {
 		// Try fallback chain
-		for _, fb := range boundedFallbacks(fallbacks, decision.SelectedModel) {
+		for _, fb := range boundedFallbacks(fallbacks, decision.SelectedModel, h.allowedFallbackModels()) {
 			fbProv, fbErr := h.registry.Resolve(fb)
 			if fbErr != nil {
 				continue
@@ -159,7 +199,8 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, prov p
 			log.Printf("fallback %s failed: %v", fb, err)
 		}
 		if err != nil {
-			writeError(w, http.StatusBadGateway, "upstream error: "+err.Error())
+			log.Printf("upstream error on %s: %v", decision.SelectedModel, err)
+			writeError(w, http.StatusBadGateway, sanitizedUpstreamMessage(err))
 			return
 		}
 	}
@@ -168,11 +209,34 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, prov p
 	json.NewEncoder(w).Encode(resp)
 }
 
+// sanitizedUpstreamMessage returns a stable, operator-safe summary of an
+// upstream failure. The full error — which can include the provider's
+// response body and, in pathological cases, echoed request data — is logged
+// but never written to the wire.
+func sanitizedUpstreamMessage(err error) string {
+	if err == nil {
+		return "upstream error"
+	}
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "context deadline exceeded"), strings.Contains(msg, "timeout"):
+		return "upstream timeout"
+	case strings.Contains(msg, "429"), strings.Contains(msg, "rate limit"):
+		return "upstream rate limited"
+	case strings.Contains(msg, "401"), strings.Contains(msg, "403"):
+		return "upstream rejected credentials"
+	case strings.Contains(msg, "503"), strings.Contains(msg, "502"), strings.Contains(msg, "504"):
+		return "upstream unavailable"
+	default:
+		return "upstream error"
+	}
+}
+
 func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, prov provider.Provider, decision types.RoutingDecision, req *types.ChatCompletionRequest, fallbacks []string) {
 	ch, err := prov.ChatCompletionStream(r.Context(), decision.SelectedModel, req)
 	if err != nil {
 		// Try fallback chain
-		for _, fb := range boundedFallbacks(fallbacks, decision.SelectedModel) {
+		for _, fb := range boundedFallbacks(fallbacks, decision.SelectedModel, h.allowedFallbackModels()) {
 			fbProv, fbErr := h.registry.Resolve(fb)
 			if fbErr != nil {
 				continue
@@ -184,7 +248,8 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, prov prov
 			log.Printf("fallback stream %s failed: %v", fb, err)
 		}
 		if err != nil {
-			writeError(w, http.StatusBadGateway, "upstream stream error: "+err.Error())
+			log.Printf("upstream stream error on %s: %v", decision.SelectedModel, err)
+			writeError(w, http.StatusBadGateway, sanitizedUpstreamMessage(err))
 			return
 		}
 	}
@@ -194,7 +259,12 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, prov prov
 	}
 }
 
-func boundedFallbacks(fallbacks []string, selectedModel string) []string {
+// boundedFallbacks trims the caller-supplied fallback chain to registered
+// models only, deduplicated, capped at maxFallbackAttempts, and skipping the
+// routed model. Allow-listing against the registry prevents a client from
+// crafting an `X-Frugal-Fallback` header that steers traffic to an expensive
+// model (or a never-configured one) the operator did not authorize.
+func boundedFallbacks(fallbacks []string, selectedModel string, allowed map[string]struct{}) []string {
 	if len(fallbacks) == 0 {
 		return nil
 	}
@@ -220,6 +290,13 @@ func boundedFallbacks(fallbacks []string, selectedModel string) []string {
 			continue
 		}
 		seen[key] = struct{}{}
+
+		if allowed != nil {
+			if _, ok := allowed[trimmed]; !ok {
+				log.Printf("ignoring fallback %q: not a registered model", trimmed)
+				continue
+			}
+		}
 
 		bounded = append(bounded, trimmed)
 	}

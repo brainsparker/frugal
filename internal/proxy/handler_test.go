@@ -485,7 +485,8 @@ func TestChatCompletions_FallbackAttemptsAreBounded(t *testing.T) {
 }
 
 func TestBoundedFallbacks_SkipsSelectedModelAndDuplicates(t *testing.T) {
-	got := boundedFallbacks([]string{" gpt-4o ", "gpt-4o", "", "claude-3-5-sonnet", "CLAUDE-3-5-SONNET", "gemini-2.5-flash"}, "gpt-4o")
+	// nil allowed => no allowlist, so all non-empty deduped entries pass.
+	got := boundedFallbacks([]string{" gpt-4o ", "gpt-4o", "", "claude-3-5-sonnet", "CLAUDE-3-5-SONNET", "gemini-2.5-flash"}, "gpt-4o", nil)
 	want := []string{"claude-3-5-sonnet", "gemini-2.5-flash"}
 
 	if len(got) != len(want) {
@@ -499,8 +500,22 @@ func TestBoundedFallbacks_SkipsSelectedModelAndDuplicates(t *testing.T) {
 	}
 }
 
+func TestBoundedFallbacks_AllowlistRejectsUnknownModels(t *testing.T) {
+	allowed := map[string]struct{}{"mock-cheap": {}, "mock-premium": {}}
+	got := boundedFallbacks([]string{"mock-cheap", "claude-opus", "mock-premium"}, "", allowed)
+	want := []string{"mock-cheap", "mock-premium"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("entry %d: expected %s, got %s", i, want[i], got[i])
+		}
+	}
+}
+
 func TestBoundedFallbacks_DedupesBeforeApplyingAttemptLimit(t *testing.T) {
-	got := boundedFallbacks([]string{"a", "a", "b", "c", "d"}, "")
+	got := boundedFallbacks([]string{"a", "a", "b", "c", "d"}, "", nil)
 	want := []string{"a", "b", "c"}
 
 	if len(got) != len(want) {

@@ -3,6 +3,7 @@ package proxy
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/frugalsh/frugal/internal/provider"
@@ -23,7 +24,8 @@ func streamResponse(w http.ResponseWriter, ch <-chan provider.StreamChunk) error
 
 	for chunk := range ch {
 		if chunk.Err != nil {
-			errData := fmt.Sprintf(`{"error":{"message":%q}}`, chunk.Err.Error())
+			log.Printf("stream upstream error: %v", chunk.Err)
+			errData := fmt.Sprintf(`{"error":{"message":%q,"type":"frugal_error"}}`, sanitizedUpstreamMessage(chunk.Err))
 			if _, err := fmt.Fprintf(w, "data: %s\n\n", errData); err != nil {
 				return err
 			}
