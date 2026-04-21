@@ -55,7 +55,32 @@ download() {
 
 # ---- install ----
 
+uninstall() {
+    info "uninstalling frugal.sh"
+    if [ -d "$INSTALL_DIR" ]; then
+        rm -rf "$INSTALL_DIR"
+        ok "removed $INSTALL_DIR"
+    fi
+
+    # Remove the lines install.sh appended to the user's shell rc files.
+    for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+        if [ -f "$rc" ] && grep -q "# frugal.sh" "$rc"; then
+            # Portable in-place edit: filter into a temp file then replace.
+            grep -v -E '^# frugal\.sh$|^export PATH="'"$BIN_DIR"':\$PATH"$|^export FRUGAL_CONFIG="'"$CONFIG_DIR"'/models\.yaml"$' "$rc" > "$rc.tmp"
+            mv "$rc.tmp" "$rc"
+            ok "cleaned $rc"
+        fi
+    done
+    echo
+    echo "frugal.sh uninstalled."
+    exit 0
+}
+
 main() {
+    if [ "${1:-}" = "uninstall" ]; then
+        uninstall
+    fi
+
     info "installing frugal.sh — the open-source LLM cost optimizer"
     echo
 
@@ -72,8 +97,34 @@ main() {
 
     if [ -n "$version" ]; then
         info "downloading frugal $version for $platform..."
-        local url="https://github.com/${REPO}/releases/download/${version}/frugal-${platform}"
-        download "$url" "$BIN_DIR/frugal"
+        local base="https://github.com/${REPO}/releases/download/${version}"
+        local artifact="frugal-${platform}"
+        download "${base}/${artifact}" "$BIN_DIR/${artifact}"
+
+        # Integrity: verify SHA256SUMS before trusting the binary. The
+        # checksum file is cosign-signed on release; verify the signature
+        # when cosign is available, otherwise fall back to checksum only
+        # with a loud warning. Refuse to install a binary that fails the
+        # checksum check — the alternative is arbitrary code execution.
+        download "${base}/SHA256SUMS" "$BIN_DIR/SHA256SUMS"
+        if command -v cosign &>/dev/null; then
+            download "${base}/SHA256SUMS.sig" "$BIN_DIR/SHA256SUMS.sig"
+            cosign verify-blob \
+                --bundle "$BIN_DIR/SHA256SUMS.sig" \
+                --certificate-identity-regexp "https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/" \
+                --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+                "$BIN_DIR/SHA256SUMS" \
+                || fail "cosign verification failed for SHA256SUMS — refusing to install"
+            ok "cosign signature verified"
+        else
+            warn "cosign not found — skipping signature verification (install cosign to enable)"
+        fi
+
+        (cd "$BIN_DIR" && grep " ${artifact}\$" SHA256SUMS | shasum -a 256 -c -) \
+            || fail "sha256 mismatch for ${artifact} — refusing to install"
+
+        mv "$BIN_DIR/${artifact}" "$BIN_DIR/frugal"
+        rm -f "$BIN_DIR/SHA256SUMS" "$BIN_DIR/SHA256SUMS.sig"
         chmod +x "$BIN_DIR/frugal"
         ok "downloaded frugal $version"
     else

@@ -3,6 +3,12 @@ primary_region = "ord"
 
 [build]
 
+# FRUGAL_AUTH_TOKEN must be set via `fly secrets set FRUGAL_AUTH_TOKEN=...`
+# before the first deploy. The binary refuses to start on a non-loopback bind
+# unless either the token or FRUGAL_ALLOW_UNAUTH=1 is present.
+[env]
+  FRUGAL_ADDR = "0.0.0.0:8080"
+
 [http_service]
   internal_port = 8080
   force_https = true

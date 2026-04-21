@@ -1,10 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
-	"strings"
+	"path/filepath"
 
 	"github.com/frugalsh/frugal/internal/config"
 	msync "github.com/frugalsh/frugal/internal/sync"
@@ -22,13 +23,13 @@ var modelAliases = map[string][]string{
 }
 
 func runSync(configPath string) error {
-	log.Println("fetching model pricing from models.dev...")
+	slog.Info("fetching model pricing from models.dev")
 
-	catalog, err := msync.FetchModels()
+	catalog, err := msync.FetchModels(context.Background())
 	if err != nil {
 		return fmt.Errorf("fetch failed: %w", err)
 	}
-	log.Printf("fetched %d model entries from models.dev", len(catalog))
+	slog.Info("fetched models.dev catalog", "entries", len(catalog))
 
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -42,21 +43,22 @@ func runSync(configPath string) error {
 		for modelName, mc := range pc.Models {
 			entry, found := lookupModel(catalog, providerName, modelName)
 			if !found {
-				log.Printf("  [skip] %s/%s — not found in models.dev", providerName, modelName)
+				slog.Info("sync skipped", "provider", providerName, "model", modelName, "reason", "not_in_catalog")
 				notFound++
 				continue
 			}
 
 			changed := false
+			logger := slog.With("provider", providerName, "model", modelName)
 
 			if entry.Cost != nil {
 				newInput := msync.CostPer1K(entry.Cost.Input)
 				newOutput := msync.CostPer1K(entry.Cost.Output)
 				if newInput != mc.CostPer1KInput || newOutput != mc.CostPer1KOutput {
-					log.Printf("  [update] %s/%s: input $%.6f→$%.6f, output $%.6f→$%.6f per 1K tokens",
-						providerName, modelName,
-						mc.CostPer1KInput, newInput,
-						mc.CostPer1KOutput, newOutput)
+					logger.Info("cost updated",
+						"input_from", mc.CostPer1KInput, "input_to", newInput,
+						"output_from", mc.CostPer1KOutput, "output_to", newOutput,
+					)
 					mc.CostPer1KInput = newInput
 					mc.CostPer1KOutput = newOutput
 					changed = true
@@ -64,19 +66,18 @@ func runSync(configPath string) error {
 			}
 
 			if entry.Limit != nil && entry.Limit.Context > 0 && entry.Limit.Context != mc.Capabilities.MaxContext {
-				log.Printf("  [update] %s/%s: context %d→%d",
-					providerName, modelName, mc.Capabilities.MaxContext, entry.Limit.Context)
+				logger.Info("context updated", "from", mc.Capabilities.MaxContext, "to", entry.Limit.Context)
 				mc.Capabilities.MaxContext = entry.Limit.Context
 				changed = true
 			}
 
 			if entry.ToolCall != mc.Capabilities.ToolUse {
-				log.Printf("  [update] %s/%s: tool_use %v→%v", providerName, modelName, mc.Capabilities.ToolUse, entry.ToolCall)
+				logger.Info("tool_use updated", "from", mc.Capabilities.ToolUse, "to", entry.ToolCall)
 				mc.Capabilities.ToolUse = entry.ToolCall
 				changed = true
 			}
 			if entry.StructuredOutput != mc.Capabilities.JSONMode {
-				log.Printf("  [update] %s/%s: json_mode %v→%v", providerName, modelName, mc.Capabilities.JSONMode, entry.StructuredOutput)
+				logger.Info("json_mode updated", "from", mc.Capabilities.JSONMode, "to", entry.StructuredOutput)
 				mc.Capabilities.JSONMode = entry.StructuredOutput
 				changed = true
 			}
@@ -85,22 +86,26 @@ func runSync(configPath string) error {
 				pc.Models[modelName] = mc
 				updated++
 			} else {
-				log.Printf("  [ok] %s/%s — up to date", providerName, modelName)
+				logger.Debug("model up to date")
 			}
 		}
 		cfg.Providers[providerName] = pc
 	}
 
-	log.Printf("updated %d models, %d not found in catalog", updated, notFound)
+	slog.Info("sync complete", "updated", updated, "not_found", notFound)
 
 	if updated > 0 {
 		return writeConfig(configPath, cfg)
 	}
 
-	log.Println("no changes needed")
+	slog.Info("sync: no changes")
 	return nil
 }
 
+// lookupModel resolves a configured model to a models.dev catalog entry by
+// exact key or explicit alias. Fuzzy (strings.Contains) matching is
+// intentionally absent: it silently cross-bound prices (e.g. gpt-4 → gpt-4o)
+// because the map iteration is unordered.
 func lookupModel(catalog map[string]msync.ModelsDevEntry, providerName, modelName string) (msync.ModelsDevEntry, bool) {
 	// 1. Try "provider/model" (e.g., "openai/gpt-4o")
 	if entry, ok := catalog[providerName+"/"+modelName]; ok {
@@ -118,37 +123,55 @@ func lookupModel(catalog map[string]msync.ModelsDevEntry, providerName, modelNam
 			if entry, ok := catalog[alias]; ok {
 				return entry, true
 			}
-			// Also try with provider prefix
 			if entry, ok := catalog[providerName+"/"+alias]; ok {
 				return entry, true
 			}
 		}
 	}
 
-	// 4. Fuzzy: find catalog entry containing the model name or vice versa
-	for id, entry := range catalog {
-		bare := id
-		if idx := strings.LastIndex(id, "/"); idx >= 0 {
-			bare = id[idx+1:]
-		}
-		if strings.Contains(bare, modelName) || strings.Contains(modelName, bare) {
-			return entry, true
-		}
-	}
-
 	return msync.ModelsDevEntry{}, false
 }
 
+// writeConfig atomically replaces the config file: write to a sibling
+// tempfile, fsync, then rename. An interrupted sync never leaves the user's
+// models.yaml truncated or partially written.
 func writeConfig(path string, cfg *config.Config) error {
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("write config: %w", err)
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return fmt.Errorf("create tempfile: %w", err)
+	}
+	tmpPath := tmp.Name()
+	cleanup := func() { _ = os.Remove(tmpPath) }
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		cleanup()
+		return fmt.Errorf("write tempfile: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		cleanup()
+		return fmt.Errorf("fsync tempfile: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		cleanup()
+		return fmt.Errorf("close tempfile: %w", err)
+	}
+	if err := os.Chmod(tmpPath, 0644); err != nil {
+		cleanup()
+		return fmt.Errorf("chmod tempfile: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		cleanup()
+		return fmt.Errorf("rename tempfile: %w", err)
 	}
 
-	log.Printf("wrote updated config to %s", path)
+	slog.Info("wrote config", "path", path)
 	return nil
 }

@@ -4,17 +4,18 @@ import "github.com/frugalsh/frugal/internal/config"
 
 // ModelEntry is a routing-friendly view of a model from the config.
 type ModelEntry struct {
-	Name             string
-	Provider         string
-	CostPer1KInput   float64
-	CostPer1KOutput  float64
-	Reasoning        float64
-	Coding           float64
-	Creative         float64
+	Name              string
+	Provider          string
+	CostPer1KInput    float64
+	CostPer1KOutput   float64
+	Reasoning         float64
+	Coding            float64
+	Creative          float64
 	InstructFollowing float64
-	ToolUse          bool
-	JSONMode         bool
-	MaxContext       int
+	ToolUse           bool
+	JSONMode          bool
+	Vision            bool
+	MaxContext        int
 }
 
 // Threshold holds the minimum capability scores for a quality level.
@@ -42,6 +43,7 @@ func BuildTaxonomy(cfg *config.Config) ([]ModelEntry, map[string]Threshold) {
 				InstructFollowing: mc.Capabilities.InstructionFollowing,
 				ToolUse:           mc.Capabilities.ToolUse,
 				JSONMode:          mc.Capabilities.JSONMode,
+				Vision:            mc.Capabilities.Vision,
 				MaxContext:        mc.Capabilities.MaxContext,
 			})
 		}

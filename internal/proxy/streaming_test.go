@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -26,7 +27,7 @@ func TestStreamResponse_EmitsDoneWhenChannelClosesWithoutDoneChunk(t *testing.T)
 	}
 	close(ch)
 
-	if err := streamResponse(w, ch); err != nil {
+	if err := streamResponse(context.Background(), w, ch); err != nil {
 		t.Fatalf("streamResponse returned error: %v", err)
 	}
 

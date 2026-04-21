@@ -1,12 +1,17 @@
 package sync
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
-const modelsDevURL = "https://models.dev/api.json"
+const (
+	modelsDevURL   = "https://models.dev/api.json"
+	fetchTimeout   = 5 * time.Second
+)
 
 // ModelsDevProvider represents a provider entry from the models.dev API.
 type ModelsDevProvider struct {
@@ -48,10 +53,20 @@ type Modalities struct {
 	Output []string `json:"output"`
 }
 
-// FetchModels fetches the full model catalog from models.dev.
+// FetchModels fetches the full model catalog from models.dev. It enforces a
+// bounded timeout so a hung models.dev never blocks Frugal startup.
 // Returns a flat map of "provider/model" → entry, plus bare model names.
-func FetchModels() (map[string]ModelsDevEntry, error) {
-	resp, err := http.Get(modelsDevURL)
+func FetchModels(ctx context.Context) (map[string]ModelsDevEntry, error) {
+	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, modelsDevURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("building models.dev request: %w", err)
+	}
+
+	client := &http.Client{Timeout: fetchTimeout}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetching models.dev: %w", err)
 	}

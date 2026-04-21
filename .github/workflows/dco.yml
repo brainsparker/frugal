@@ -1,0 +1,16 @@
+name: DCO
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  dco:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Developer Certificate of Origin sign-off
+        uses: tim-actions/dco@v1.1.0

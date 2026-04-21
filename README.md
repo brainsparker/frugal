@@ -97,6 +97,24 @@ Optional hardening timeouts (Go duration syntax):
 - `FRUGAL_IDLE_TIMEOUT` (default `60s`)
 - `FRUGAL_MAX_HEADER_BYTES` (default `1048576`)
 
+### Auth, rate limits, logging (serve mode)
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `FRUGAL_ADDR` | `127.0.0.1:8080` | Listen address. Non-loopback binds require `FRUGAL_AUTH_TOKEN` or `FRUGAL_ALLOW_UNAUTH=1`. |
+| `FRUGAL_AUTH_TOKEN` | *(unset)* | Shared bearer token. When set, every `/v1/*` call must send `Authorization: Bearer $FRUGAL_AUTH_TOKEN`. |
+| `FRUGAL_ALLOW_UNAUTH` | `0` | Escape hatch: setting to `1` allows unauthenticated binds on non-loopback. |
+| `FRUGAL_RPS` | `30` | Global token-bucket rate in requests/sec. `0` disables. |
+| `FRUGAL_BURST` | `60` | Token-bucket burst capacity. Clamped to `>= FRUGAL_RPS`. |
+| `FRUGAL_MAX_COST_PER_REQUEST_USD` | `1.00` | Reject requests whose routing-time estimate exceeds this cap. Pinned requests bypass. `0` disables. |
+| `FRUGAL_LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error`. |
+| `FRUGAL_LOG_FORMAT` | `text` | `text` for human-readable, `json` for structured ingestion. |
+| `FRUGAL_DECISION_BUFFER` | `1000` | Capacity of the async routing-decision ring buffer. |
+
+Prometheus metrics are served at `/metrics` behind the same auth as `/v1/*`.
+All responses carry `X-Request-ID`; generate one client-side if you want to
+correlate logs across your app and the proxy.
+
 ### Quality thresholds
 
 Control cost vs. quality per request:

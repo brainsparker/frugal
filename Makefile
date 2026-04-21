@@ -20,4 +20,5 @@ release: clean
 	GOOS=darwin GOARCH=amd64 go build -o dist/frugal-darwin-amd64 ./cmd/frugal
 	GOOS=linux  GOARCH=arm64 go build -o dist/frugal-linux-arm64  ./cmd/frugal
 	GOOS=linux  GOARCH=amd64 go build -o dist/frugal-linux-amd64  ./cmd/frugal
+	cd dist && shasum -a 256 frugal-* > SHA256SUMS
 	@echo "built $(VERSION) binaries in dist/"

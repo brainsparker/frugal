@@ -41,6 +41,37 @@ func TestClassify_SimpleQuestion(t *testing.T) {
 	}
 }
 
+func TestClassify_MultimodalSetsRequiresVision(t *testing.T) {
+	c := NewRuleBased()
+	req := &types.ChatCompletionRequest{
+		Messages: []types.Message{
+			{Role: "user", Content: json.RawMessage(`[
+				{"type":"text","text":"describe"},
+				{"type":"image_url","image_url":{"url":"data:image/png;base64,AAAA"}}
+			]`)},
+		},
+	}
+
+	f := c.Classify(req)
+
+	if !f.RequiresVision {
+		t.Fatalf("expected RequiresVision=true for multimodal input")
+	}
+}
+
+func TestClassify_PlainStringDoesNotRequireVision(t *testing.T) {
+	c := NewRuleBased()
+	req := &types.ChatCompletionRequest{
+		Messages: []types.Message{msg("user", "hello")},
+	}
+
+	f := c.Classify(req)
+
+	if f.RequiresVision {
+		t.Fatalf("expected RequiresVision=false for text-only input")
+	}
+}
+
 func TestClassify_CodeRequest(t *testing.T) {
 	c := NewRuleBased()
 	req := &types.ChatCompletionRequest{

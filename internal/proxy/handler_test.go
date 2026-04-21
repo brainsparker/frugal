@@ -143,7 +143,7 @@ func setupHandler() (*Handler, *httptest.Server) {
 			Name: "mock-premium", Provider: "mock",
 			CostPer1KInput: 0.003, CostPer1KOutput: 0.015,
 			Reasoning: 0.95, Coding: 0.93, Creative: 0.90, InstructFollowing: 0.95,
-			ToolUse: true, JSONMode: true, MaxContext: 200000,
+			ToolUse: true, JSONMode: true, Vision: true, MaxContext: 200000,
 		},
 	}
 	thresholds := map[string]router.Threshold{
@@ -260,20 +260,23 @@ func TestChatCompletions_ModelPinning(t *testing.T) {
 	}
 }
 
-func TestChatCompletions_RejectsUnknownFields(t *testing.T) {
+func TestChatCompletions_AcceptsUnknownFields(t *testing.T) {
+	// Real OpenAI SDKs send fields Frugal does not explicitly model
+	// (parallel_tool_calls, seed, reasoning_effort, service_tier, etc.).
+	// The proxy must accept them so the "no code changes" promise holds.
 	_, ts := setupHandler()
 	defer ts.Close()
 
-	body := []byte(`{"model":"auto","messages":[{"role":"user","content":"hello"}],"unexpected":true}`)
+	body := []byte(`{"model":"auto","messages":[{"role":"user","content":"hello"}],"unexpected":true,"seed":42,"parallel_tool_calls":false}`)
 	resp, err := http.Post(ts.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusBadRequest {
+	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(b))
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(b))
 	}
 }
 
@@ -295,6 +298,86 @@ func TestChatCompletions_RejectsOversizedBody(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		b, _ := io.ReadAll(resp.Body)
 		t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(b))
+	}
+}
+
+func TestChatCompletions_RelaxedFromHeader_EmittedWhenDowngraded(t *testing.T) {
+	// Force a downgrade: no model clears the "high" threshold for a simple
+	// English prompt (both mock models have reasoning below the high bar
+	// of 0.88 on non-coding/non-math queries, except mock-premium at 0.95).
+	// The premium model does clear it, so we instead construct a setup that
+	// cannot clear high but can clear balanced.
+	reg := newStubMockRegistry()
+	models := []router.ModelEntry{
+		{
+			Name: "cheap", Provider: "mock",
+			CostPer1KInput: 0.001, CostPer1KOutput: 0.002,
+			Reasoning: 0.70, Coding: 0.70, Creative: 0.70, InstructFollowing: 0.70,
+			ToolUse: true, JSONMode: true, MaxContext: 100000,
+		},
+	}
+	thresholds := map[string]router.Threshold{
+		"high":     {MinReasoning: 0.99, MinCoding: 0.99, MinCreative: 0.99, MinInstructFollowing: 0.99},
+		"balanced": {MinReasoning: 0.60, MinCoding: 0.60, MinCreative: 0.60, MinInstructFollowing: 0.60},
+		"cost":     {},
+	}
+	cls := classifier.NewRuleBased()
+	rtr := router.New(models, thresholds)
+	h := NewHandler(cls, rtr, reg)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/chat/completions", h.ChatCompletions)
+	ts := httptest.NewServer(HeaderExtractionMiddleware(mux))
+	defer ts.Close()
+
+	body, _ := json.Marshal(types.ChatCompletionRequest{
+		Model:    "auto",
+		Messages: []types.Message{{Role: "user", Content: mustMarshalJSON("Hello")}},
+	})
+	req, _ := http.NewRequest("POST", ts.URL+"/v1/chat/completions", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Frugal-Quality", "high")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got := resp.Header.Get("X-Frugal-Relaxed-From"); got != "high" {
+		t.Fatalf("expected X-Frugal-Relaxed-From=high, got %q", got)
+	}
+}
+
+// newStubMockRegistry returns a registry with a single mock model used when
+// the default setupHandler wiring is too opinionated for a specific test.
+func newStubMockRegistry() *provider.Registry {
+	reg := provider.NewRegistry()
+	mock := &mockProvider{name: "mock", models: []string{"cheap"}}
+	reg.Register(mock)
+	return reg
+}
+
+func TestChatCompletions_MultimodalContent_IsAccepted(t *testing.T) {
+	// Router accepts array-typed Content and forwards the request. The
+	// classifier must still see a meaningful text feature via ContentText;
+	// the provider must still be invoked.
+	_, ts := setupHandler()
+	defer ts.Close()
+
+	body := []byte(`{"model":"auto","messages":[{"role":"user","content":[
+		{"type":"text","text":"what is in this picture"},
+		{"type":"image_url","image_url":{"url":"data:image/png;base64,AAAA"}}
+	]}]}`)
+	resp, err := http.Post(ts.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200 for multimodal request, got %d: %s", resp.StatusCode, string(b))
 	}
 }
 
@@ -459,7 +542,8 @@ func TestChatCompletions_FallbackAttemptsAreBounded(t *testing.T) {
 }
 
 func TestBoundedFallbacks_SkipsSelectedModelAndDuplicates(t *testing.T) {
-	got := boundedFallbacks([]string{" gpt-4o ", "gpt-4o", "", "claude-3-5-sonnet", "CLAUDE-3-5-SONNET", "gemini-2.5-flash"}, "gpt-4o")
+	// nil allowed => no allowlist, so all non-empty deduped entries pass.
+	got := boundedFallbacks([]string{" gpt-4o ", "gpt-4o", "", "claude-3-5-sonnet", "CLAUDE-3-5-SONNET", "gemini-2.5-flash"}, "gpt-4o", nil)
 	want := []string{"claude-3-5-sonnet", "gemini-2.5-flash"}
 
 	if len(got) != len(want) {
@@ -473,8 +557,22 @@ func TestBoundedFallbacks_SkipsSelectedModelAndDuplicates(t *testing.T) {
 	}
 }
 
+func TestBoundedFallbacks_AllowlistRejectsUnknownModels(t *testing.T) {
+	allowed := map[string]struct{}{"mock-cheap": {}, "mock-premium": {}}
+	got := boundedFallbacks([]string{"mock-cheap", "claude-opus", "mock-premium"}, "", allowed)
+	want := []string{"mock-cheap", "mock-premium"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("entry %d: expected %s, got %s", i, want[i], got[i])
+		}
+	}
+}
+
 func TestBoundedFallbacks_DedupesBeforeApplyingAttemptLimit(t *testing.T) {
-	got := boundedFallbacks([]string{"a", "a", "b", "c", "d"}, "")
+	got := boundedFallbacks([]string{"a", "a", "b", "c", "d"}, "", nil)
 	want := []string{"a", "b", "c"}
 
 	if len(got) != len(want) {
