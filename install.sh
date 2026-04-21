@@ -55,7 +55,32 @@ download() {
 
 # ---- install ----
 
+uninstall() {
+    info "uninstalling frugal.sh"
+    if [ -d "$INSTALL_DIR" ]; then
+        rm -rf "$INSTALL_DIR"
+        ok "removed $INSTALL_DIR"
+    fi
+
+    # Remove the lines install.sh appended to the user's shell rc files.
+    for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+        if [ -f "$rc" ] && grep -q "# frugal.sh" "$rc"; then
+            # Portable in-place edit: filter into a temp file then replace.
+            grep -v -E '^# frugal\.sh$|^export PATH="'"$BIN_DIR"':\$PATH"$|^export FRUGAL_CONFIG="'"$CONFIG_DIR"'/models\.yaml"$' "$rc" > "$rc.tmp"
+            mv "$rc.tmp" "$rc"
+            ok "cleaned $rc"
+        fi
+    done
+    echo
+    echo "frugal.sh uninstalled."
+    exit 0
+}
+
 main() {
+    if [ "${1:-}" = "uninstall" ]; then
+        uninstall
+    fi
+
     info "installing frugal.sh — the open-source LLM cost optimizer"
     echo
 

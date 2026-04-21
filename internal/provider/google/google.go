@@ -54,6 +54,10 @@ type generateContentRequest struct {
 	SystemInstruction *geminiContent    `json:"systemInstruction,omitempty"`
 	GenerationConfig  *generationConfig `json:"generationConfig,omitempty"`
 	Tools             []geminiToolDecl  `json:"tools,omitempty"`
+	// CachedContent points at a Gemini cached content resource. Forwarded
+	// verbatim when the client supplies `frugal_cached_content` in their
+	// Metadata so Gemini context caching works without Frugal stripping it.
+	CachedContent string `json:"cachedContent,omitempty"`
 }
 
 type geminiToolDecl struct {
@@ -144,6 +148,10 @@ func translateRequest(req *types.ChatCompletionRequest) *generateContentRequest 
 		gr.Tools = tools
 	}
 
+	if cached := cachedContentFromMetadata(req.Metadata); cached != "" {
+		gr.CachedContent = cached
+	}
+
 	gc := &generationConfig{}
 	hasConfig := false
 	if req.Temperature != nil {
@@ -205,6 +213,21 @@ func toGeminiParts(msg types.Message) []geminiPart {
 		return []geminiPart{{Text: ""}}
 	}
 	return out
+}
+
+// cachedContentFromMetadata reads a Gemini cached-content resource name from
+// the request's OpenAI-style metadata field. Clients opt in with
+// `metadata: {"frugal_cached_content": "projects/.../cachedContents/..."}`;
+// absent or non-string values skip the field entirely.
+func cachedContentFromMetadata(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var m map[string]string
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return ""
+	}
+	return m["frugal_cached_content"]
 }
 
 // toGeminiTools maps OpenAI tool declarations to a single Gemini tool entry

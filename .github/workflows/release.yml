@@ -36,6 +36,13 @@ jobs:
             cosign sign-blob --yes --bundle "${f}.sig" "${f}"
           done
 
+      - name: Generate SBOMs (CycloneDX)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: dist/frugal.cdx.json
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:

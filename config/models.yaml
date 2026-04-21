@@ -1,3 +1,5 @@
+# Capability scores are refreshed editorially — not by `frugal sync`.
+# Methodology and refresh protocol: config/CAPABILITIES.md.
 providers:
     anthropic:
         api_key_env: ANTHROPIC_API_KEY
@@ -15,6 +17,8 @@ providers:
                     json_mode: false
                     vision: true
                     max_context: 189096
+                    source: approximate-tier-assignment
+                    as_of: "2026-04-21"
             claude-opus-4-20250918:
                 cost_per_1k_input: 0.005
                 cost_per_1k_output: 0.025
@@ -27,6 +31,8 @@ providers:
                     json_mode: false
                     vision: true
                     max_context: 200000
+                    source: approximate-tier-assignment
+                    as_of: "2026-04-21"
             claude-sonnet-4-20250514:
                 cost_per_1k_input: 0.003
                 cost_per_1k_output: 0.015
@@ -39,6 +45,8 @@ providers:
                     json_mode: false
                     vision: true
                     max_context: 200000
+                    source: approximate-tier-assignment
+                    as_of: "2026-04-21"
     google:
         api_key_env: GOOGLE_API_KEY
         base_url: https://generativelanguage.googleapis.com
@@ -55,6 +63,8 @@ providers:
                     json_mode: true
                     vision: true
                     max_context: 1048576
+                    source: approximate-tier-assignment
+                    as_of: "2026-04-21"
             gemini-2.5-flash:
                 cost_per_1k_input: 0.0003
                 cost_per_1k_output: 0.0025
@@ -67,6 +77,8 @@ providers:
                     json_mode: true
                     vision: true
                     max_context: 1048576
+                    source: approximate-tier-assignment
+                    as_of: "2026-04-21"
             gemini-2.5-pro:
                 cost_per_1k_input: 0.00125
                 cost_per_1k_output: 0.01
@@ -79,6 +91,8 @@ providers:
                     json_mode: true
                     vision: true
                     max_context: 1048576
+                    source: approximate-tier-assignment
+                    as_of: "2026-04-21"
     openai:
         api_key_env: OPENAI_API_KEY
         base_url: https://api.openai.com/v1
@@ -95,6 +109,8 @@ providers:
                     json_mode: true
                     vision: true
                     max_context: 128000
+                    source: approximate-tier-assignment
+                    as_of: "2026-04-21"
             gpt-4o-mini:
                 cost_per_1k_input: 0.00015
                 cost_per_1k_output: 0.0006
@@ -107,6 +123,8 @@ providers:
                     json_mode: true
                     vision: true
                     max_context: 128000
+                    source: approximate-tier-assignment
+                    as_of: "2026-04-21"
             gpt-4.1:
                 cost_per_1k_input: 0.002
                 cost_per_1k_output: 0.008
@@ -119,6 +137,8 @@ providers:
                     json_mode: true
                     vision: true
                     max_context: 1047576
+                    source: approximate-tier-assignment
+                    as_of: "2026-04-21"
             gpt-4.1-mini:
                 cost_per_1k_input: 0.0004
                 cost_per_1k_output: 0.0016
@@ -131,6 +151,8 @@ providers:
                     json_mode: true
                     vision: true
                     max_context: 1047576
+                    source: approximate-tier-assignment
+                    as_of: "2026-04-21"
             gpt-4.1-nano:
                 cost_per_1k_input: 0.0001
                 cost_per_1k_output: 0.0004
@@ -143,6 +165,8 @@ providers:
                     json_mode: true
                     vision: true
                     max_context: 1047576
+                    source: approximate-tier-assignment
+                    as_of: "2026-04-21"
 quality_thresholds:
     balanced:
         min_reasoning: 0.7

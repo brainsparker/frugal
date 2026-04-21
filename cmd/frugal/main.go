@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"syscall"
 	"time"
@@ -40,6 +42,12 @@ func main() {
 	// Handle subcommands
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
+		case "-h", "--help", "help":
+			printHelp()
+			return
+		case "-v", "--version", "version":
+			fmt.Println(version())
+			return
 		case "sync":
 			if err := runSync(configPath); err != nil {
 				log.Fatalf("sync failed: %v", err)
@@ -191,6 +199,39 @@ func isLoopbackBind(addr string) bool {
 type startupError struct{ msg string }
 
 func (e *startupError) Error() string { return e.msg }
+
+// printHelp prints a one-page summary of commands and flags.
+func printHelp() {
+	fmt.Println(`frugal — open-source LLM cost-optimizing proxy
+
+Usage:
+  frugal <command> [args...]     Wrap any command with the routing proxy
+  frugal serve                   Run the proxy as a persistent server
+  frugal sync                    Refresh model pricing from models.dev
+  frugal -v | --version          Print the build version
+  frugal -h | --help             Show this help
+
+Common environment:
+  FRUGAL_ADDR                    Listen address (serve; default 127.0.0.1:8080)
+  FRUGAL_AUTH_TOKEN              Shared bearer token required on non-loopback
+  FRUGAL_LOG_LEVEL               debug | info | warn | error
+  FRUGAL_LOG_FORMAT              text | json
+  FRUGAL_MAX_COST_PER_REQUEST_USD Per-request spend cap (default 1.00)
+  OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY  Provider credentials
+
+See README.md for the full list.`)
+}
+
+// version reports a human-readable build identifier. Populated from the Go
+// module build info when available; falls back to "dev" during local builds.
+func version() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if info.Main.Version != "" && info.Main.Version != "(devel)" {
+			return info.Main.Version
+		}
+	}
+	return "dev"
+}
 
 // healthHandler reports liveness + a shallow inventory of routable models.
 // Operators (and Fly/K8s) distinguish "HTTP is up" from "routing is actually

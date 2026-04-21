@@ -8,6 +8,10 @@ Thanks for your interest. Frugal is small and focused — contributions that sha
 - Keep changes minimal and scoped to the stated problem.
 - Add a test for new behavior. Run `make test` before pushing.
 - Match recent commit style (`fix:`, `feat:`, `chore:`, `test:`, `docs:`).
+- Sign off every commit with the Developer Certificate of Origin: append a
+  `Signed-off-by: Your Name <you@example.com>` trailer (or use `git commit -s`).
+  CI blocks PRs missing a sign-off on any commit. See
+  [developercertificate.org](https://developercertificate.org/) for the text.
 
 ## License
 

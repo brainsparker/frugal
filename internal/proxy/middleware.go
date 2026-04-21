@@ -130,13 +130,22 @@ func bearerFromHeader(h string) string {
 	return strings.TrimSpace(h[len(prefix):])
 }
 
-// HeaderExtractionMiddleware extracts X-Frugal-* headers into the request context.
+// HeaderExtractionMiddleware extracts X-Frugal-* headers into the request
+// context. Unknown X-Frugal-Quality values return 400 up front so typos
+// surface to the caller rather than silently coercing to balanced.
 func HeaderExtractionMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
 		if q := r.Header.Get("X-Frugal-Quality"); q != "" {
-			ctx = context.WithValue(ctx, qualityKey, types.ParseQualityThreshold(q))
+			qt, ok := types.ParseQualityThreshold(q)
+			if !ok {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"error":{"message":"X-Frugal-Quality must be one of: high, balanced, cost","type":"frugal_error","code":"invalid_quality"}}`))
+				return
+			}
+			ctx = context.WithValue(ctx, qualityKey, qt)
 		} else {
 			ctx = context.WithValue(ctx, qualityKey, types.QualityBalanced)
 		}

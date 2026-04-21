@@ -26,26 +26,44 @@ func streamResponseWithFirst(ctx context.Context, w http.ResponseWriter, first *
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
+	bytesWritten := false
 	if first != nil {
 		if err := writeSSEChunk(ctx, w, flusher, *first); err != nil {
 			return err
 		}
+		bytesWritten = true
 		if first.Done {
 			return nil
 		}
 	}
 
+	gotTerminator := false
 	for chunk := range ch {
 		if err := writeSSEChunk(ctx, w, flusher, chunk); err != nil {
 			return err
 		}
-		if chunk.Done || chunk.Err != nil {
+		bytesWritten = true
+		if chunk.Done {
+			gotTerminator = true
+			return chunk.Err
+		}
+		if chunk.Err != nil {
 			return chunk.Err
 		}
 	}
 
-	// Some providers close the stream channel without sending an explicit Done.
-	// Emit the OpenAI-compatible terminator so clients don't wait indefinitely.
+	// Channel closed. If the provider never sent a Done/Err terminator and
+	// we already shipped some bytes, the client would otherwise hang waiting
+	// for the next chunk. Emit an error frame so the client knows the stream
+	// was cut short, followed by the standard [DONE] marker so its SSE
+	// parser terminates cleanly.
+	if bytesWritten && !gotTerminator {
+		errFrame := `{"error":{"message":"upstream closed stream prematurely","type":"frugal_error"}}`
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", errFrame); err != nil {
+			return err
+		}
+		flusher.Flush()
+	}
 	if _, err := fmt.Fprint(w, "data: [DONE]\n\n"); err != nil {
 		return err
 	}

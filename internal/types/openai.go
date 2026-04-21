@@ -53,13 +53,15 @@ type Message struct {
 // ContentPart mirrors an OpenAI message content element. Content may be either
 // a plain string (classic) or an array of parts (multimodal, tool results).
 // Unknown part fields are preserved via the Raw field so translators can
-// forward them without loss.
+// forward them without loss. CacheControl holds an Anthropic-style hint
+// ({"type":"ephemeral"}) that the Anthropic translator forwards verbatim.
 type ContentPart struct {
-	Type       string          `json:"type"`
-	Text       string          `json:"text,omitempty"`
-	ImageURL   *ImageURL       `json:"image_url,omitempty"`
-	InputAudio json.RawMessage `json:"input_audio,omitempty"`
-	Raw        json.RawMessage `json:"-"`
+	Type         string          `json:"type"`
+	Text         string          `json:"text,omitempty"`
+	ImageURL     *ImageURL       `json:"image_url,omitempty"`
+	InputAudio   json.RawMessage `json:"input_audio,omitempty"`
+	CacheControl json.RawMessage `json:"cache_control,omitempty"`
+	Raw          json.RawMessage `json:"-"`
 }
 
 type ImageURL struct {

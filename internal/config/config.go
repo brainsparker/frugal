@@ -34,6 +34,12 @@ type CapabilityConfig struct {
 	JSONMode             bool    `yaml:"json_mode"`
 	Vision               bool    `yaml:"vision"`
 	MaxContext           int     `yaml:"max_context"`
+	// Source names the benchmark suite these scores were derived from
+	// (e.g. "livebench+aider"). AsOf is an ISO-8601 date string so
+	// operators know when the scores were last refreshed. Routing
+	// decisions are only as defensible as these fields — keep them current.
+	Source string `yaml:"source,omitempty"`
+	AsOf   string `yaml:"as_of,omitempty"`
 }
 
 type ThresholdConfig struct {

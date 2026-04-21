@@ -109,6 +109,12 @@ func (r *Router) meetsRequirements(m ModelEntry, f types.QueryFeatures, t Thresh
 	if f.RequiresVision && !m.Vision {
 		return false
 	}
+	if f.RequiresMultipleCompletions && m.Provider == "anthropic" {
+		// Anthropic's Messages API does not support N > 1. Rather than
+		// silently return a single completion, drop Anthropic from
+		// candidate set and let the router pick a provider that honors it.
+		return false
+	}
 	if f.EstimatedInputTokens > m.MaxContext {
 		return false
 	}
@@ -130,6 +136,9 @@ func (r *Router) filterHardRequirements(f types.QueryFeatures) []ModelEntry {
 			continue
 		}
 		if f.RequiresVision && !m.Vision {
+			continue
+		}
+		if f.RequiresMultipleCompletions && m.Provider == "anthropic" {
 			continue
 		}
 		if f.EstimatedInputTokens > m.MaxContext {
