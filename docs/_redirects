@@ -1,0 +1,17 @@
+# Serve the install script at https://frugal.sh/install with a 200 rewrite so
+# `curl -fsSL https://frugal.sh/install | sh` gets the script bytes directly,
+# not a 302 redirect that would leak the raw.githubusercontent.com URL to the
+# terminal on slow links.
+#
+# NOTE: These URLs point at the current repo location (brainsparker/frugal).
+# If the repo is ever transferred to the frugalsh org (to match `install.sh`
+# and README branding), update every row below. The install.sh bytes served
+# here also need `REPO="..."` updated in tandem.
+/install      https://raw.githubusercontent.com/brainsparker/frugal/main/install.sh   200
+/install.sh   https://raw.githubusercontent.com/brainsparker/frugal/main/install.sh   200
+
+# Convenience redirects so links from talks/blogs land on the canonical docs.
+/github       https://github.com/brainsparker/frugal                                  301
+/docs         https://github.com/brainsparker/frugal#readme                           301
+/security     https://github.com/brainsparker/frugal/blob/main/SECURITY.md            301
+/license      https://github.com/brainsparker/frugal/blob/main/LICENSE                301

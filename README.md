@@ -2,6 +2,8 @@
 
 **Open-source LLM proxy that routes every request to the cheapest model that won't compromise quality.**
 
+[frugal.sh](https://frugal.sh) · [GitHub](https://github.com/frugalsh/frugal)
+
 No account. No code changes. One command.
 
 ```bash
