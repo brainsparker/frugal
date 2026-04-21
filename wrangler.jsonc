@@ -1,0 +1,21 @@
+// Cloudflare Workers Assets config for https://frugal.sh/.
+//
+// This repo ships a purely static landing page under `docs/` — no Worker
+// script, no bundler, no Node runtime. Workers Assets serves every file in
+// `docs/` directly from Cloudflare's edge and honors `_redirects` and
+// `_headers` natively (no compat flags required).
+//
+// If the asset upload starts failing after a wrangler minor bump, rerun
+// `npx wrangler deploy --dry-run` locally to see the full diagnostic that
+// the Cloudflare Builds UI truncates.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "frugal",
+  "compatibility_date": "2026-04-21",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "./docs"
+  }
+}

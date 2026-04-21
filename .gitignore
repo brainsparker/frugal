@@ -1,0 +1,15 @@
+# Binaries
+/bin/
+/dist/
+
+# Go build outputs and local envs
+/frugal
+*.test
+
+# Wrangler (Cloudflare Workers Assets) local state.
+# The committed wrangler.jsonc is the source of truth; everything below is
+# generated per-machine or per-CI-run.
+.wrangler/
+.dev.vars
+wrangler-*.log
+node_modules/
