@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest a new capability, use case, provider, or quality-of-life improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can't you do today, or what's harder than it should be?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed direction
+      description: |
+        Rough shape of the solution. Bullet points are fine. Concrete is better
+        than abstract — API shape, CLI flag, config key, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds exist today? Why are they insufficient?
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: |
+        Anything else worth knowing — use case, prior art in other tools,
+        whether you'd be open to contributing a PR.

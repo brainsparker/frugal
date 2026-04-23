@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/brainsparker/frugal/security/advisories/new
+    about: Report security issues privately via GitHub Security Advisories. See SECURITY.md for the full disclosure policy.
+  - name: Question or discussion
+    url: https://github.com/brainsparker/frugal/discussions
+    about: For open-ended questions, design discussions, or "how do I…" — use Discussions, not Issues.

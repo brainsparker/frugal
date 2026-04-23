@@ -1,0 +1,53 @@
+name: Bug report
+description: Something is broken, crashing, or returning the wrong result
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, what did you get instead?
+      placeholder: |
+        1. I ran `frugal serve`
+        2. I sent a chat completion with `X-Frugal-Use-Case: research-synthesis`
+        3. I expected routing to Claude Sonnet 4, got GPT-4o-mini
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: frugal version
+      description: Output of `frugal --version`
+      placeholder: "v0.0.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - macOS (Apple silicon)
+        - macOS (Intel)
+        - Linux (amd64)
+        - Linux (arm64)
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or explain output
+      description: |
+        Run with `FRUGAL_LOG_LEVEL=debug` and/or hit `/v1/routing/explain` after
+        the failing request. Paste relevant lines here. Redact any API keys.
+      render: text
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Config (optional)
+      description: Any non-default env vars or edits to `~/.frugal/config/models.yaml`
+      render: text
