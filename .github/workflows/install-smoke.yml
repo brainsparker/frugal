@@ -1,0 +1,104 @@
+name: install-smoke
+
+# Runs the real, public installer end-to-end on fresh runners after every
+# release. Finds the "works on my Mac" class of regressions before a user does.
+#
+# Also runs on workflow_dispatch so you can re-test without cutting a release.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  curl-pipe-sh:
+    name: ${{ matrix.os }} / curl | sh
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install via public URL
+        env:
+          FRUGAL_YES: "1"
+        run: |
+          curl -fsSL https://frugal.sh/install | sh
+
+      - name: Binary runs and reports a version
+        run: |
+          set -euo pipefail
+          "$HOME/.frugal/bin/frugal" --version
+
+      - name: Shell rc block was written
+        run: |
+          set -euo pipefail
+          found=0
+          for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+            if [ -f "$rc" ] && grep -qxF "# >>> frugal.sh >>>" "$rc"; then
+              echo "marker block present in $rc"
+              found=1
+              break
+            fi
+          done
+          if [ "$found" -ne 1 ]; then
+            echo "no shell rc got the frugal.sh marker block" >&2
+            exit 1
+          fi
+
+      - name: Uninstall is clean
+        run: |
+          set -euo pipefail
+          curl -fsSL https://frugal.sh/install | sh -s uninstall
+          if [ -d "$HOME/.frugal" ]; then
+            echo "$HOME/.frugal still exists after uninstall" >&2
+            exit 1
+          fi
+          for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+            if [ -f "$rc" ] && grep -qxF "# >>> frugal.sh >>>" "$rc"; then
+              echo "marker block still in $rc after uninstall" >&2
+              exit 1
+            fi
+          done
+
+  pinned-version:
+    name: ${{ matrix.os }} / FRUGAL_VERSION pin
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Derive tag
+        id: tag
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "value=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            # Manual re-runs pin to whatever is currently latest.
+            latest="$(curl -fsSL https://api.github.com/repos/${{ github.repository }}/releases/latest \
+              | grep '"tag_name"' | head -n1 | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
+            echo "value=$latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install pinned version
+        env:
+          FRUGAL_YES: "1"
+          FRUGAL_VERSION: ${{ steps.tag.outputs.value }}
+        run: |
+          curl -fsSL https://frugal.sh/install | sh
+
+      - name: Binary reports the pinned version
+        run: |
+          set -euo pipefail
+          got="$("$HOME/.frugal/bin/frugal" --version)"
+          want="${{ steps.tag.outputs.value }}"
+          echo "got:  $got"
+          echo "want: $want"
+          case "$got" in
+            *"$want"*) echo "version matches" ;;
+            *)         echo "version mismatch" >&2; exit 1 ;;
+          esac
