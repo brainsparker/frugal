@@ -2,13 +2,21 @@
 #
 # frugal.sh installer
 # Usage:
-#   curl -fsSL https://frugal.sh/install | sh
-#   curl -fsSL https://frugal.sh/install | sh -s uninstall
+#   curl -fsSL https://frugal.sh/install | bash
+#   curl -fsSL https://frugal.sh/install | bash -s uninstall
+#
+# Pipe to `bash`, not `sh`. On Ubuntu/Debian /bin/sh is dash and doesn't
+# support `set -o pipefail` or other bash-isms used below. The shebang is
+# ignored when the script is streamed from stdin, so the interpreter is
+# whatever you pipe to.
 #
 # Env vars:
 #   FRUGAL_VERSION      Pin a specific release tag (e.g. v0.1.0). Default: latest.
 #   FRUGAL_INSTALL_DIR  Install root. Default: $HOME/.frugal
 #   FRUGAL_YES          Non-interactive. Skips the confirmation prompt.
+#   GITHUB_TOKEN        Optional. When set, the releases/latest API call is
+#                       authenticated (5000/hr cap instead of 60/hr). Useful
+#                       in CI where runner IPs are shared.
 #
 # Exit codes:
 #   0  success
@@ -95,8 +103,17 @@ resolve_version() {
         echo "$PINNED_VERSION"
         return
     fi
+    local api_url="https://api.github.com/repos/${REPO}/releases/latest"
     local json tag
-    json="$(http_get "https://api.github.com/repos/${REPO}/releases/latest")"
+    # Unauthenticated GitHub API requests are rate-limited to 60/hour per IP.
+    # Shared CI runner pools blow that cap easily. Honour GITHUB_TOKEN when
+    # present (bumps the cap to 5000/hour) — silent no-op for end users.
+    if [ -n "${GITHUB_TOKEN:-}" ] && command -v curl >/dev/null 2>&1; then
+        json="$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$api_url")" \
+            || fail "failed to fetch $api_url" "$EXIT_NETWORK"
+    else
+        json="$(http_get "$api_url")"
+    fi
     if command -v jq >/dev/null 2>&1; then
         tag="$(printf '%s' "$json" | jq -r '.tag_name // empty')"
     else
@@ -342,7 +359,7 @@ main() {
     echo "    curl -H 'X-Frugal-Use-Case: research-synthesis' ..."
     echo
     echo "  Uninstall:"
-    echo "    curl -fsSL https://frugal.sh/install | sh -s uninstall"
+    echo "    curl -fsSL https://frugal.sh/install | bash -s uninstall"
     echo
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo

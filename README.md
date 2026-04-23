@@ -7,7 +7,7 @@
 No account. No code changes. One command.
 
 ```bash
-curl -fsSL https://frugal.sh/install | sh
+curl -fsSL https://frugal.sh/install | bash
 ```
 
 ```bash
@@ -146,12 +146,12 @@ the cheapest bundle that clears every threshold.
 ## Install
 
 ```bash
-curl -fsSL https://frugal.sh/install | sh
+curl -fsSL https://frugal.sh/install | bash
 ```
 
 Downloads a single signed binary (~10MB), verifies it with `cosign` if present,
 detects your API keys, adds `frugal` to your `PATH`. Pin a version with
-`FRUGAL_VERSION=v0.2.1 curl -fsSL … | sh`.
+`FRUGAL_VERSION=v0.2.1 curl -fsSL … | bash`.
 
 ### From source
 

@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   curl-pipe-sh:
-    name: ${{ matrix.os }} / curl | sh
+    name: ${{ matrix.os }} / curl | bash
     strategy:
       fail-fast: false
       matrix:
@@ -24,8 +24,11 @@ jobs:
       - name: Install via public URL
         env:
           FRUGAL_YES: "1"
+          # Authenticate the releases/latest API call so shared runner IPs
+          # don't 403 against the 60/hr anonymous rate limit.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          curl -fsSL https://frugal.sh/install | sh
+          curl -fsSL https://frugal.sh/install | bash
 
       - name: Binary runs and reports a version
         run: |
@@ -51,7 +54,7 @@ jobs:
       - name: Uninstall is clean
         run: |
           set -euo pipefail
-          curl -fsSL https://frugal.sh/install | sh -s uninstall
+          curl -fsSL https://frugal.sh/install | bash -s uninstall
           if [ -d "$HOME/.frugal" ]; then
             echo "$HOME/.frugal still exists after uninstall" >&2
             exit 1
@@ -73,13 +76,16 @@ jobs:
     steps:
       - name: Derive tag
         id: tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "release" ]; then
             echo "value=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
           else
             # Manual re-runs pin to whatever is currently latest.
-            latest="$(curl -fsSL https://api.github.com/repos/${{ github.repository }}/releases/latest \
+            latest="$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+              https://api.github.com/repos/${{ github.repository }}/releases/latest \
               | grep '"tag_name"' | head -n1 | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
             echo "value=$latest" >> "$GITHUB_OUTPUT"
           fi
@@ -89,7 +95,7 @@ jobs:
           FRUGAL_YES: "1"
           FRUGAL_VERSION: ${{ steps.tag.outputs.value }}
         run: |
-          curl -fsSL https://frugal.sh/install | sh
+          curl -fsSL https://frugal.sh/install | bash
 
       - name: Binary reports the pinned version
         run: |
