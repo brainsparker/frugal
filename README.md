@@ -99,14 +99,16 @@ classifier/router path runs as before — use-case routing is opt-in.
 
 | Capability | Status |
 |---|---|
-| Chat (model routing) | **Shipping** |
-| Web search | **Shipping** (Ring 1) |
-| Reranking | **Shipping** (Ring 1) |
-| Content extraction | Next |
-| Browser use | Next |
+| Chat (model routing) | **Shipping** (Ring 1a) |
+| Web search | Next (Ring 1b) |
+| Reranking | After search (Ring 1c) |
+| Content extraction | Roadmap |
+| Browser use | Roadmap |
 
-Capabilities roll out one at a time, each gated by the eval harness. Bundles
-declare the full toolchain for a use case, not just the chat model.
+Today's bundles populate the `chat` slot only; `search`, `rerank`, `extract`,
+and `browser` slots exist in the YAML schema so the API shape is stable as
+capabilities land. Each capability ships only when the eval harness has data
+saying a bundle built around it clears the quality bar.
 
 ---
 

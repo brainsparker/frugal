@@ -242,19 +242,19 @@ resp, _ := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
       <h3 class="provider-subhead">Toolchain capabilities</h3>
       <div class="provider-grid">
         <div class="provider">
-          <h3>Web search <span class="status-tag">shipping</span></h3>
+          <h3>Web search <span class="status-tag tag-next">next</span></h3>
           <p>Route each search to the cheapest provider that clears recall &amp; freshness for the use case.</p>
         </div>
         <div class="provider">
-          <h3>Reranking <span class="status-tag">shipping</span></h3>
-          <p>Cross-encoder rerank of retrieved passages. Bundled with search for research-synthesis.</p>
+          <h3>Reranking <span class="status-tag tag-next">next</span></h3>
+          <p>Cross-encoder rerank of retrieved passages. Ships after web search.</p>
         </div>
         <div class="provider">
-          <h3>Content extraction <span class="status-tag tag-next">next</span></h3>
+          <h3>Content extraction <span class="status-tag tag-next">roadmap</span></h3>
           <p>Clean text &amp; structured content from URLs. Bundled with search for factual Q&amp;A.</p>
         </div>
         <div class="provider">
-          <h3>Browser use <span class="status-tag tag-next">next</span></h3>
+          <h3>Browser use <span class="status-tag tag-next">roadmap</span></h3>
           <p>Headless browsing for interactive sites. Bundled for use cases search can't reach.</p>
         </div>
       </div>
