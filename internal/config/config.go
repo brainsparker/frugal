@@ -8,6 +8,7 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -58,6 +59,17 @@ func Load(path string) (*Config, error) {
 	}
 	if err := validate(&cfg); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
+	// Reject multi-document YAML configs. Frugal expects a single config
+	// document, so anything after the first doc is treated as an error
+	// instead of being silently ignored.
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return nil, fmt.Errorf("parsing config: expected a single YAML document")
+		}
+		return nil, fmt.Errorf("parsing config: %w", err)
 	}
 
 	return &cfg, nil
