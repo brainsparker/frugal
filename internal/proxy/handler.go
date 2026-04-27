@@ -27,6 +27,7 @@ import (
 const (
 	maxFallbackAttempts          = 3
 	defaultMaxCostPerRequestUSD  = 1.0
+	maxDecisionBufferSize        = 10000
 )
 
 // maxCostPerRequestUSD reads the per-request spend cap once per process.
@@ -74,10 +75,7 @@ func NewHandler(cls classifier.Classifier, rtr *router.Router, reg *provider.Reg
 // use-case registry. Passing nil preserves the legacy (chat-routing-only)
 // behavior.
 func NewHandlerWithUseCases(cls classifier.Classifier, rtr *router.Router, reg *provider.Registry, uc *usecase.Registry) *Handler {
-	size := envIntOrDefault("FRUGAL_DECISION_BUFFER", defaultDecisionBufferSize)
-	if size <= 0 {
-		size = defaultDecisionBufferSize
-	}
+	size := decisionBufferSizeFromEnv()
 	h := &Handler{
 		classifier: cls,
 		router:     rtr,
@@ -88,6 +86,17 @@ func NewHandlerWithUseCases(cls classifier.Classifier, rtr *router.Router, reg *
 	}
 	go h.drainDecisions()
 	return h
+}
+
+func decisionBufferSizeFromEnv() int {
+	size := envIntOrDefault("FRUGAL_DECISION_BUFFER", defaultDecisionBufferSize)
+	if size <= 0 {
+		return defaultDecisionBufferSize
+	}
+	if size > maxDecisionBufferSize {
+		return maxDecisionBufferSize
+	}
+	return size
 }
 
 // drainDecisions runs for the life of the handler, pumping decisions from the

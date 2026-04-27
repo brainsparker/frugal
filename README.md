@@ -208,7 +208,7 @@ Optional hardening timeouts (Go duration syntax):
 | `FRUGAL_MAX_COST_PER_REQUEST_USD` | `1.00` | Reject requests whose routing-time estimate exceeds this cap. Pinned requests bypass. `0` disables. |
 | `FRUGAL_LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error`. |
 | `FRUGAL_LOG_FORMAT` | `text` | `text` for human-readable, `json` for structured ingestion. |
-| `FRUGAL_DECISION_BUFFER` | `1000` | Capacity of the async routing-decision ring buffer. |
+| `FRUGAL_DECISION_BUFFER` | `1000` | Capacity of the async routing-decision ring buffer (capped at `10000` to prevent accidental memory blowups). |
 
 Prometheus metrics are served at `/metrics` behind the same auth as `/v1/*`.
 All responses carry `X-Request-ID`; generate one client-side if you want to
