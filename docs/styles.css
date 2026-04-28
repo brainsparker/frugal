@@ -481,7 +481,8 @@ h3 { font-size: 1.05rem; }
   font-size: 14px;
   color: var(--dim);
 }
-.bottom-inner > div { display: inline-flex; align-items: center; gap: 10px; }
+.bottom-inner > div { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.bottom-sep { color: var(--border); }
 .bottom nav { display: flex; flex-wrap: wrap; gap: 18px; }
 .bottom a { color: var(--dim); text-decoration: none; }
 .bottom a:hover { color: var(--fg); }
