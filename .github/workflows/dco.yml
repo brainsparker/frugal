@@ -13,4 +13,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check Developer Certificate of Origin sign-off
-        uses: tim-actions/dco@v1.1.0
+        uses: dcoapp/action@v1
