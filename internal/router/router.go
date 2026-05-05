@@ -88,6 +88,25 @@ func (r *Router) Route(features types.QueryFeatures, quality types.QualityThresh
 	}
 }
 
+// SatisfiesTier reports whether the named model would meet the threshold for
+// the given tier on the supplied features. Used by the eval harness to score
+// the router's decision against an expected minimum tier independent of
+// whether the answer was correct. Returns false when the model isn't in the
+// taxonomy, so callers don't need a separate "model exists" check.
+func (r *Router) SatisfiesTier(modelName, tier string, features types.QueryFeatures) bool {
+	t, ok := r.thresholds[tier]
+	if !ok {
+		return false
+	}
+	for _, m := range r.models {
+		if m.Name != modelName {
+			continue
+		}
+		return r.meetsRequirements(m, features, t)
+	}
+	return false
+}
+
 func (r *Router) thresholdForQuality(quality types.QualityThreshold) Threshold {
 	if t, ok := r.thresholds[string(quality)]; ok {
 		return t

@@ -9,6 +9,8 @@ baseline: gpt-4o
 problems:
   # ----- structured extraction (JSON output, schema check) ---------------
   - id: extract-email-01
+    category: hybrid
+    tool_use: forbidden
     prompt: |
       Extract the name and email as JSON with keys "name" and "email".
       Input: "Please forward the invoice to Jane Ortiz at jane.ortiz@acme.co."
@@ -17,6 +19,8 @@ problems:
     expected_keys: [name, email]
 
   - id: extract-phone-01
+    category: hybrid
+    tool_use: forbidden
     prompt: |
       Return JSON with keys "contact" and "phone" for: "Call Raj at 415-555-0199 before 4pm."
     json_mode: true
@@ -24,6 +28,8 @@ problems:
     expected_keys: [contact, phone]
 
   - id: extract-order-01
+    category: hybrid
+    tool_use: forbidden
     prompt: |
       Return JSON with keys "order_id", "quantity", and "sku" for this line item:
       "Order #A-774: 12 × SKU-PANTS-Navy-34R shipped 2026-02-10."
@@ -32,6 +38,8 @@ problems:
     expected_keys: [order_id, quantity, sku]
 
   - id: extract-date-01
+    category: hybrid
+    tool_use: forbidden
     prompt: |
       Extract the date in ISO 8601 form. Reply with JSON {"iso_date": "..."} only.
       Input: "Ship on the third of March, twenty twenty-six."
@@ -41,24 +49,32 @@ problems:
 
   # ----- arithmetic (numeric, zero or tiny tolerance) --------------------
   - id: math-mul-01
+    category: reasoning
+    tool_use: forbidden
     prompt: "What is 42 × 17? Give only the number."
     max_tokens: 20
     expected_number: 714
     tolerance: 0
 
   - id: math-div-01
+    category: reasoning
+    tool_use: forbidden
     prompt: "What is 1764 ÷ 42? Give only the number."
     max_tokens: 20
     expected_number: 42
     tolerance: 0
 
   - id: math-percent-01
+    category: reasoning
+    tool_use: forbidden
     prompt: "What is 18% of 250? Give only the number."
     max_tokens: 20
     expected_number: 45
     tolerance: 0
 
   - id: math-compound-01
+    category: reasoning
+    tool_use: forbidden
     prompt: |
       A basket costs $80 after a 20% discount. What was the original price?
       Give only the number, no units.
@@ -68,6 +84,8 @@ problems:
 
   # ----- classification (exact label match) ------------------------------
   - id: classify-sentiment-pos
+    category: reasoning
+    tool_use: forbidden
     system: |
       Classify the sentiment of the review as exactly one word: positive, negative, or neutral.
       Respond with only that single word.
@@ -76,6 +94,8 @@ problems:
     expected_equals: positive
 
   - id: classify-sentiment-neg
+    category: reasoning
+    tool_use: forbidden
     system: |
       Classify the sentiment of the review as exactly one word: positive, negative, or neutral.
       Respond with only that single word.
@@ -84,6 +104,8 @@ problems:
     expected_equals: negative
 
   - id: classify-intent-refund
+    category: reasoning
+    tool_use: forbidden
     system: |
       Classify the customer intent as exactly one of: refund, shipping, technical, other.
       Respond with only that single word.
@@ -92,6 +114,8 @@ problems:
     expected_equals: refund
 
   - id: classify-intent-shipping
+    category: reasoning
+    tool_use: forbidden
     system: |
       Classify the customer intent as exactly one of: refund, shipping, technical, other.
       Respond with only that single word.
@@ -101,50 +125,80 @@ problems:
 
   # ----- factual recall (substring) --------------------------------------
   - id: fact-capital-france
+    category: factual
+    tool_use: optional
     prompt: "What is the capital of France? Answer in one word."
     max_tokens: 10
     expected_contains: Paris
 
   - id: fact-tallest-mountain
+    category: factual
+    tool_use: optional
     prompt: "What is the name of the tallest mountain on Earth above sea level?"
     max_tokens: 20
     expected_contains: Everest
 
   - id: fact-sql-keyword
+    category: factual
+    tool_use: forbidden
     prompt: "Which SQL keyword removes duplicate rows from a SELECT result? Answer in one word."
     max_tokens: 10
     expected_contains: DISTINCT
     case_fold: true
 
   - id: fact-http-status
+    category: factual
+    tool_use: forbidden
     prompt: "Which HTTP status code indicates that a resource was not found?"
     max_tokens: 20
     expected_contains: "404"
 
   # ----- code explanation (contains_all keywords, case-fold) -------------
   - id: explain-quicksort
+    category: reasoning
+    tool_use: forbidden
     prompt: |
       In two to four sentences, explain how quicksort works.
     max_tokens: 220
     expected_contains_all: [pivot, partition]
     case_fold: true
+    judge_rubric: |
+      The answer must (1) name the pivot, (2) describe partitioning around it,
+      and (3) note recursion or divide-and-conquer. Penalize hand-waving or
+      mention of unrelated sorts (mergesort, heapsort) presented as the answer.
 
   - id: explain-big-o-sort
+    category: reasoning
+    tool_use: forbidden
     prompt: "What is the average-case time complexity of mergesort? Just the notation."
     max_tokens: 20
     expected_contains: "n log n"
     case_fold: true
 
   - id: explain-rest-vs-rpc
+    category: reasoning
+    tool_use: forbidden
     prompt: |
       In three to five sentences, contrast REST and RPC as API styles.
     max_tokens: 300
     expected_contains_all: [resource, verb]
     case_fold: true
+    judge_rubric: |
+      The answer must contrast REST's resource/noun orientation with RPC's
+      action/verb orientation, and mention at least one concrete difference
+      (HTTP verbs, URL structure, statelessness, or coupling). Reject answers
+      that conflate the two or describe only one style.
 
   - id: explain-db-index
+    category: reasoning
+    tool_use: forbidden
     prompt: |
       In two sentences, explain why a B-tree index speeds up equality lookups.
     max_tokens: 200
     expected_contains_all: [tree, balanced]
     case_fold: true
+    judge_rubric: |
+      The answer must explain that a B-tree's balanced structure gives
+      logarithmic lookup time vs a linear table scan. Penalize answers that
+      describe a hash index, confuse it with a full-text index, or omit the
+      complexity intuition.
