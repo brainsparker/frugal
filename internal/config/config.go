@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -66,6 +67,55 @@ func Load(path string) (*Config, error) {
 	if err := dec.Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
+	if err := validate(&cfg); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
 
 	return &cfg, nil
+}
+
+func validate(cfg *Config) error {
+	for providerName, provider := range cfg.Providers {
+		for modelName, model := range provider.Models {
+			if model.CostPer1KInput < 0 || model.CostPer1KOutput < 0 {
+				return fmt.Errorf("providers.%s.models.%s costs must be non-negative", providerName, modelName)
+			}
+			if err := validateUnitInterval(fmt.Sprintf("providers.%s.models.%s.capabilities.reasoning", providerName, modelName), model.Capabilities.Reasoning); err != nil {
+				return err
+			}
+			if err := validateUnitInterval(fmt.Sprintf("providers.%s.models.%s.capabilities.coding", providerName, modelName), model.Capabilities.Coding); err != nil {
+				return err
+			}
+			if err := validateUnitInterval(fmt.Sprintf("providers.%s.models.%s.capabilities.creative", providerName, modelName), model.Capabilities.Creative); err != nil {
+				return err
+			}
+			if err := validateUnitInterval(fmt.Sprintf("providers.%s.models.%s.capabilities.instruction_following", providerName, modelName), model.Capabilities.InstructionFollowing); err != nil {
+				return err
+			}
+		}
+	}
+
+	for thresholdName, threshold := range cfg.QualityThresholds {
+		if err := validateUnitInterval(fmt.Sprintf("quality_thresholds.%s.min_reasoning", thresholdName), threshold.MinReasoning); err != nil {
+			return err
+		}
+		if err := validateUnitInterval(fmt.Sprintf("quality_thresholds.%s.min_coding", thresholdName), threshold.MinCoding); err != nil {
+			return err
+		}
+		if err := validateUnitInterval(fmt.Sprintf("quality_thresholds.%s.min_creative", thresholdName), threshold.MinCreative); err != nil {
+			return err
+		}
+		if err := validateUnitInterval(fmt.Sprintf("quality_thresholds.%s.min_instruction_following", thresholdName), threshold.MinInstructionFollowing); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateUnitInterval(path string, value float64) error {
+	if math.IsNaN(value) || value < 0 || value > 1 {
+		return fmt.Errorf("%s must be between 0 and 1 (got %v)", path, value)
+	}
+	return nil
 }
