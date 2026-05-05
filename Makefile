@@ -18,10 +18,9 @@ clean:
 bench-publish: build
 	./bin/frugal bench --out BENCHMARKS.md
 	cp BENCHMARKS.md docs/BENCHMARKS.md
-	cp BENCHMARKS.md benchmark/BENCHMARKS.md
 	@echo
-	@echo "Wrote BENCHMARKS.md to repo root + docs/ + benchmark/ (during the deploy transition)."
-	@echo "Update the headline numbers in docs/benchmark/index.html and benchmark/benchmark/index.html"
+	@echo "Wrote BENCHMARKS.md to repo root + docs/ (the deployed site)."
+	@echo "Update the headline numbers in docs/benchmark/index.html"
 	@echo "(savings, pass rates, cost, latency p50/p95) so the landing page tracks the report."
 
 release: clean
