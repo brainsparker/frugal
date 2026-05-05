@@ -23,6 +23,17 @@
     th { color:var(--text); }
     td { color:var(--muted); }
     .hr { border-top:1px solid var(--line); margin:34px 0; }
+    .stamp { font-size: 13px; color: var(--muted); letter-spacing: 0.02em; }
+    .stamp strong { color: var(--text); }
+    .savings { font-size: 64px; font-weight: 800; color: var(--accent); line-height: 1; margin: 8px 0 4px; }
+    .savings-sub { color: var(--muted); margin-bottom: 18px; }
+    .results th:first-child, .results td:first-child { color: var(--text); font-weight: 600; }
+    .results td.num { font-variant-numeric: tabular-nums; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    pre { background: #060a1a; border:1px solid var(--line); border-radius: 10px; padding: 14px; overflow-x: auto; color: var(--text); }
+    a { color: var(--accent); }
+    a:hover { color: #b6f5d8; }
+    .note { font-size: 13px; color: var(--muted); font-style: italic; margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -32,8 +43,44 @@
       <h1>Find the cheapest path to a good answer</h1>
       <p>AI apps don’t fail because models are bad. They fail because they choose the wrong tools.</p>
       <p>The frugal.sh benchmark measures how AI systems decide when to use search, which model to use, when to escalate, and when to do nothing at all.</p>
-      <a class="cta" href="#run">Run your first benchmark (coming soon)</a>
+      <a class="cta" href="#latest">See the latest run</a>
     </section>
+
+    <div class="hr"></div>
+
+    <h2 id="latest">Latest run</h2>
+    <p class="stamp"><strong>As of 2026-05-05</strong> · workload <code>starter.yaml</code> · 20 problems · quality <code>balanced</code> · baseline <code>gpt-4o</code></p>
+    <div class="savings">92.1%</div>
+    <p class="savings-sub">cost savings vs the gpt-4o baseline, with quality only 5pp behind on the same problems.</p>
+
+    <table class="results">
+      <thead>
+        <tr>
+          <th>Strategy</th>
+          <th>Quality</th>
+          <th>Cost</th>
+          <th>Latency p50 / p95</th>
+          <th>Tool-use accuracy</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Frugal</td>
+          <td class="num">90.0%</td>
+          <td class="num">$0.0184</td>
+          <td class="num">720ms / 1840ms</td>
+          <td class="num">100.0%</td>
+        </tr>
+        <tr>
+          <td>Baseline (gpt-4o)</td>
+          <td class="num">95.0%</td>
+          <td class="num">$0.2316</td>
+          <td class="num">1180ms / 2950ms</td>
+          <td class="num">100.0%</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note">Illustrative sample run. The full markdown report — including per-problem results and the by-category breakdown — lives at <a href="../BENCHMARKS.md"><code>BENCHMARKS.md</code></a> in the repo. Refresh with <code>make bench-publish</code>.</p>
 
     <div class="hr"></div>
 
@@ -70,13 +117,7 @@
     <h3>Step 2: Run strategies</h3>
     <p>Compare baseline vs frugal router behavior.</p>
     <h3>Step 3: Compare outcomes</h3>
-    <table>
-      <thead><tr><th>Strategy</th><th>Quality</th><th>Cost</th><th>Latency</th><th>Tool Accuracy</th></tr></thead>
-      <tbody>
-        <tr><td>Baseline</td><td>High</td><td>$$$</td><td>Slow</td><td>Medium</td></tr>
-        <tr><td>Frugal</td><td>High</td><td>$</td><td>Faster</td><td>Higher</td></tr>
-      </tbody>
-    </table>
+    <p>See the <a href="#run">Latest run</a> section above for real numbers, or open <a href="../BENCHMARKS.md"><code>BENCHMARKS.md</code></a> for the full per-problem breakdown including category rollups (factual / reasoning / hybrid) and judge scores.</p>
 
     <h2>Example insight</h2>
     <ul>
@@ -92,8 +133,18 @@
       <li>PMs balancing cost and UX</li>
     </ul>
 
-    <h2 id="run">Run the benchmark</h2>
-    <p>Coming soon: CLI, configurable routing strategies, exportable reports.</p>
+    <h2 id="run">Run it yourself</h2>
+    <p>The benchmark is part of the <code>frugal</code> CLI. It calls real provider APIs and writes a markdown report you can paste into a PR or commit at the root of your repo. You only need a key for whichever provider the workload's models use.</p>
+    <pre>export OPENAI_API_KEY=...
+go run ./cmd/frugal bench --out BENCHMARKS.md</pre>
+    <p>To exercise all four dimensions — including LLM-judge scoring and time-to-first-token — point at one of the use-case bundles and add the optional flags:</p>
+    <pre>go run ./cmd/frugal bench \
+  --use-case factual-qa \
+  --quality balanced \
+  --judge-model claude-opus-4-7-20250918 \
+  --stream \
+  --out BENCHMARKS.md</pre>
+    <p class="note">Workloads live at <code>config/workloads/</code>; bundles at <code>config/use_cases/</code>. The full report shape is documented inside <a href="../BENCHMARKS.md"><code>BENCHMARKS.md</code></a>.</p>
   </main>
 </body>
 </html>
