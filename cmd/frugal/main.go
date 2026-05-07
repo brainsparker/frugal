@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"sort"
 	"strconv"
 	"syscall"
 	"time"
@@ -279,6 +280,7 @@ func healthHandler(registry *provider.Registry) http.HandlerFunc {
 		for n := range providers {
 			names = append(names, n)
 		}
+		sort.Strings(names)
 
 		status := "ok"
 		code := http.StatusOK
