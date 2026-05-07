@@ -301,6 +301,46 @@ func TestChatCompletions_RejectsOversizedBody(t *testing.T) {
 	}
 }
 
+func TestChatCompletions_RejectsNonJSONContentType(t *testing.T) {
+	_, ts := setupHandler()
+	defer ts.Close()
+
+	body := []byte(`{"model":"auto","messages":[{"role":"user","content":"hello"}]}`)
+	req, _ := http.NewRequest("POST", ts.URL+"/v1/chat/completions", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "text/plain")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(b))
+	}
+}
+
+func TestChatCompletions_AcceptsJSONContentTypeWithCharset(t *testing.T) {
+	_, ts := setupHandler()
+	defer ts.Close()
+
+	body := []byte(`{"model":"auto","messages":[{"role":"user","content":"hello"}]}`)
+	req, _ := http.NewRequest("POST", ts.URL+"/v1/chat/completions", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(b))
+	}
+}
+
 func TestChatCompletions_RelaxedFromHeader_EmittedWhenDowngraded(t *testing.T) {
 	// Force a downgrade: no model clears the "high" threshold for a simple
 	// English prompt (both mock models have reasoning below the high bar
