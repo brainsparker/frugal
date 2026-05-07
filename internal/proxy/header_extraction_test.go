@@ -7,6 +7,50 @@ import (
 	"testing"
 )
 
+func TestHeaderExtractionMiddleware_UseCaseAccepted(t *testing.T) {
+	h := HeaderExtractionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := UseCaseFromContext(r.Context()); got != "research-synthesis" {
+			t.Fatalf("unexpected use case: %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)
+	req.Header.Set("X-Frugal-Use-Case", "research-synthesis")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestHeaderExtractionMiddleware_UseCaseRejected(t *testing.T) {
+	tests := []string{
+		"Research-Synthesis",
+		"../../etc/passwd",
+		"a_b",
+		strings.Repeat("a", 65),
+	}
+
+	for _, tc := range tests {
+		t.Run(tc, func(t *testing.T) {
+			h := HeaderExtractionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)
+			req.Header.Set("X-Frugal-Use-Case", tc)
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d", rr.Code)
+			}
+		})
+	}
+}
+
 func TestHeaderExtractionMiddleware_FallbackCanonicalization(t *testing.T) {
 	h := HeaderExtractionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got := FallbacksFromContext(r.Context())
