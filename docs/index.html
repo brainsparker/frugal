@@ -45,6 +45,7 @@
       <a href="#how">How it works</a>
       <a href="#install">Install</a>
       <a href="#usage">Usage</a>
+      <a href="/benchmark/">Benchmark</a>
       <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
     </nav>
   </header>
@@ -281,9 +282,11 @@ resp, _ := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 
     <section class="install-block" id="install" aria-labelledby="install-heading">
       <h2 id="install-heading">Install</h2>
-      <p class="prose">One binary, ~10 MB. Detects your API keys. Adds <code>frugal</code> to
-      your <code>PATH</code>. Release artifacts are signed with cosign; the installer
-      verifies the checksum before moving the binary into place.</p>
+      <p class="prose">One binary, ~10 MB. <strong>Frugal has no SaaS and issues no keys</strong>
+      — the proxy uses your existing <code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>,
+      or <code>GOOGLE_API_KEY</code> from your environment. Adds <code>frugal</code> to your
+      <code>PATH</code>. Release artifacts are signed with cosign; the installer verifies the
+      checksum before moving the binary into place.</p>
 
       <div class="terminal">
         <pre class="terminal-body"><code><span class="prompt">$</span> curl -fsSL https://frugal.sh/install | bash</code></pre>
@@ -316,7 +319,9 @@ resp, _ := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
         <div>
           <dt>Your keys stay local</dt>
           <dd>Provider API keys never leave your machine. Frugal reads them from the
-          environment and forwards requests upstream; there is no control plane.</dd>
+          environment and forwards requests upstream; there is no control plane.
+          Enterprise customers extend the same model to the analytics tier — self-hosted
+          dashboard, <strong>zero data retention by architecture</strong>.</dd>
         </div>
         <div>
           <dt>Signed releases</dt>

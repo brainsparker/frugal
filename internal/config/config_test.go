@@ -79,6 +79,68 @@ func TestLoad_MissingFile(t *testing.T) {
 	}
 }
 
+func TestLoad_RejectsNegativeCosts(t *testing.T) {
+	content := `
+providers:
+  openai:
+    api_key_env: OPENAI_API_KEY
+    models:
+      gpt-4o:
+        cost_per_1k_input: -0.01
+        cost_per_1k_output: 0.01
+        capabilities:
+          reasoning: 0.95
+          coding: 0.92
+          creative: 0.90
+          instruction_following: 0.95
+          max_context: 128000
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for negative cost")
+	}
+	if !strings.Contains(err.Error(), "costs must be non-negative") {
+		t.Fatalf("expected non-negative costs error, got: %v", err)
+	}
+}
+
+func TestLoad_RejectsOutOfRangeCapabilityScore(t *testing.T) {
+	content := `
+providers:
+  openai:
+    api_key_env: OPENAI_API_KEY
+    models:
+      gpt-4o:
+        cost_per_1k_input: 0.0025
+        cost_per_1k_output: 0.01
+        capabilities:
+          reasoning: 1.2
+          coding: 0.92
+          creative: 0.90
+          instruction_following: 0.95
+          max_context: 128000
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for out-of-range capability")
+	}
+	if !strings.Contains(err.Error(), "capabilities.reasoning") {
+		t.Fatalf("expected capabilities.reasoning error, got: %v", err)
+	}
+}
+
 func TestLoad_RejectsUnknownFields(t *testing.T) {
 	content := `
 providers:

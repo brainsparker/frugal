@@ -88,19 +88,33 @@ func isRetryable(err error) bool {
 	return false
 }
 
-var retryAfterRe = regexp.MustCompile(`retry[- ]after[: ]+(\d+)`)
+var retryAfterRe = regexp.MustCompile(`(?i)retry[- ]after[: ]+([^\n]+)`)
 
 func parseRetryAfter(err error) time.Duration {
 	if err == nil {
 		return 0
 	}
-	m := retryAfterRe.FindStringSubmatch(strings.ToLower(err.Error()))
+	m := retryAfterRe.FindStringSubmatch(err.Error())
 	if len(m) != 2 {
 		return 0
 	}
-	secs, perr := strconv.Atoi(m[1])
-	if perr != nil || secs <= 0 {
-		return 0
+	raw := strings.TrimSpace(strings.TrimRight(m[1], ".,;"))
+	if secs, perr := strconv.Atoi(raw); perr == nil {
+		if secs <= 0 {
+			return 0
+		}
+		return time.Duration(secs) * time.Second
 	}
-	return time.Duration(secs) * time.Second
+
+	for _, layout := range []string{time.RFC1123, time.RFC1123Z, time.RFC850, time.ANSIC} {
+		if when, perr := time.Parse(layout, raw); perr == nil {
+			delta := time.Until(when)
+			if delta <= 0 {
+				return 0
+			}
+			return delta
+		}
+	}
+
+	return 0
 }

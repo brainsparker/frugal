@@ -1,4 +1,4 @@
-.PHONY: build run test clean release
+.PHONY: build run test clean release bench-publish
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X main.buildVersion=$(VERSION)"
@@ -14,6 +14,14 @@ test:
 
 clean:
 	rm -rf bin/ dist/
+
+bench-publish: build
+	./bin/frugal bench --out BENCHMARKS.md
+	cp BENCHMARKS.md docs/BENCHMARKS.md
+	@echo
+	@echo "Wrote BENCHMARKS.md to repo root + docs/ (the deployed site)."
+	@echo "Update the headline numbers in docs/benchmark/index.html"
+	@echo "(savings, pass rates, cost, latency p50/p95) so the landing page tracks the report."
 
 release: clean
 	mkdir -p dist

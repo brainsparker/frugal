@@ -56,6 +56,61 @@ problems:
 	}
 }
 
+func TestLoadLiveWorkload_RejectsInvalidCategory(t *testing.T) {
+	dir := t.TempDir()
+	bad := filepath.Join(dir, "bad-cat.yaml")
+	if err := os.WriteFile(bad, []byte(`
+name: bad-cat
+baseline: mock-model
+problems:
+  - id: p1
+    prompt: hello
+    category: trivia
+    expected_equals: hi
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadLiveWorkload(bad); err == nil {
+		t.Fatalf("expected error on invalid category")
+	}
+}
+
+func TestLoadLiveWorkload_RejectsInvalidToolUse(t *testing.T) {
+	dir := t.TempDir()
+	bad := filepath.Join(dir, "bad-tool.yaml")
+	if err := os.WriteFile(bad, []byte(`
+name: bad-tool
+baseline: mock-model
+problems:
+  - id: p1
+    prompt: hello
+    tool_use: maybe
+    expected_equals: hi
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadLiveWorkload(bad); err == nil {
+		t.Fatalf("expected error on invalid tool_use")
+	}
+}
+
+func TestProblem_EffectiveDefaults(t *testing.T) {
+	p := Problem{}
+	if got := p.EffectiveToolUse(); got != ToolUseOptional {
+		t.Errorf("EffectiveToolUse default: want %q, got %q", ToolUseOptional, got)
+	}
+	if got := p.EffectiveCategory(); got != "uncategorized" {
+		t.Errorf("EffectiveCategory default: want \"uncategorized\", got %q", got)
+	}
+	p2 := Problem{Category: CategoryFactual, ToolUse: ToolUseRequired}
+	if got := p2.EffectiveToolUse(); got != ToolUseRequired {
+		t.Errorf("EffectiveToolUse: want %q, got %q", ToolUseRequired, got)
+	}
+	if got := p2.EffectiveCategory(); got != CategoryFactual {
+		t.Errorf("EffectiveCategory: want %q, got %q", CategoryFactual, got)
+	}
+}
+
 func TestLoadLiveWorkload_RejectsDuplicateIDs(t *testing.T) {
 	dir := t.TempDir()
 	bad := filepath.Join(dir, "dup.yaml")

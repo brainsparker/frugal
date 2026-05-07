@@ -27,6 +27,7 @@ import (
 const (
 	maxFallbackAttempts          = 3
 	defaultMaxCostPerRequestUSD  = 1.0
+	maxDecisionBufferSize        = 10000
 )
 
 // maxCostPerRequestUSD reads the per-request spend cap once per process.
@@ -74,10 +75,7 @@ func NewHandler(cls classifier.Classifier, rtr *router.Router, reg *provider.Reg
 // use-case registry. Passing nil preserves the legacy (chat-routing-only)
 // behavior.
 func NewHandlerWithUseCases(cls classifier.Classifier, rtr *router.Router, reg *provider.Registry, uc *usecase.Registry) *Handler {
-	size := envIntOrDefault("FRUGAL_DECISION_BUFFER", defaultDecisionBufferSize)
-	if size <= 0 {
-		size = defaultDecisionBufferSize
-	}
+	size := decisionBufferSizeFromEnv()
 	h := &Handler{
 		classifier: cls,
 		router:     rtr,
@@ -88,6 +86,17 @@ func NewHandlerWithUseCases(cls classifier.Classifier, rtr *router.Router, reg *
 	}
 	go h.drainDecisions()
 	return h
+}
+
+func decisionBufferSizeFromEnv() int {
+	size := envIntOrDefault("FRUGAL_DECISION_BUFFER", defaultDecisionBufferSize)
+	if size <= 0 {
+		return defaultDecisionBufferSize
+	}
+	if size > maxDecisionBufferSize {
+		return maxDecisionBufferSize
+	}
+	return size
 }
 
 // drainDecisions runs for the life of the handler, pumping decisions from the
@@ -122,13 +131,13 @@ var lookupEnv = func(key string) (string, bool) {
 	return v, ok
 }
 
-// allowedFallbackModels returns a set of registered model names for
-// allowlisting caller-supplied fallback chains.
-func (h *Handler) allowedFallbackModels() map[string]struct{} {
+// allowedFallbackModels returns a case-insensitive map of registered model
+// names for allowlisting caller-supplied fallback chains.
+func (h *Handler) allowedFallbackModels() map[string]string {
 	models := h.registry.AllModels()
-	set := make(map[string]struct{}, len(models))
+	set := make(map[string]string, len(models))
 	for _, m := range models {
-		set[m] = struct{}{}
+		set[strings.ToLower(m)] = m
 	}
 	return set
 }
@@ -306,7 +315,7 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, prov p
 	resp, err := prov.ChatCompletion(r.Context(), decision.SelectedModel, req)
 	if err != nil {
 		// Try fallback chain
-		for _, fb := range boundedFallbacks(fallbacks, decision.SelectedModel, h.allowedFallbackModels()) {
+		for _, fb := range boundedFallbacks(r.Context(), fallbacks, decision.SelectedModel, h.allowedFallbackModels()) {
 			fbProv, fbErr := h.registry.Resolve(fb)
 			if fbErr != nil {
 				continue
@@ -357,7 +366,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, prov prov
 		// Handshake or first-chunk failure: walk the fallback chain. Once the
 		// first chunk has been written to the client, any further error is
 		// surfaced in-band (see streaming.go) — retry is no longer safe.
-		for _, fb := range boundedFallbacks(fallbacks, decision.SelectedModel, h.allowedFallbackModels()) {
+		for _, fb := range boundedFallbacks(r.Context(), fallbacks, decision.SelectedModel, h.allowedFallbackModels()) {
 			fbProv, fbErr := h.registry.Resolve(fb)
 			if fbErr != nil {
 				continue
@@ -410,7 +419,7 @@ func openStreamWithFirstChunk(ctx context.Context, prov provider.Provider, model
 // routed model. Allow-listing against the registry prevents a client from
 // crafting an `X-Frugal-Fallback` header that steers traffic to an expensive
 // model (or a never-configured one) the operator did not authorize.
-func boundedFallbacks(fallbacks []string, selectedModel string, allowed map[string]struct{}) []string {
+func boundedFallbacks(ctx context.Context, fallbacks []string, selectedModel string, allowed map[string]string) []string {
 	if len(fallbacks) == 0 {
 		return nil
 	}
@@ -438,10 +447,12 @@ func boundedFallbacks(fallbacks []string, selectedModel string, allowed map[stri
 		seen[key] = struct{}{}
 
 		if allowed != nil {
-			if _, ok := allowed[trimmed]; !ok {
-				obs.L(context.TODO()).Warn("ignoring unregistered fallback", "model", trimmed)
+			canonical, ok := allowed[key]
+			if !ok {
+				obs.L(ctx).Warn("ignoring unregistered fallback", "model", trimmed)
 				continue
 			}
+			trimmed = canonical
 		}
 
 		bounded = append(bounded, trimmed)

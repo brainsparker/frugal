@@ -60,3 +60,48 @@ func TestRecoverMiddleware_PassesThrough(t *testing.T) {
 		t.Fatalf("expected body ok, got %q", rr.Body.String())
 	}
 }
+
+func TestHeaderExtractionMiddleware_RejectsInvalidUseCaseHeader(t *testing.T) {
+	h := HeaderExtractionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)
+	req.Header.Set("X-Frugal-Use-Case", "Legal Research")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+
+	var body struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Error.Code != "invalid_use_case_header" {
+		t.Fatalf("expected invalid_use_case_header, got %q", body.Error.Code)
+	}
+}
+
+func TestHeaderExtractionMiddleware_AllowsValidUseCaseHeader(t *testing.T) {
+	h := HeaderExtractionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := UseCaseFromContext(r.Context()); got != "research-synthesis" {
+			t.Fatalf("expected research-synthesis in context, got %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)
+	req.Header.Set("X-Frugal-Use-Case", "research-synthesis")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}

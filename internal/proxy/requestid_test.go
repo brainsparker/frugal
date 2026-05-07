@@ -72,3 +72,45 @@ func TestRequestIDMiddleware_RejectsOverlongInbound(t *testing.T) {
 		t.Fatalf("expected a fresh generated ID when inbound is rejected")
 	}
 }
+
+func TestRequestIDMiddleware_RejectsUnsafeCharacters(t *testing.T) {
+	var captured string
+	handler := RequestIDMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		captured = obs.RequestID(r.Context())
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Request-ID", "trace id with spaces")
+	handler.ServeHTTP(rec, req)
+
+	if captured == "trace id with spaces" {
+		t.Fatalf("expected unsafe inbound ID to be replaced")
+	}
+	if captured == "" {
+		t.Fatalf("expected generated request ID")
+	}
+}
+
+func TestIsSafeRequestID(t *testing.T) {
+	tests := []struct {
+		name string
+		id   string
+		want bool
+	}{
+		{name: "valid simple", id: "abc-123", want: true},
+		{name: "valid punctuation", id: "trace_id:abc.def-123", want: true},
+		{name: "empty", id: "", want: false},
+		{name: "contains space", id: "abc 123", want: false},
+		{name: "contains slash", id: "abc/123", want: false},
+		{name: "contains unicode", id: "abc-µ", want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isSafeRequestID(tc.id); got != tc.want {
+				t.Fatalf("isSafeRequestID(%q) = %v, want %v", tc.id, got, tc.want)
+			}
+		})
+	}
+}

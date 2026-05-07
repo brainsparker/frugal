@@ -27,7 +27,7 @@ const (
 	maxUseCaseHeaderLen = 64
 )
 
-var useCaseHeaderPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+var useCaseHeaderPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 
 // QualityFromContext extracts the quality threshold from the request context.
 func QualityFromContext(ctx context.Context) types.QualityThreshold {
@@ -62,7 +62,7 @@ func UseCaseFromContext(ctx context.Context) string {
 func RequestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSpace(r.Header.Get("X-Request-ID"))
-		if id == "" || len(id) > 128 {
+		if !isSafeRequestID(id) {
 			id = obs.NewRequestID()
 		}
 		w.Header().Set("X-Request-ID", id)
@@ -70,6 +70,24 @@ func RequestIDMiddleware(next http.Handler) http.Handler {
 		ctx = obs.WithLogger(ctx, obs.L(ctx).With("request_id", id))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func isSafeRequestID(id string) bool {
+	if id == "" || len(id) > 128 {
+		return false
+	}
+	for _, r := range id {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			continue
+		}
+		switch r {
+		case '-', '_', '.', ':':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // RateLimitMiddleware enforces a global token-bucket on the proxy's serve
@@ -204,7 +222,7 @@ func HeaderExtractionMiddleware(next http.Handler) http.Handler {
 			if len(uc) > maxUseCaseHeaderLen || !useCaseHeaderPattern.MatchString(uc) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusBadRequest)
-				_, _ = w.Write([]byte(`{"error":{"message":"X-Frugal-Use-Case must be a kebab-case slug (lowercase letters, numbers, hyphens) up to 64 characters","type":"frugal_error","code":"invalid_use_case"}}`))
+				_, _ = w.Write([]byte(`{"error":{"message":"X-Frugal-Use-Case must match ^[a-z0-9][a-z0-9-]{0,63}$","type":"frugal_error","code":"invalid_use_case_header"}}`))
 				return
 			}
 			ctx = context.WithValue(ctx, useCaseKey, uc)

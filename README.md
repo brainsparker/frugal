@@ -2,7 +2,7 @@
 
 **Open-source AI toolchain cost optimizer. Route every prompt to the cheapest model + toolchain bundle that won't compromise quality.**
 
-[frugal.sh](https://frugal.sh) · [GitHub](https://github.com/brainsparker/frugal)
+[frugal.sh](https://frugal.sh) · [GitHub](https://github.com/brainsparker/frugal) · [Strategy](./frugal-strategy-v3.md)
 
 No account. No code changes. One command.
 
@@ -37,6 +37,16 @@ the data says wins for your workload.
 | **Capability** | A primitive: chat, web search, reranking, content extraction, browser. |
 | **Use case** | A named class of work (`research-synthesis`, `code-dev`, `factual-qa`, `structured-extraction`). Ships with a labeled benchmark workload. |
 | **Bundle** | The recommended (capability → provider) map for a use case at a quality tier. |
+
+## Free vs paid
+
+| Component | Source | Pricing |
+|---|---|---|
+| Proxy | OSS (BUSL 1.1 → Apache 2.0) | Free |
+| Receiver *(planned)* | OSS (BUSL 1.1 → Apache 2.0) | Free for self-host |
+| Dashboard *(planned)* | Proprietary | Paid; ships alongside the receiver |
+
+The proxy is free, BYOK (your own provider keys), no account. The paid tier is a **ZDR enterprise dashboard**: customer self-hosts the receiver + dashboard inside their own VPC, Frugal-the-company never receives a single byte of their data. Aimed at regulated industries and security-conscious teams. Full positioning in [`frugal-strategy-v3.md`](./frugal-strategy-v3.md).
 
 ## How much does it actually save?
 
@@ -208,7 +218,7 @@ Optional hardening timeouts (Go duration syntax):
 | `FRUGAL_MAX_COST_PER_REQUEST_USD` | `1.00` | Reject requests whose routing-time estimate exceeds this cap. Pinned requests bypass. `0` disables. |
 | `FRUGAL_LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error`. |
 | `FRUGAL_LOG_FORMAT` | `text` | `text` for human-readable, `json` for structured ingestion. |
-| `FRUGAL_DECISION_BUFFER` | `1000` | Capacity of the async routing-decision ring buffer. |
+| `FRUGAL_DECISION_BUFFER` | `1000` | Capacity of the async routing-decision ring buffer (capped at `10000` to prevent accidental memory blowups). |
 
 Prometheus metrics are served at `/metrics` behind the same auth as `/v1/*`.
 All responses carry `X-Request-ID`; generate one client-side if you want to

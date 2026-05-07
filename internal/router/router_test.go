@@ -194,3 +194,34 @@ func TestRoute_MissingRequestedThresholdFallsBackToBalanced(t *testing.T) {
 		t.Errorf("expected balanced fallback model mid-model when high threshold missing, got %s", d.SelectedModel)
 	}
 }
+
+func TestSatisfiesTier(t *testing.T) {
+	r := New(testModels(), testThresholds())
+	features := types.QueryFeatures{EstimatedInputTokens: 100, EstimatedOutputTokens: 100}
+
+	cases := []struct {
+		model, tier string
+		want        bool
+	}{
+		// premium-model meets every tier.
+		{"premium-model", "cost", true},
+		{"premium-model", "balanced", true},
+		{"premium-model", "high", true},
+		// mid-model meets cost & balanced but not high.
+		{"mid-model", "cost", true},
+		{"mid-model", "balanced", true},
+		{"mid-model", "high", false},
+		// cheap-model meets only cost (its capabilities are below balanced).
+		{"cheap-model", "cost", true},
+		{"cheap-model", "balanced", false},
+		{"cheap-model", "high", false},
+		// Unknown model and tier both return false.
+		{"does-not-exist", "balanced", false},
+		{"premium-model", "ultra", false},
+	}
+	for _, c := range cases {
+		if got := r.SatisfiesTier(c.model, c.tier, features); got != c.want {
+			t.Errorf("SatisfiesTier(%q, %q) = %v, want %v", c.model, c.tier, got, c.want)
+		}
+	}
+}

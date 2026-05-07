@@ -343,29 +343,56 @@ main() {
     [ -n "${OPENAI_API_KEY:-}"    ] && { ok "OPENAI_API_KEY found";    keys=$((keys + 1)); }
     [ -n "${ANTHROPIC_API_KEY:-}" ] && { ok "ANTHROPIC_API_KEY found"; keys=$((keys + 1)); }
     [ -n "${GOOGLE_API_KEY:-}"    ] && { ok "GOOGLE_API_KEY found";    keys=$((keys + 1)); }
+    echo
+    printf '\033[2m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n'
+    echo
+    printf '  \033[1;32m✓\033[0m  \033[1mfrugal.sh installed\033[0m  \033[2m·  %s  ·  %s\033[0m\n' "$version" "$platform"
+    echo
+
     if [ "$keys" -eq 0 ]; then
-        warn "no provider API keys in environment"
-        echo "  Set at least one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY"
+        printf '  \033[1;33m⚠\033[0m  no provider API keys detected — the proxy can'\''t make calls yet.\n'
+        echo
+        printf '     \033[2mFrugal has no SaaS or account — use the keys you already have\n'
+        printf '     from your model / toolchain provider.\033[0m\n'
+        echo
+        printf '  \033[2m─── \033[0m\033[1;36mSet a key to start\033[0m\033[2m ──────────────────────────────\033[0m\n'
+        echo
+        printf '  \033[1;32m▸\033[0m  cheapest tier  \033[2m(Gemini Flash — pennies per million tokens)\033[0m\n'
+        printf '        \033[1m$\033[0m export GOOGLE_API_KEY=...\n'
+        echo
+        printf '  \033[1;32m▸\033[0m  Anthropic\n'
+        printf '        \033[1m$\033[0m export ANTHROPIC_API_KEY=...\n'
+        echo
+        printf '  \033[1;32m▸\033[0m  OpenAI\n'
+        printf '        \033[1m$\033[0m export OPENAI_API_KEY=...\n'
+        echo
+        printf '  Then start the proxy:\n'
+        printf '        \033[1m$\033[0m frugal serve\n'
+        echo
+        printf '  \033[2mNot sure yet?  See the live benchmark →\033[0m \033[1;36mhttps://frugal.sh/benchmark\033[0m\n'
+    else
+        printf '  \033[2m─── \033[0m\033[1;36mTry it\033[0m\033[2m ──────────────────────────────────────────\033[0m\n'
+        echo
+        printf '  \033[1;32m1.\033[0m  \033[1mstart the proxy\033[0m\n'
+        printf '        \033[1m$\033[0m frugal serve\n'
+        echo
+        printf '  \033[1;32m2.\033[0m  \033[1mpoint your app at it\033[0m  \033[2m(any OpenAI-compatible SDK)\033[0m\n'
+        printf '        \033[1m$\033[0m export OPENAI_BASE_URL=http://localhost:8080/v1\n'
+        echo
+        printf '  \033[1;32m3.\033[0m  \033[1mroute by use case\033[0m  \033[2m— the toolchain bundle that wins on the bench\033[0m\n'
+        printf '        \033[1m$\033[0m curl "$OPENAI_BASE_URL/chat/completions" \\\n'
+        printf '            -H "X-Frugal-Use-Case: research-synthesis" \\\n'
+        printf '            -d '\''{"model":"auto","messages":[{"role":"user","content":"hi"}]}'\''\n'
+        echo
+        printf '  \033[1;32m4.\033[0m  \033[1msee what frugal saved\033[0m\n'
+        printf '        \033[1m$\033[0m frugal bench --out BENCHMARKS.md\n'
+        printf '        \033[2mor read the live run →\033[0m \033[1;36mhttps://frugal.sh/benchmark\033[0m\n'
     fi
 
     echo
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    printf '  \033[2muninstall:  curl -fsSL https://frugal.sh/install | bash -s uninstall\033[0m\n'
     echo
-    echo "  frugal.sh installed"
-    echo
-    echo "  Start the proxy:"
-    echo "    frugal"
-    echo
-    echo "  Point your app at it:"
-    echo "    export OPENAI_BASE_URL=http://localhost:8080/v1"
-    echo
-    echo "  Route by use case:"
-    echo "    curl -H 'X-Frugal-Use-Case: research-synthesis' ..."
-    echo
-    echo "  Uninstall:"
-    echo "    curl -fsSL https://frugal.sh/install | bash -s uninstall"
-    echo
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    printf '\033[2m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n'
     echo
 }
 
