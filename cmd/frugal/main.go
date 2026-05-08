@@ -137,7 +137,7 @@ func main() {
 		log.Fatalf("startup rejected: %v", err)
 	}
 
-	rps := envIntOrDefault("FRUGAL_RPS", 30)
+	rps := envNonNegativeIntOrDefault("FRUGAL_RPS", 30)
 	burst := envIntOrDefault("FRUGAL_BURST", 60)
 
 	// Wire routes. Middleware ordering matters: RequestID first so
@@ -364,6 +364,21 @@ func envIntOrDefault(key string, fallback int) int {
 
 	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed <= 0 {
+		slog.Warn("invalid env int; using default", "key", key, "value", value, "default", fallback)
+		return fallback
+	}
+
+	return parsed
+}
+
+func envNonNegativeIntOrDefault(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 0 {
 		slog.Warn("invalid env int; using default", "key", key, "value", value, "default", fallback)
 		return fallback
 	}
