@@ -218,6 +218,7 @@ func HeaderExtractionMiddleware(next http.Handler) http.Handler {
 		// Use case header is validated against the registry by the handler,
 		// not here — middleware shouldn't need the registry reference.
 		if uc := strings.TrimSpace(r.Header.Get("X-Frugal-Use-Case")); uc != "" {
+			uc = strings.ToLower(uc)
 			if !useCaseHeaderPattern.MatchString(uc) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusBadRequest)

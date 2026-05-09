@@ -105,3 +105,21 @@ func TestHeaderExtractionMiddleware_AllowsValidUseCaseHeader(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 }
+
+func TestHeaderExtractionMiddleware_NormalizesUseCaseHeaderToLowercase(t *testing.T) {
+	h := HeaderExtractionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := UseCaseFromContext(r.Context()); got != "research-synthesis" {
+			t.Fatalf("expected normalized research-synthesis in context, got %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)
+	req.Header.Set("X-Frugal-Use-Case", "Research-Synthesis")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
