@@ -26,6 +26,25 @@ func TestHeaderExtractionMiddleware_FallbackCanonicalization(t *testing.T) {
 	}
 }
 
+func TestHeaderExtractionMiddleware_FallbackDedupesCaseInsensitive(t *testing.T) {
+	h := HeaderExtractionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got := FallbacksFromContext(r.Context())
+		if len(got) != 2 || got[0] != "GPT-4.1" || got[1] != "claude-sonnet" {
+			t.Fatalf("unexpected fallbacks: %#v", got)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)
+	req.Header.Set("X-Frugal-Fallback", " GPT-4.1, gpt-4.1, claude-sonnet ")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
 func TestHeaderExtractionMiddleware_FallbackTooMany(t *testing.T) {
 	h := HeaderExtractionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

@@ -206,10 +206,11 @@ func HeaderExtractionMiddleware(next http.Handler) http.Handler {
 					_, _ = w.Write([]byte(`{"error":{"message":"X-Frugal-Fallback model names must be <= 128 characters","type":"frugal_error","code":"invalid_fallback"}}`))
 					return
 				}
-				if _, ok := seen[m]; ok {
+				canonical := strings.ToLower(m)
+				if _, ok := seen[canonical]; ok {
 					continue
 				}
-				seen[m] = struct{}{}
+				seen[canonical] = struct{}{}
 				fallbacks = append(fallbacks, m)
 			}
 			ctx = context.WithValue(ctx, fallbackKey, fallbacks)
