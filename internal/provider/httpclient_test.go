@@ -25,4 +25,13 @@ func TestNewHTTPClient_ConfiguresDefensiveTransport(t *testing.T) {
 	if transport.IdleConnTimeout != defaultIdleConnTimeout {
 		t.Fatalf("expected IdleConnTimeout %s, got %s", defaultIdleConnTimeout, transport.IdleConnTimeout)
 	}
+	if transport.MaxIdleConns != defaultMaxIdleConns {
+		t.Fatalf("expected MaxIdleConns %d, got %d", defaultMaxIdleConns, transport.MaxIdleConns)
+	}
+	if transport.MaxIdleConnsPerHost != defaultMaxIdleConnsPerHost {
+		t.Fatalf("expected MaxIdleConnsPerHost %d, got %d", defaultMaxIdleConnsPerHost, transport.MaxIdleConnsPerHost)
+	}
+	if transport.MaxConnsPerHost != defaultMaxConnsPerHost {
+		t.Fatalf("expected MaxConnsPerHost %d, got %d", defaultMaxConnsPerHost, transport.MaxConnsPerHost)
+	}
 }
