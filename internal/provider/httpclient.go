@@ -13,6 +13,9 @@ const (
 	defaultResponseHeaderTimeout = 30 * time.Second
 	defaultExpectContinueTimeout = 1 * time.Second
 	defaultIdleConnTimeout       = 90 * time.Second
+	defaultMaxIdleConns          = 100
+	defaultMaxIdleConnsPerHost   = 32
+	defaultMaxConnsPerHost       = 64
 )
 
 // NewHTTPClient returns an HTTP client with defensive network timeouts suitable
@@ -26,7 +29,9 @@ func NewHTTPClient() *http.Client {
 			KeepAlive: defaultKeepAlive,
 		}).DialContext,
 		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
+		MaxIdleConns:          defaultMaxIdleConns,
+		MaxIdleConnsPerHost:   defaultMaxIdleConnsPerHost,
+		MaxConnsPerHost:       defaultMaxConnsPerHost,
 		IdleConnTimeout:       defaultIdleConnTimeout,
 		TLSHandshakeTimeout:   defaultTLSHandshakeTimeout,
 		ExpectContinueTimeout: defaultExpectContinueTimeout,
