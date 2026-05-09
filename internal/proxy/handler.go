@@ -292,9 +292,12 @@ func decodeChatCompletionRequest(w http.ResponseWriter, r *http.Request) (*types
 	if err := dec.Decode(&req); err != nil {
 		var syntaxErr *json.SyntaxError
 		var typeErr *json.UnmarshalTypeError
+		var maxBytesErr *http.MaxBytesError
 		switch {
 		case errors.As(err, &syntaxErr):
 			return nil, fmt.Errorf("malformed JSON")
+		case errors.As(err, &maxBytesErr):
+			return nil, fmt.Errorf("request body exceeds %d byte limit", maxChatCompletionsBodyBytes)
 		case errors.Is(err, io.EOF):
 			return nil, fmt.Errorf("empty request body")
 		case errors.As(err, &typeErr):

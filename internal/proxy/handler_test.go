@@ -299,6 +299,18 @@ func TestChatCompletions_RejectsOversizedBody(t *testing.T) {
 		b, _ := io.ReadAll(resp.Body)
 		t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(b))
 	}
+
+	var payload struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if !strings.Contains(payload.Error.Message, "request body exceeds") {
+		t.Fatalf("expected stable oversized body message, got %q", payload.Error.Message)
+	}
 }
 
 func TestChatCompletions_RelaxedFromHeader_EmittedWhenDowngraded(t *testing.T) {
