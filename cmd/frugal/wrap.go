@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -79,7 +80,7 @@ func runWrap(configPath string, args []string) int {
 	// the proxy behind it, and hand the same token to the child via
 	// OPENAI_API_KEY so the SDK authenticates transparently. The user's real
 	// upstream key stays in Frugal's environment and never touches the child.
-	authToken := os.Getenv("FRUGAL_AUTH_TOKEN")
+	authToken := strings.TrimSpace(os.Getenv("FRUGAL_AUTH_TOKEN"))
 	if authToken == "" {
 		authToken = newSessionToken()
 	}

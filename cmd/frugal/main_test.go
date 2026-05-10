@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -134,5 +135,16 @@ func TestEnvIntOrDefaultInvalidValues(t *testing.T) {
 	t.Setenv(key, "-10")
 	if got := envIntOrDefault(key, 1234); got != 1234 {
 		t.Fatalf("expected fallback for negative int, got %d", got)
+	}
+}
+
+func TestGuardUnauthenticatedBind_WhitespaceTokenTreatedAsEmpty(t *testing.T) {
+	t.Setenv("FRUGAL_ALLOW_UNAUTH", "")
+	err := guardUnauthenticatedBind("0.0.0.0:8080", "   \t\n  ")
+	if err == nil {
+		t.Fatalf("expected startup rejection when token is only whitespace")
+	}
+	if !strings.Contains(err.Error(), "FRUGAL_AUTH_TOKEN") {
+		t.Fatalf("expected auth token guidance in error, got %q", err.Error())
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -132,7 +133,7 @@ func main() {
 		addr = a
 	}
 
-	authToken := os.Getenv("FRUGAL_AUTH_TOKEN")
+	authToken := strings.TrimSpace(os.Getenv("FRUGAL_AUTH_TOKEN"))
 	if err := guardUnauthenticatedBind(addr, authToken); err != nil {
 		log.Fatalf("startup rejected: %v", err)
 	}
@@ -184,6 +185,7 @@ func main() {
 // working on localhost while preventing the Fly/Docker footgun where :8080
 // binds to 0.0.0.0 and any network traffic can drain the operator's keys.
 func guardUnauthenticatedBind(addr, token string) error {
+	token = strings.TrimSpace(token)
 	if token != "" {
 		return nil
 	}
