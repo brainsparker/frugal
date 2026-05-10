@@ -153,15 +153,15 @@ func AuthMiddleware(token string) func(http.Handler) http.Handler {
 }
 
 func bearerFromHeader(h string) string {
-	const prefix = "Bearer "
-	if len(h) <= len(prefix) {
+	parts := strings.Fields(strings.TrimSpace(h))
+	if len(parts) != 2 {
 		return ""
 	}
-	// Case-insensitive prefix match per RFC 6750.
-	if !strings.EqualFold(h[:len(prefix)], prefix) {
+	// Case-insensitive scheme check per RFC 6750.
+	if !strings.EqualFold(parts[0], "Bearer") {
 		return ""
 	}
-	return strings.TrimSpace(h[len(prefix):])
+	return parts[1]
 }
 
 // HeaderExtractionMiddleware extracts X-Frugal-* headers into the request
