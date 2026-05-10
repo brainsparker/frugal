@@ -110,6 +110,20 @@ func TestParseRetryAfter_ParsesHTTPDate(t *testing.T) {
 	}
 }
 
+func TestParseRetryAfter_ParsesFractionalSeconds(t *testing.T) {
+	err := errors.New("openai error 429: rate limit exceeded, Retry-After: 0.5")
+	if got := parseRetryAfter(err); got != 500*time.Millisecond {
+		t.Fatalf("parseRetryAfter = %s, want 500ms", got)
+	}
+}
+
+func TestParseRetryAfter_ParsesQuotedSeconds(t *testing.T) {
+	err := errors.New("openai error 429: rate limit exceeded, retry-after: \"3\"")
+	if got := parseRetryAfter(err); got != 3*time.Second {
+		t.Fatalf("parseRetryAfter = %s, want 3s", got)
+	}
+}
+
 func TestParseRetryAfter_IgnoresPastHTTPDate(t *testing.T) {
 	when := time.Now().Add(-2 * time.Second).UTC().Format(time.RFC1123)
 	err := errors.New("openai error 429: rate limit exceeded, retry-after: " + when)

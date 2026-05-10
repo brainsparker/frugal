@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -98,12 +99,12 @@ func parseRetryAfter(err error) time.Duration {
 	if len(m) != 2 {
 		return 0
 	}
-	raw := strings.TrimSpace(strings.TrimRight(m[1], ".,;"))
-	if secs, perr := strconv.Atoi(raw); perr == nil {
-		if secs <= 0 {
+	raw := strings.TrimSpace(strings.Trim(rawNoisyTail(m[1]), "\"'"))
+	if secs, perr := strconv.ParseFloat(raw, 64); perr == nil {
+		if !(secs > 0) || math.IsInf(secs, 0) || math.IsNaN(secs) {
 			return 0
 		}
-		return time.Duration(secs) * time.Second
+		return time.Duration(secs * float64(time.Second))
 	}
 
 	for _, layout := range []string{time.RFC1123, time.RFC1123Z, time.RFC850, time.ANSIC} {
@@ -117,4 +118,8 @@ func parseRetryAfter(err error) time.Duration {
 	}
 
 	return 0
+}
+
+func rawNoisyTail(v string) string {
+	return strings.TrimRight(strings.TrimSpace(v), ".,;")
 }
