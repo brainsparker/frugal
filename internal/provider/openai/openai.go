@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -14,6 +15,17 @@ import (
 )
 
 const errorBodyLimit = 8 << 10 // 8 KiB
+
+func isJSONContentType(contentType string) bool {
+	if strings.TrimSpace(contentType) == "" {
+		return false
+	}
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return false
+	}
+	return mediaType == "application/json"
+}
 
 func readErrorBody(r io.Reader) string {
 	body, err := io.ReadAll(io.LimitReader(r, errorBodyLimit+1))
@@ -71,6 +83,9 @@ func (p *Provider) ChatCompletion(ctx context.Context, model string, req *types.
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("openai error %d: %s", resp.StatusCode, readErrorBody(resp.Body))
+	}
+	if !isJSONContentType(resp.Header.Get("Content-Type")) {
+		return nil, fmt.Errorf("openai response Content-Type must be application/json, got %q", resp.Header.Get("Content-Type"))
 	}
 
 	var result types.ChatCompletionResponse
