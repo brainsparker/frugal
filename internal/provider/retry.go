@@ -99,6 +99,7 @@ func parseRetryAfter(err error) time.Duration {
 		return 0
 	}
 	raw := strings.TrimSpace(strings.TrimRight(m[1], ".,;"))
+	raw = strings.Trim(raw, "\"'")
 	if secs, perr := strconv.Atoi(raw); perr == nil {
 		if secs <= 0 {
 			return 0
