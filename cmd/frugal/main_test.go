@@ -136,3 +136,22 @@ func TestEnvIntOrDefaultInvalidValues(t *testing.T) {
 		t.Fatalf("expected fallback for negative int, got %d", got)
 	}
 }
+
+func TestEnvIntInRangeOrDefaultOutOfRange(t *testing.T) {
+	const key = "FRUGAL_RANGE_INT_TEST"
+
+	t.Setenv(key, "2048")
+	if got := envIntInRangeOrDefault(key, 4096, 1024, 8192); got != 2048 {
+		t.Fatalf("expected in-range value, got %d", got)
+	}
+
+	t.Setenv(key, "100")
+	if got := envIntInRangeOrDefault(key, 4096, 1024, 8192); got != 4096 {
+		t.Fatalf("expected fallback for below-min int, got %d", got)
+	}
+
+	t.Setenv(key, "9999999")
+	if got := envIntInRangeOrDefault(key, 4096, 1024, 8192); got != 4096 {
+		t.Fatalf("expected fallback for above-max int, got %d", got)
+	}
+}
