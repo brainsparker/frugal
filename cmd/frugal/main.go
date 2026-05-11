@@ -337,7 +337,7 @@ func newHTTPServer(addr string, handler http.Handler) *http.Server {
 		ReadTimeout:       envDurationOrDefault("FRUGAL_READ_TIMEOUT", 15*time.Second),
 		WriteTimeout:      envDurationOrDefault("FRUGAL_WRITE_TIMEOUT", 120*time.Second),
 		IdleTimeout:       envDurationOrDefault("FRUGAL_IDLE_TIMEOUT", 60*time.Second),
-		MaxHeaderBytes:    envIntOrDefault("FRUGAL_MAX_HEADER_BYTES", http.DefaultMaxHeaderBytes),
+		MaxHeaderBytes:    envIntInRangeOrDefault("FRUGAL_MAX_HEADER_BYTES", http.DefaultMaxHeaderBytes, 1024, 1<<20),
 	}
 }
 
@@ -365,6 +365,16 @@ func envIntOrDefault(key string, fallback int) int {
 	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed <= 0 {
 		slog.Warn("invalid env int; using default", "key", key, "value", value, "default", fallback)
+		return fallback
+	}
+
+	return parsed
+}
+
+func envIntInRangeOrDefault(key string, fallback, min, max int) int {
+	parsed := envIntOrDefault(key, fallback)
+	if parsed < min || parsed > max {
+		slog.Warn("env int out of range; using default", "key", key, "value", parsed, "min", min, "max", max, "default", fallback)
 		return fallback
 	}
 
