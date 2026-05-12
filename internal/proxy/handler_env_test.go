@@ -41,3 +41,13 @@ func TestDecisionBufferSizeFromEnv_UsesConfiguredValue(t *testing.T) {
 		t.Fatalf("expected configured buffer size 2048, got %d", got)
 	}
 }
+
+func TestDecisionBufferSizeFromEnv_TrimmedWhitespace(t *testing.T) {
+	original := lookupEnv
+	lookupEnv = func(string) (string, bool) { return "  2048\t", true }
+	t.Cleanup(func() { lookupEnv = original })
+
+	if got := decisionBufferSizeFromEnv(); got != 2048 {
+		t.Fatalf("expected configured buffer size 2048 after trimming whitespace, got %d", got)
+	}
+}
