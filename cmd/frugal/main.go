@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -347,7 +348,7 @@ func envDurationOrDefault(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 
-	parsed, err := time.ParseDuration(value)
+	parsed, err := time.ParseDuration(strings.TrimSpace(value))
 	if err != nil || parsed <= 0 {
 		slog.Warn("invalid env duration; using default", "key", key, "value", value, "default", fallback.String())
 		return fallback

@@ -118,6 +118,15 @@ func TestEnvDurationOrDefaultInvalidValues(t *testing.T) {
 	}
 }
 
+func TestEnvDurationOrDefaultTrimsWhitespace(t *testing.T) {
+	const key = "FRUGAL_TIMEOUT_WHITESPACE_TEST"
+
+	t.Setenv(key, " 20s ")
+	if got := envDurationOrDefault(key, 3*time.Second); got != 20*time.Second {
+		t.Fatalf("expected parsed duration 20s with surrounding whitespace, got %s", got)
+	}
+}
+
 func TestEnvIntOrDefaultInvalidValues(t *testing.T) {
 	const key = "FRUGAL_INT_TEST"
 
