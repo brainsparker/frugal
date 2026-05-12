@@ -118,7 +118,7 @@ func (h *Handler) drainDecisions() {
 // which would introduce a cycle if imported.
 func envIntOrDefault(key string, fallback int) int {
 	if s, ok := lookupEnv(key); ok {
-		if v, err := strconv.Atoi(s); err == nil && v > 0 {
+		if v, err := strconv.Atoi(strings.TrimSpace(s)); err == nil && v > 0 {
 			return v
 		}
 	}
