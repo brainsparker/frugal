@@ -29,7 +29,7 @@ func InitLogger() *slog.Logger {
 	opts := &slog.HandlerOptions{Level: level}
 
 	var handler slog.Handler
-	switch strings.ToLower(os.Getenv("FRUGAL_LOG_FORMAT")) {
+	switch normalizeLogFormat(os.Getenv("FRUGAL_LOG_FORMAT")) {
 	case "json":
 		handler = slog.NewJSONHandler(os.Stderr, opts)
 	default:
@@ -52,6 +52,10 @@ func parseLevel(s string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
+}
+
+func normalizeLogFormat(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
 }
 
 // NewRequestID returns a random 16-byte ID in unpadded base32. Cryptographic
