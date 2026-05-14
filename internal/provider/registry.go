@@ -1,6 +1,9 @@
 package provider
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // Registry maps model names to their providers.
 type Registry struct {
@@ -47,5 +50,6 @@ func (r *Registry) AllModels() []string {
 	for m := range r.modelMap {
 		models = append(models, m)
 	}
+	sort.Strings(models)
 	return models
 }
