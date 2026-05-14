@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -52,7 +53,7 @@ type ThresholdConfig struct {
 
 // Load reads the config from the given path, or from FRUGAL_CONFIG env var.
 func Load(path string) (*Config, error) {
-	if envPath := os.Getenv("FRUGAL_CONFIG"); envPath != "" {
+	if envPath := strings.TrimSpace(os.Getenv("FRUGAL_CONFIG")); envPath != "" {
 		path = envPath
 	}
 
