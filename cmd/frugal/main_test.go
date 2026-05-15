@@ -118,6 +118,25 @@ func TestEnvDurationOrDefaultInvalidValues(t *testing.T) {
 	}
 }
 
+func TestGuardUnauthenticatedBindAllowOverrideTruthyValues(t *testing.T) {
+	t.Setenv("FRUGAL_ALLOW_UNAUTH", " true ")
+	if err := guardUnauthenticatedBind(":8080", ""); err != nil {
+		t.Fatalf("expected truthy override to allow unauthenticated bind, got %v", err)
+	}
+
+	t.Setenv("FRUGAL_ALLOW_UNAUTH", "YES")
+	if err := guardUnauthenticatedBind(":8080", ""); err != nil {
+		t.Fatalf("expected YES override to allow unauthenticated bind, got %v", err)
+	}
+}
+
+func TestGuardUnauthenticatedBindRejectsFalsyOverride(t *testing.T) {
+	t.Setenv("FRUGAL_ALLOW_UNAUTH", " true-ish ")
+	if err := guardUnauthenticatedBind(":8080", ""); err == nil {
+		t.Fatal("expected unauthenticated non-loopback bind to be rejected for falsy override")
+	}
+}
+
 func TestEnvIntOrDefaultInvalidValues(t *testing.T) {
 	const key = "FRUGAL_INT_TEST"
 

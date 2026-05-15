@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -187,8 +188,8 @@ func guardUnauthenticatedBind(addr, token string) error {
 	if token != "" {
 		return nil
 	}
-	if os.Getenv("FRUGAL_ALLOW_UNAUTH") == "1" {
-		log.Printf("warning: FRUGAL_ALLOW_UNAUTH=1 set — running without auth on %s", addr)
+	if envBoolTrue("FRUGAL_ALLOW_UNAUTH") {
+		log.Printf("warning: FRUGAL_ALLOW_UNAUTH enabled — running without auth on %s", addr)
 		return nil
 	}
 	if isLoopbackBind(addr) {
@@ -212,6 +213,16 @@ func isLoopbackBind(addr string) bool {
 		return true
 	}
 	return false
+}
+
+func envBoolTrue(key string) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	switch v {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 type startupError struct{ msg string }
