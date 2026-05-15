@@ -136,3 +136,18 @@ func TestEnvIntOrDefaultInvalidValues(t *testing.T) {
 		t.Fatalf("expected fallback for negative int, got %d", got)
 	}
 }
+
+func TestEnvParsingTrimsWhitespace(t *testing.T) {
+	const durationKey = "FRUGAL_DURATION_TRIM_TEST"
+	const intKey = "FRUGAL_INT_TRIM_TEST"
+
+	t.Setenv(durationKey, " 15s ")
+	if got := envDurationOrDefault(durationKey, 3*time.Second); got != 15*time.Second {
+		t.Fatalf("expected trimmed duration 15s, got %s", got)
+	}
+
+	t.Setenv(intKey, " 4096 ")
+	if got := envIntOrDefault(intKey, 1234); got != 4096 {
+		t.Fatalf("expected trimmed int 4096, got %d", got)
+	}
+}
