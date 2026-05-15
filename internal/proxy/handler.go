@@ -33,7 +33,11 @@ const (
 // maxCostPerRequestUSD reads the per-request spend cap once per process.
 // A non-positive value disables the cap.
 var maxCostPerRequestUSD = func() float64 {
-	raw := os.Getenv("FRUGAL_MAX_COST_PER_REQUEST_USD")
+	return parseMaxCostPerRequestUSD(os.Getenv("FRUGAL_MAX_COST_PER_REQUEST_USD"))
+}()
+
+func parseMaxCostPerRequestUSD(raw string) float64 {
+	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return defaultMaxCostPerRequestUSD
 	}
@@ -42,7 +46,7 @@ var maxCostPerRequestUSD = func() float64 {
 		return defaultMaxCostPerRequestUSD
 	}
 	return v
-}()
+}
 
 const defaultDecisionBufferSize = 1000
 
