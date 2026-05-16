@@ -136,3 +136,42 @@ func TestEnvIntOrDefaultInvalidValues(t *testing.T) {
 		t.Fatalf("expected fallback for negative int, got %d", got)
 	}
 }
+
+
+func TestEnvDurationOrDefaultTrimsWhitespaceAndQuotes(t *testing.T) {
+	const key = "FRUGAL_TIMEOUT_TRIM_TEST"
+
+	t.Setenv(key, "  7s  ")
+	if got := envDurationOrDefault(key, 3*time.Second); got != 7*time.Second {
+		t.Fatalf("expected whitespace-trimmed duration 7s, got %s", got)
+	}
+
+	t.Setenv(key, "\"8s\"")
+	if got := envDurationOrDefault(key, 3*time.Second); got != 8*time.Second {
+		t.Fatalf("expected double-quoted duration 8s, got %s", got)
+	}
+
+	t.Setenv(key, "'9s'")
+	if got := envDurationOrDefault(key, 3*time.Second); got != 9*time.Second {
+		t.Fatalf("expected single-quoted duration 9s, got %s", got)
+	}
+}
+
+func TestEnvIntOrDefaultTrimsWhitespaceAndQuotes(t *testing.T) {
+	const key = "FRUGAL_INT_TRIM_TEST"
+
+	t.Setenv(key, "  4096  ")
+	if got := envIntOrDefault(key, 1); got != 4096 {
+		t.Fatalf("expected whitespace-trimmed int 4096, got %d", got)
+	}
+
+	t.Setenv(key, "\"8192\"")
+	if got := envIntOrDefault(key, 1); got != 8192 {
+		t.Fatalf("expected double-quoted int 8192, got %d", got)
+	}
+
+	t.Setenv(key, "'16384'")
+	if got := envIntOrDefault(key, 1); got != 16384 {
+		t.Fatalf("expected single-quoted int 16384, got %d", got)
+	}
+}
