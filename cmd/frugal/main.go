@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"strings"
 	"strconv"
 	"syscall"
 	"time"
@@ -342,7 +343,7 @@ func newHTTPServer(addr string, handler http.Handler) *http.Server {
 }
 
 func envDurationOrDefault(key string, fallback time.Duration) time.Duration {
-	value := os.Getenv(key)
+	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return fallback
 	}
@@ -357,7 +358,7 @@ func envDurationOrDefault(key string, fallback time.Duration) time.Duration {
 }
 
 func envIntOrDefault(key string, fallback int) int {
-	value := os.Getenv(key)
+	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return fallback
 	}

@@ -118,6 +118,15 @@ func TestEnvDurationOrDefaultInvalidValues(t *testing.T) {
 	}
 }
 
+func TestEnvDurationOrDefaultTrimmedValue(t *testing.T) {
+	const key = "FRUGAL_TIMEOUT_TRIM_TEST"
+
+	t.Setenv(key, " 15s ")
+	if got := envDurationOrDefault(key, 3*time.Second); got != 15*time.Second {
+		t.Fatalf("expected trimmed duration 15s, got %s", got)
+	}
+}
+
 func TestEnvIntOrDefaultInvalidValues(t *testing.T) {
 	const key = "FRUGAL_INT_TEST"
 
@@ -134,5 +143,14 @@ func TestEnvIntOrDefaultInvalidValues(t *testing.T) {
 	t.Setenv(key, "-10")
 	if got := envIntOrDefault(key, 1234); got != 1234 {
 		t.Fatalf("expected fallback for negative int, got %d", got)
+	}
+}
+
+func TestEnvIntOrDefaultTrimmedValue(t *testing.T) {
+	const key = "FRUGAL_INT_TRIM_TEST"
+
+	t.Setenv(key, " 2048 ")
+	if got := envIntOrDefault(key, 1234); got != 2048 {
+		t.Fatalf("expected trimmed int 2048, got %d", got)
 	}
 }
