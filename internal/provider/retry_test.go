@@ -117,3 +117,17 @@ func TestParseRetryAfter_IgnoresPastHTTPDate(t *testing.T) {
 		t.Fatalf("parseRetryAfter = %s, want 0", got)
 	}
 }
+
+func TestChooseRetryDelay_HonorsThirtySecondHint(t *testing.T) {
+	defaultDelay := 250 * time.Millisecond
+	if got := chooseRetryDelay(defaultDelay, 30*time.Second); got != 30*time.Second {
+		t.Fatalf("chooseRetryDelay = %s, want 30s", got)
+	}
+}
+
+func TestChooseRetryDelay_IgnoresHintAboveCap(t *testing.T) {
+	defaultDelay := 250 * time.Millisecond
+	if got := chooseRetryDelay(defaultDelay, 31*time.Second); got != defaultDelay {
+		t.Fatalf("chooseRetryDelay = %s, want %s", got, defaultDelay)
+	}
+}
