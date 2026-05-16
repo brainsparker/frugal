@@ -41,10 +41,7 @@ func (r *retryingProvider) ChatCompletion(ctx context.Context, model string, req
 		if !isRetryable(err) || attempt == len(retryBackoff) {
 			return nil, err
 		}
-		delay := retryBackoff[attempt]
-		if hint := parseRetryAfter(err); hint > 0 && hint < 30*time.Second {
-			delay = hint
-		}
+		delay := chooseRetryDelay(retryBackoff[attempt], parseRetryAfter(err))
 		obs.L(ctx).Warn("upstream retry",
 			"provider", r.inner.Name(),
 			"model", model,
@@ -89,6 +86,13 @@ func isRetryable(err error) bool {
 }
 
 var retryAfterRe = regexp.MustCompile(`(?i)retry[- ]after[: ]+([^\n]+)`)
+
+func chooseRetryDelay(defaultDelay, hint time.Duration) time.Duration {
+	if hint > 0 && hint <= 30*time.Second {
+		return hint
+	}
+	return defaultDelay
+}
 
 func parseRetryAfter(err error) time.Duration {
 	if err == nil {
