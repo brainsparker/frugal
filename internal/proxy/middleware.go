@@ -133,6 +133,10 @@ func AuthMiddleware(token string) func(http.Handler) http.Handler {
 		}
 		want := []byte(token)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodOptions {
+				next.ServeHTTP(w, r)
+				return
+			}
 			got := bearerFromHeader(r.Header.Get("Authorization"))
 			if got == "" || subtle.ConstantTimeCompare([]byte(got), want) != 1 {
 				w.Header().Set("Content-Type", "application/json")
