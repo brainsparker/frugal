@@ -75,6 +75,16 @@ func TestAuthMiddleware_CaseInsensitiveBearerPrefix(t *testing.T) {
 	}
 }
 
+func TestAuthMiddleware_AllowsOptionsWithoutToken(t *testing.T) {
+	h := AuthMiddleware("secret-token")(newTestOKHandler())
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodOptions, "/v1/chat/completions", nil)
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for OPTIONS without token, got %d", rec.Code)
+	}
+}
+
 func TestRateLimitMiddleware_TrivialRpsDisables(t *testing.T) {
 	h := RateLimitMiddleware(0, 0)(newTestOKHandler())
 	rec := httptest.NewRecorder()
