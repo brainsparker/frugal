@@ -75,6 +75,28 @@ func TestAuthMiddleware_CaseInsensitiveBearerPrefix(t *testing.T) {
 	}
 }
 
+func TestAuthMiddleware_RejectsMalformedBearerSegments(t *testing.T) {
+	h := AuthMiddleware("secret")(newTestOKHandler())
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)
+	req.Header.Set("Authorization", "Bearer secret token")
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 with malformed bearer token, got %d", rec.Code)
+	}
+}
+
+func TestAuthMiddleware_RejectsBearerWithOnlyWhitespace(t *testing.T) {
+	h := AuthMiddleware("secret")(newTestOKHandler())
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)
+	req.Header.Set("Authorization", "Bearer   ")
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 with blank bearer token, got %d", rec.Code)
+	}
+}
+
 func TestRateLimitMiddleware_TrivialRpsDisables(t *testing.T) {
 	h := RateLimitMiddleware(0, 0)(newTestOKHandler())
 	rec := httptest.NewRecorder()

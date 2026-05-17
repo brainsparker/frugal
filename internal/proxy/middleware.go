@@ -161,7 +161,15 @@ func bearerFromHeader(h string) string {
 	if !strings.EqualFold(h[:len(prefix)], prefix) {
 		return ""
 	}
-	return strings.TrimSpace(h[len(prefix):])
+	tok := strings.TrimSpace(h[len(prefix):])
+	if tok == "" {
+		return ""
+	}
+	// Reject multi-segment or malformed bearer values like "Bearer a b".
+	if len(strings.Fields(tok)) != 1 {
+		return ""
+	}
+	return tok
 }
 
 // HeaderExtractionMiddleware extracts X-Frugal-* headers into the request
