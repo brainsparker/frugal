@@ -79,7 +79,7 @@ table is the headline artifact on the homepage:
 
 | Capability | Free / local ($0) | Cheap paid | Premium paid (avoid by default) |
 |---|---|---|---|
-| Search | **SearXNG** (self-host), Brave free tier (1k/mo) | **Serper** ($0.0003/call) | **Tavily** ($0.008), **Exa** ($0.005) |
+| Search | **SearXNG** (self-host) | **Serper** ($0.0003/call) | **Tavily** ($0.008), **Exa** ($0.005), **You.com** |
 | Extract | **Trafilatura**, **readability.js**, **Mercury** (self-host) | — | **Firecrawl** ($0.001–0.015/page) |
 | Browse | **Playwright** + Chromium (local) | **Browserless** ($0.001–0.003/page) | **Browserbase** ($0.01+/session) |
 | Code-exec | **Local Docker** | **E2B** (~$0.0001/sec) | Modal, hosted sandboxes |
@@ -176,7 +176,7 @@ Vocabulary:
 
 | Component | Free / local | Cheap paid | Premium paid (gated) | Status |
 |---|---|---|---|---|
-| Search | SearXNG, Brave free | Serper | Tavily, Exa | **Serper shipping; SearXNG + Brave Phase 2** |
+| Search | SearXNG | Serper | Tavily, Exa, You.com | **Serper shipping; SearXNG Phase 2** |
 | Extract | Trafilatura, readability.js | — | Firecrawl | **Phase 2** |
 | Browse | local Playwright | Browserless | Browserbase | **Phase 2** |
 | Hosted chat | local Ollama / LM Studio | mini / nano / flash | frontier | **Cloud chat shipping (internal); local Phase 3** |
