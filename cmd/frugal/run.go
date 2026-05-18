@@ -114,7 +114,7 @@ func setupAndParse(subcommand string, args []string) (runConfig, error) {
 // recipeDir resolves the use-cases directory. FRUGAL_USE_CASES_DIR wins;
 // otherwise fall back to "config/use_cases" relative to cwd.
 func recipeDir() string {
-	if d := os.Getenv("FRUGAL_USE_CASES_DIR"); d != "" {
+	if d := strings.TrimSpace(os.Getenv("FRUGAL_USE_CASES_DIR")); d != "" {
 		return d
 	}
 	return "config/use_cases"
@@ -122,7 +122,7 @@ func recipeDir() string {
 
 // configPathOrDefault reads FRUGAL_CONFIG; falls back to "config/models.yaml".
 func configPathOrDefault() string {
-	if p := os.Getenv("FRUGAL_CONFIG"); p != "" {
+	if p := strings.TrimSpace(os.Getenv("FRUGAL_CONFIG")); p != "" {
 		return p
 	}
 	return "config/models.yaml"
