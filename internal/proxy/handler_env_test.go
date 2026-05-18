@@ -41,3 +41,38 @@ func TestDecisionBufferSizeFromEnv_UsesConfiguredValue(t *testing.T) {
 		t.Fatalf("expected configured buffer size 2048, got %d", got)
 	}
 }
+
+func TestMaxCostPerRequestFromEnv_Default(t *testing.T) {
+	original := lookupEnv
+	lookupEnv = func(string) (string, bool) { return "", false }
+	t.Cleanup(func() { lookupEnv = original })
+
+	if got := maxCostPerRequestFromEnv(); got != defaultMaxCostPerRequestUSD {
+		t.Fatalf("expected default max cost %.2f, got %.2f", defaultMaxCostPerRequestUSD, got)
+	}
+}
+
+func TestMaxCostPerRequestFromEnv_InvalidFallsBack(t *testing.T) {
+	tests := []string{"not-a-number", "-1", "NaN", "Inf", "-Inf"}
+	for _, tc := range tests {
+		t.Run(tc, func(t *testing.T) {
+			original := lookupEnv
+			lookupEnv = func(string) (string, bool) { return tc, true }
+			t.Cleanup(func() { lookupEnv = original })
+
+			if got := maxCostPerRequestFromEnv(); got != defaultMaxCostPerRequestUSD {
+				t.Fatalf("expected default max cost %.2f, got %.2f", defaultMaxCostPerRequestUSD, got)
+			}
+		})
+	}
+}
+
+func TestMaxCostPerRequestFromEnv_UsesConfiguredValue(t *testing.T) {
+	original := lookupEnv
+	lookupEnv = func(string) (string, bool) { return "2.5", true }
+	t.Cleanup(func() { lookupEnv = original })
+
+	if got := maxCostPerRequestFromEnv(); got != 2.5 {
+		t.Fatalf("expected configured max cost 2.5, got %.2f", got)
+	}
+}

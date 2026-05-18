@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"strconv"
@@ -33,15 +34,7 @@ const (
 // maxCostPerRequestUSD reads the per-request spend cap once per process.
 // A non-positive value disables the cap.
 var maxCostPerRequestUSD = func() float64 {
-	raw := os.Getenv("FRUGAL_MAX_COST_PER_REQUEST_USD")
-	if raw == "" {
-		return defaultMaxCostPerRequestUSD
-	}
-	v, err := strconv.ParseFloat(raw, 64)
-	if err != nil || v < 0 {
-		return defaultMaxCostPerRequestUSD
-	}
-	return v
+	return maxCostPerRequestFromEnv()
 }()
 
 const defaultDecisionBufferSize = 1000
@@ -97,6 +90,18 @@ func decisionBufferSizeFromEnv() int {
 		return maxDecisionBufferSize
 	}
 	return size
+}
+
+func maxCostPerRequestFromEnv() float64 {
+	raw, ok := lookupEnv("FRUGAL_MAX_COST_PER_REQUEST_USD")
+	if !ok || raw == "" {
+		return defaultMaxCostPerRequestUSD
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil || v < 0 || math.IsNaN(v) || math.IsInf(v, 0) {
+		return defaultMaxCostPerRequestUSD
+	}
+	return v
 }
 
 // drainDecisions runs for the life of the handler, pumping decisions from the
