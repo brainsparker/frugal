@@ -337,13 +337,12 @@ main() {
         fail "smoke test failed: $BIN_DIR/frugal --version did not exit cleanly" "$EXIT_VERIFY"
     fi
 
-    # Key detection — informational only.
+    # Search key detection — informational only.
     echo
-    info "detecting provider API keys..."
+    info "detecting search-provider API keys..."
     local keys=0
-    [ -n "${OPENAI_API_KEY:-}"    ] && { ok "OPENAI_API_KEY found";    keys=$((keys + 1)); }
-    [ -n "${ANTHROPIC_API_KEY:-}" ] && { ok "ANTHROPIC_API_KEY found"; keys=$((keys + 1)); }
-    [ -n "${GOOGLE_API_KEY:-}"    ] && { ok "GOOGLE_API_KEY found";    keys=$((keys + 1)); }
+    [ -n "${SERPER_API_KEY:-}" ] && { ok "SERPER_API_KEY found"; keys=$((keys + 1)); }
+    [ -n "${TAVILY_API_KEY:-}" ] && { ok "TAVILY_API_KEY found"; keys=$((keys + 1)); }
     echo
     printf '\033[2m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n'
     echo
@@ -351,38 +350,27 @@ main() {
     echo
 
     if [ "$keys" -eq 0 ]; then
-        printf '  \033[1;33m⚠\033[0m  no provider API keys detected — frugal can'\''t make calls yet.\n'
+        printf '  \033[1;33m⚠\033[0m  no search keys detected — frugal__search needs at least one.\n'
         echo
-        printf '     \033[2mFrugal has no SaaS or account — use the keys you already have\n'
-        printf '     from your model / toolchain provider.\033[0m\n'
+        printf '     \033[2mFrugal has no SaaS or account — use the keys you already have.\033[0m\n'
         echo
         printf '  \033[2m─── \033[0m\033[1;36mSet a key to start\033[0m\033[2m ──────────────────────────────\033[0m\n'
         echo
-        printf '  \033[1;32m▸\033[0m  cheapest tier  \033[2m(Gemini Flash — pennies per million tokens)\033[0m\n'
-        printf '        \033[1m$\033[0m export GOOGLE_API_KEY=...\n'
+        printf '  \033[1;32m▸\033[0m  Serper  \033[2m($0.001/call, list)\033[0m\n'
+        printf '        \033[1m$\033[0m export SERPER_API_KEY=...\n'
         echo
-        printf '  \033[1;32m▸\033[0m  Anthropic\n'
-        printf '        \033[1m$\033[0m export ANTHROPIC_API_KEY=...\n'
+        printf '  \033[1;32m▸\033[0m  Tavily  \033[2m($0.008/call, list)\033[0m\n'
+        printf '        \033[1m$\033[0m export TAVILY_API_KEY=...\n'
         echo
-        printf '  \033[1;32m▸\033[0m  OpenAI\n'
-        printf '        \033[1m$\033[0m export OPENAI_API_KEY=...\n'
-        echo
-        printf '  Then try it:\n'
-        printf '        \033[1m$\033[0m frugal run "summarize this README"\n'
+        printf '  Then wire frugal into your agent:\n'
+        printf '        \033[1m$\033[0m frugal mcp install\n'
     else
-        printf '  \033[2m─── \033[0m\033[1;36mTry it\033[0m\033[2m ──────────────────────────────────────────\033[0m\n'
+        printf '  \033[2m─── \033[0m\033[1;36mWire it in\033[0m\033[2m ──────────────────────────────────────\033[0m\n'
         echo
-        printf '  \033[1;32m1.\033[0m  \033[1mdispatch a task\033[0m  \033[2m(deterministic recipe → cheapest reliable path)\033[0m\n'
-        printf '        \033[1m$\033[0m frugal run "what does this repo do"\n'
-        echo
-        printf '  \033[1;32m2.\033[0m  \033[1mpreview the routing decision\033[0m  \033[2m(no execution, no API calls)\033[0m\n'
-        printf '        \033[1m$\033[0m frugal route "extract speakers from this PDF"\n'
-        echo
-        printf '  \033[1;32m3.\033[0m  \033[1minstall as an MCP server\033[0m  \033[2m(Claude Desktop / Cursor / Claude Code)\033[0m\n'
+        printf '  \033[1;32m1.\033[0m  \033[1minstall into your agent stack\033[0m  \033[2m(Claude Desktop / Cursor / Claude Code)\033[0m\n'
         printf '        \033[1m$\033[0m frugal mcp install\n'
         echo
-        printf '  \033[1;32m4.\033[0m  \033[1msee what frugal saved\033[0m  \033[2m(real provider bytes, scored locally)\033[0m\n'
-        printf '        \033[1m$\033[0m frugal bench --out BENCHMARKS.md\n'
+        printf '  \033[1;32m2.\033[0m  \033[1mrestart your agent\033[0m  \033[2m(the frugal__search tool appears in its tool picker)\033[0m\n'
     fi
 
     echo
