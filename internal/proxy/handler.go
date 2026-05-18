@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"strconv"
@@ -279,6 +280,13 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 }
 
 func decodeChatCompletionRequest(w http.ResponseWriter, r *http.Request) (*types.ChatCompletionRequest, error) {
+	if ct := strings.TrimSpace(r.Header.Get("Content-Type")); ct != "" {
+		mediaType, _, err := mime.ParseMediaType(ct)
+		if err != nil || !strings.EqualFold(mediaType, "application/json") {
+			return nil, fmt.Errorf("Content-Type must be application/json")
+		}
+	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, maxChatCompletionsBodyBytes)
 	defer r.Body.Close()
 
