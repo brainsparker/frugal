@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -115,6 +117,38 @@ func TestEnvDurationOrDefaultInvalidValues(t *testing.T) {
 	t.Setenv(key, "-2s")
 	if got := envDurationOrDefault(key, 3*time.Second); got != 3*time.Second {
 		t.Fatalf("expected fallback for negative duration, got %s", got)
+	}
+}
+
+func TestHealthHandlerReturnsSortedProviders(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Register(&testProvider{name: "zeta", models: []string{"z-model"}})
+	reg.Register(&testProvider{name: "alpha", models: []string{"a-model"}})
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	healthHandler(reg).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var body struct {
+		Status    string   `json:"status"`
+		Providers []string `json:"providers"`
+		Models    int      `json:"models"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to decode health payload: %v", err)
+	}
+	if body.Status != "ok" {
+		t.Fatalf("expected status=ok, got %q", body.Status)
+	}
+	if body.Models != 2 {
+		t.Fatalf("expected models=2, got %d", body.Models)
+	}
+	if len(body.Providers) != 2 || body.Providers[0] != "alpha" || body.Providers[1] != "zeta" {
+		t.Fatalf("expected sorted providers [alpha zeta], got %v", body.Providers)
 	}
 }
 
