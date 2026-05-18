@@ -12,9 +12,9 @@
 // only defines the data shape, loads YAML, and lets the classifier pick a
 // recipe ID for a free-form task string.
 //
-// See frugal-strategy-v5.md §4 for the recipe-model rationale and §6 for
-// the toolchain component-status matrix that says which step types have
-// executors wired today.
+// See frugal-strategy-v6.md §6 for the recipe-model rationale and §8 for
+// the component-status matrix that says which step types have executors
+// wired today.
 package recipe
 
 import (

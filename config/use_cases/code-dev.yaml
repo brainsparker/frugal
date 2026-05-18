@@ -1,6 +1,6 @@
 # Recipe: "Code generation, refactors" (local code model → hosted fallback).
 # Today only the hosted chat step routes live traffic; local-model fallback
-# lands in Phase 3. See `frugal-strategy-v5.md` §6 for the canonical
+# lands in Phase 3. See `frugal-strategy-v6.md` §6 for the canonical
 # component status.
 id: code-dev
 description: >

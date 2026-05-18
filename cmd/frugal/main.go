@@ -59,14 +59,14 @@ func main() {
 func stubNotImplemented(cmd, when string) int {
 	fmt.Fprintf(os.Stderr,
 		"frugal %s: not yet implemented (lands in %s)\n"+
-			"see frugal-strategy-v5.md §11 for the rollout plan.\n",
+			"see frugal-strategy-v6.md §11 for the rollout plan.\n",
 		cmd, when)
 	return 1
 }
 
 func printHelp() {
-	fmt.Println(`frugal — an AI toolchain router for your agents
-Cheapest reliable path per task. BYOK. Source-available (BUSL 1.1 → Apache 2.0).
+	fmt.Println(`frugal — tool calls are the new tokens
+Cost-arbitrage MCP server. $0-first routing. Any model. BYOK. Source-available.
 
 Usage:
   frugal run <task>              Execute the cheapest reliable toolchain for the task
@@ -86,7 +86,7 @@ Common environment:
   OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY  Provider credentials
 
 v1.0 note: the OpenAI-compatible HTTP proxy (frugal serve) and command-wrap
-mode (frugal <cmd>) from v0.x were removed. See frugal-strategy-v5.md §10
+mode (frugal <cmd>) from v0.x were removed. See frugal-strategy-v6.md §10
 for the migration path.
 
 See README.md for the full reference.`)

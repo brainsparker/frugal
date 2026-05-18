@@ -1,7 +1,7 @@
 # Recipe: "Fresh facts" — time-sensitive factual questions where a
 # pre-trained model's static knowledge isn't enough. Every tier calls
 # frugal__search first, then feeds the results to a small chat model.
-# See `frugal-strategy-v5.md` §6 for the canonical component status.
+# See `frugal-strategy-v6.md` §6 for the canonical component status.
 id: fresh-facts
 description: >
   Time-sensitive factual questions: today's news, current prices, this

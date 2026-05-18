@@ -4,7 +4,7 @@
 > chat-completion router. For the broader toolchain (local models, search,
 > browser, code execution, embeddings, semantic cache, multi-step agents) and
 > what's shipping vs stubbed vs planned, see
-> [`frugal-strategy-v5.md`](../frugal-strategy-v5.md) §6.
+> [`frugal-strategy-v6.md`](../frugal-strategy-v6.md) §8.
 
 The `reasoning`, `coding`, `creative`, and `instruction_following` fields in
 `config/models.yaml` drive routing. This document explains how those numbers

@@ -1,6 +1,8 @@
 # Frugal product strategy (v5)
 
-> Canonical positioning. Supersedes [`frugal-strategy-v4.md`](./frugal-strategy-v4.md).
+> **Superseded by [`frugal-strategy-v6.md`](./frugal-strategy-v6.md) as of 2026-05-18.** Kept for auditability.
+>
+> Original supersession: replaces [`frugal-strategy-v4.md`](./frugal-strategy-v4.md).
 > As of 2026-05-18.
 
 ## 1. Thesis

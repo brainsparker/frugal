@@ -226,8 +226,8 @@ main() {
         uninstall
     fi
 
-    info "installing frugal.sh — an AI toolchain router for your agents"
-    info "cheapest reliable path per task. BYOK. one signed Go binary."
+    info "installing frugal.sh — tool calls are the new tokens"
+    info "cost-arbitrage MCP server. \$0-first routing. any model. BYOK."
     echo
 
     local platform version

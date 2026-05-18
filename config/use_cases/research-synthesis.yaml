@@ -1,6 +1,6 @@
 # Recipe: "Multi-source research" (search + rerank, hosted-if-needed).
 # Today only the chat step routes live traffic; the search step is wired
-# once Phase 1 PR 4 lands. See `frugal-strategy-v5.md` §6 for the
+# once Phase 1 PR 4 lands. See `frugal-strategy-v6.md` §6 for the
 # canonical component status.
 id: research-synthesis
 description: >

@@ -3,21 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>frugal — an AI toolchain router for your agents</title>
-  <meta name="description" content="Frugal routes each AI task through the cheapest reliable path — search, chat, browser, code exec, or cache — exposed to Claude Code, Cursor, and Claude Desktop as MCP tools. One signed Go binary. BYOK. Source-available (BUSL 1.1 → Apache 2.0)." />
+  <title>frugal — tool calls are the new tokens</title>
+  <meta name="description" content="For most agentic workloads, the tool bill exceeds the model bill. Frugal is the cost-arbitrage layer for tool calls — search, extract, browse, code-exec, embeddings — routed to a free/local provider first, falling back to the cheapest paid only when needed. Works with any model." />
   <meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
   <meta name="color-scheme" content="dark light" />
 
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://frugal.sh/" />
-  <meta property="og:title" content="frugal — an AI toolchain router for your agents" />
-  <meta property="og:description" content="Routes each AI task through the cheapest reliable path — search, chat, browser, code exec, cache — exposed to Claude Code, Cursor, Claude Desktop as MCP tools. BYOK. One Go binary." />
+  <meta property="og:title" content="frugal — tool calls are the new tokens" />
+  <meta property="og:description" content="The tool bill exceeds the model bill. Frugal routes each tool call to the cheapest provider — free/local first (SearXNG, Playwright, Trafilatura), cheap paid (Serper, Browserless) as fallback. Any model. Open-router style, for tools." />
   <meta property="og:site_name" content="frugal.sh" />
 
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="frugal — an AI toolchain router for your agents" />
-  <meta name="twitter:description" content="Cheapest reliable path per AI task, exposed to your agent stack as MCP tools. BYOK. One Go binary." />
+  <meta name="twitter:title" content="frugal — tool calls are the new tokens" />
+  <meta name="twitter:description" content="Cost-arbitrage MCP server for agentic tool calls. $0-first routing. Any model. BYOK." />
 
   <link rel="canonical" href="https://frugal.sh/" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -42,6 +42,7 @@
       <span class="brand-name">frugal</span>
     </a>
     <nav class="top-nav" aria-label="Primary">
+      <a href="#rack-rates">Rack rates</a>
       <a href="#recipes">Recipes</a>
       <a href="#surfaces">CLI &amp; MCP</a>
       <a href="#install">Install</a>
@@ -56,36 +57,38 @@
           <p class="eyebrow" aria-hidden="true">source-available · BUSL 1.1 → Apache 2.0 · BYOK</p>
 
           <h1>
-            An AI toolchain router for your
-            <span class="accent">agents.</span>
+            Tool calls are the
+            <span class="accent">new tokens.</span>
           </h1>
           <p class="lede">
-            Frugal routes each task through the cheapest reliable path —
-            search, chat, browser, code exec, or cache — exposed to your
-            agent stack as <code>frugal__*</code> tools over MCP (the
-            Model Context Protocol). One signed Go binary. Your keys.
-            No account.
+            For most agentic workloads, the tool bill exceeds the model
+            bill. Frugal is the cost-arbitrage layer for those tool
+            calls — search, extract, browse, code-exec, embeddings —
+            routed to a free/local provider first, falling back to the
+            cheapest paid only when needed. Works with any model. One
+            signed Go binary. Your keys. No account.
           </p>
 
           <div class="pills" role="list">
-            <span role="listitem">No account</span>
+            <span role="listitem">$0-first routing</span>
             <span role="listitem">BYOK</span>
-            <span role="listitem">Keys stay local</span>
+            <span role="listitem">Any model</span>
             <span role="listitem">Signed releases</span>
           </div>
 
           <div class="cta">
-            <a class="btn btn-primary" href="#install">Install in your agent →</a>
+            <a class="btn btn-primary" href="#rack-rates">See the rack-rate gap →</a>
             <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">View on GitHub</a>
           </div>
         </div>
 
-        <aside class="hero-aside" aria-label="Recipe catalog and demo">
-          <pre class="hero-catalog" aria-label="Recipe catalog">fresh-facts           · search + small hosted model
-research-synthesis    · long-context reasoner
-code-dev              · routed coder model
-factual-qa            · cheapest mini-tier model
-structured-extraction · cheapest JSON-mode model</pre>
+        <aside class="hero-aside" aria-label="Routing catalog and demo">
+          <pre class="hero-catalog" aria-label="Routing rule by capability">search    ·  SearXNG    → Serper       → Tavily
+extract   ·  Trafilatura → —            → Firecrawl
+browse    ·  Playwright  → Browserless  → Browserbase
+embed     ·  nomic-embed → 3-small      → 3-large
+code-exec ·  local Docker → E2B         → Modal
+chat      ·  Ollama       → mini/haiku  → frontier</pre>
 
           <div class="terminal" aria-label="Install command">
             <div class="terminal-label"><span>install</span><span class="terminal-label-tag">one-liner</span></div>
@@ -118,32 +121,115 @@ done. cost: $0.0008</span></code></pre>
       </div>
     </section>
 
-    <section class="why" aria-labelledby="why-heading">
-      <p class="section-label">The engine</p>
-      <h2 id="why-heading">How Frugal decides</h2>
+    <section class="rack-rates" id="rack-rates" aria-labelledby="rack-rates-heading">
+      <p class="section-label">The rack-rate gap</p>
+      <h2 id="rack-rates-heading">The cheapest tools for AI.</h2>
       <p class="prose">
-        The expensive part of AI isn't the model. It's the wrong path —
-        and the right path changes every request. Frugal makes the
-        decision for you, with the actual cost in every response.
+        Tool prices haven't fallen the way model prices have. A Firecrawl
+        scrape costs more than the gpt-4o-mini call that consumes it. A
+        Tavily search costs 25× a Serper search and 100× a self-hosted
+        SearXNG. Frugal routes each call to the leftmost column that
+        clears the recipe's quality bar — you keep the gap.
+      </p>
+      <div class="rack-table-wrap">
+        <table class="rack-table">
+          <thead>
+            <tr>
+              <th scope="col">Capability</th>
+              <th scope="col"><span class="status-tag tag-shipping">free / local</span></th>
+              <th scope="col"><span class="status-tag tag-partial">cheap paid</span></th>
+              <th scope="col"><span class="status-tag tag-planned">premium paid</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Search</th>
+              <td><strong>SearXNG</strong> (self-host)<br/>Brave free tier (1k/mo)</td>
+              <td><strong>Serper</strong> · $0.0003/call</td>
+              <td>Tavily $0.008 · Exa $0.005</td>
+            </tr>
+            <tr>
+              <th scope="row">Extract</th>
+              <td><strong>Trafilatura</strong>, <strong>readability.js</strong>, <strong>Mercury</strong> (self-host)</td>
+              <td>—</td>
+              <td>Firecrawl $0.001–0.015/page</td>
+            </tr>
+            <tr>
+              <th scope="row">Browse</th>
+              <td><strong>Playwright</strong> + Chromium (local)</td>
+              <td>Browserless $0.001–0.003/page</td>
+              <td>Browserbase $0.01+/session</td>
+            </tr>
+            <tr>
+              <th scope="row">Code exec</th>
+              <td><strong>local Docker</strong></td>
+              <td>E2B ~$0.0001/sec</td>
+              <td>Modal, hosted sandboxes</td>
+            </tr>
+            <tr>
+              <th scope="row">Embeddings</th>
+              <td><strong>nomic-embed-text</strong>, <strong>bge-large</strong> (local)</td>
+              <td>text-embedding-3-small · $0.02/1M tok</td>
+              <td>3-large, Voyage-3, Cohere</td>
+            </tr>
+            <tr>
+              <th scope="row">Transcription</th>
+              <td><strong>whisper.cpp</strong> (local)</td>
+              <td>Deepgram Nova · $0.0043/min</td>
+              <td>OpenAI Whisper $0.006/min, Speechmatics</td>
+            </tr>
+            <tr>
+              <th scope="row">Chat (small)</th>
+              <td><strong>Ollama / LM Studio</strong> (local OSS)</td>
+              <td>gpt-4o-mini, haiku, gemini-flash</td>
+              <td>gpt-4o, claude-sonnet</td>
+            </tr>
+            <tr>
+              <th scope="row">Chat (large)</th>
+              <td><strong>Kimi K2</strong>, <strong>Qwen 72B</strong> (serious local HW)</td>
+              <td>—</td>
+              <td>gpt-4o, claude-opus, gemini-pro</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose rack-foot">
+        Frugal's job: try the leftmost column that's configured; fall
+        back rightward only when the result fails the recipe's quality
+        bar. The "premium paid" column isn't wrong — those providers
+        exist for a reason. They're just the wrong default for cost
+        optimization. Frugal makes them opt-in, not opt-out.
+      </p>
+    </section>
+
+    <section class="why" aria-labelledby="why-heading">
+      <p class="section-label">The rule</p>
+      <h2 id="why-heading">$0 first. Paid as fallback.</h2>
+      <p class="prose">
+        For every tool call, Frugal walks configured providers in
+        ascending cost order. Free / local providers ($0) are tried
+        first. The loop stops as soon as one provider returns a result
+        that clears the recipe's quality bar. Premium-paid providers
+        only run when explicitly opted in.
       </p>
       <dl class="grid">
         <div>
           <dt>Classify</dt>
-          <dd>Detect the task and the capabilities required — local model,
-          hosted model, search, browser, code execution, extraction,
-          embeddings, semantic cache, or a multi-step combination.</dd>
+          <dd>Detect the task and the capabilities required — search,
+          extract, browse, code-exec, embeddings, transcription, or a
+          multi-step combination.</dd>
         </div>
         <div>
-          <dt>Route</dt>
-          <dd>Pick the cheapest path that clears every quality threshold.
-          One routing engine, shared by the CLI and the MCP server, so
-          agents and scripts get the same answer.</dd>
+          <dt>Route cheapest-first</dt>
+          <dd>For each capability, walk providers in cost order. SearXNG
+          before Serper before Tavily. Trafilatura before Firecrawl.
+          Local Playwright before Browserbase.</dd>
         </div>
         <div>
           <dt>Audit</dt>
           <dd>Every response prints the decision — recipe, step list,
-          model picks, actual cost. <code>frugal route</code> previews
-          without paying.</dd>
+          provider per step, actual cost paid. <code>frugal route</code>
+          previews without paying.</dd>
         </div>
       </dl>
     </section>
@@ -275,52 +361,60 @@ baseline: gpt-4o      → $0.0182 → pass
 
     <section class="providers" aria-labelledby="providers-heading">
       <p class="section-label">Roadmap</p>
-      <h2 id="providers-heading">Toolchain components</h2>
+      <h2 id="providers-heading">Component status</h2>
       <p class="prose">
-        Hosted chat from OpenAI, Anthropic, Google. Routed search via
-        Tavily and Serper. Pricing synced from
+        Each capability is its own router. Shipping today: hosted chat
+        and routed search. Phase 2 (next): local providers — SearXNG,
+        Playwright, Trafilatura, Firecrawl, Browserless — and the
+        $0-first routing rule that needs them. Pricing synced from
         <a href="https://models.dev" rel="noopener">models.dev</a> at
         startup; extend by editing <code>~/.frugal/config/models.yaml</code>.
-        Each component below ships only when the eval has data saying a
-        toolchain built around it clears the quality bar.
       </p>
       <p class="prose component-legend">
         <strong>Shipping</strong> — routes live traffic.
-        <strong>Stubbed</strong> — schema slot exists; no executor wired.
+        <strong>Phase 2</strong> — next to ship.
         <strong>Planned</strong> — on the roadmap.
       </p>
       <div class="provider-grid">
         <div class="provider">
-          <h3>Hosted chat models <span class="status-tag tag-shipping">shipping (internal)</span></h3>
-          <p>OpenAI, Anthropic, Google chat completions inside recipe chat steps. Exposed as <code>frugal__chat</code> MCP tool in Phase 2.</p>
+          <h3>Search <span class="status-tag tag-partial">partial</span></h3>
+          <p><strong>Serper shipping</strong> via the <code>frugal__search</code> MCP tool. <strong>SearXNG + Brave free tier</strong> land in Phase 2 to enable $0-first routing.</p>
         </div>
         <div class="provider">
-          <h3>Search API <span class="status-tag tag-shipping">shipping</span></h3>
-          <p>Routed cheapest web search per use case (Tavily, Serper) via the <code>frugal__search</code> MCP tool. Set <code>TAVILY_API_KEY</code> and/or <code>SERPER_API_KEY</code>.</p>
+          <h3>Extract <span class="status-tag tag-stubbed">phase 2</span></h3>
+          <p>Trafilatura, readability.js, Mercury (free / local); Firecrawl as premium-paid fallback. Schema reserved.</p>
         </div>
         <div class="provider">
-          <h3>Local models <span class="status-tag tag-planned">planned</span></h3>
-          <p>Local-server-backed chat for the cheap path on summarize, code, extract (Phase 3).</p>
+          <h3>Browse <span class="status-tag tag-stubbed">phase 2</span></h3>
+          <p>Local Playwright + Chromium; Browserless cheap-paid; Browserbase premium-paid. Schema reserved.</p>
         </div>
         <div class="provider">
-          <h3>Browser / fetch <span class="status-tag tag-planned">planned</span></h3>
-          <p>Headless fetch + readable extraction for webpage tasks.</p>
+          <h3>Hosted chat <span class="status-tag tag-shipping">shipping (internal)</span></h3>
+          <p>OpenAI, Anthropic, Google chat completions inside recipe chat steps. Exposed as <code>frugal__chat</code> MCP tool in Phase 3.</p>
         </div>
         <div class="provider">
-          <h3>Code execution <span class="status-tag tag-planned">planned</span></h3>
-          <p>Sandboxed Python / shell for math, data-shaping, verification.</p>
+          <h3>Local chat <span class="status-tag tag-planned">phase 3</span></h3>
+          <p>Ollama / LM Studio drivers for the showcase audience running Kimi / Qwen / Llama locally.</p>
         </div>
         <div class="provider">
-          <h3>Embeddings &amp; vector search <span class="status-tag tag-planned">planned</span></h3>
-          <p>Retrieval over user-supplied corpora to displace long-context.</p>
+          <h3>Embeddings <span class="status-tag tag-planned">planned</span></h3>
+          <p>nomic-embed-text / bge-large (local); text-embedding-3-small (cheap paid); 3-large / Voyage (premium).</p>
+        </div>
+        <div class="provider">
+          <h3>Transcription <span class="status-tag tag-planned">planned</span></h3>
+          <p>whisper.cpp local; Deepgram cheap paid; OpenAI Whisper / Speechmatics premium.</p>
+        </div>
+        <div class="provider">
+          <h3>Code exec <span class="status-tag tag-planned">planned</span></h3>
+          <p>Local Docker sandbox; E2B cheap paid; Modal premium. For math, data-shaping, verification.</p>
         </div>
         <div class="provider">
           <h3>Semantic cache <span class="status-tag tag-planned">planned</span></h3>
-          <p>Hash + similarity cache for repeated / near-duplicate questions.</p>
+          <p>Local sqlite + similarity for repeated / near-duplicate calls. Zero-cost win.</p>
         </div>
         <div class="provider">
           <h3>Multi-step agent <span class="status-tag tag-planned">planned</span></h3>
-          <p>Cheapest plan-and-call loop when one tool alone isn't enough.</p>
+          <p><code>frugal run --agent</code> mode — a cheap-model loop using Frugal tools when one call isn't enough.</p>
         </div>
       </div>
     </section>
@@ -358,7 +452,7 @@ baseline: gpt-4o      → $0.0182 → pass
       <p class="fine">
         Migrating from v0.x? The OpenAI-compatible HTTP proxy and
         command-wrap mode were removed in v1.0 — see the
-        <a href="https://github.com/brainsparker/frugal/blob/main/frugal-strategy-v5.md#10-v10-breaking-change" rel="noopener">migration note</a>.
+        <a href="https://github.com/brainsparker/frugal/blob/main/frugal-strategy-v5.md#10-v10-breaking-change" rel="noopener">v1.0 migration note in v5</a>.
         Pin <code>FRUGAL_VERSION=v0.2.x</code> to stay on the legacy proxy.
       </p>
     </section>

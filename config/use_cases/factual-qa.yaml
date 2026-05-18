@@ -1,6 +1,6 @@
 # Recipe: "Fresh facts" (search + small hosted model). Today only the
 # small-hosted-model step ships; the search step wires in Phase 1 PR 4.
-# See `frugal-strategy-v5.md` §6 for the canonical component status.
+# See `frugal-strategy-v6.md` §6 for the canonical component status.
 id: factual-qa
 description: >
   Short factual lookups, trivia, definitional questions, and one-turn

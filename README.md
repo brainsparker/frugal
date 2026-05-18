@@ -1,25 +1,30 @@
 # frugal
 
-**An AI toolchain router for your agents.**
+**Tool calls are the new tokens.**
 
-Frugal routes each AI task through the cheapest reliable path — search,
-chat, browser, code exec, or cache — exposed to your agent stack as
-`frugal__*` tools over [MCP (Model Context Protocol)](https://modelcontextprotocol.io).
-One signed Go binary. Your keys. No account. Source-available (BUSL 1.1 → Apache 2.0).
+For most agentic workloads, the tool bill exceeds the model bill. A
+Firecrawl scrape costs more than the gpt-4o-mini call that consumes its
+output. A Tavily search costs 25× a Serper search and 100× a self-hosted
+SearXNG. Frugal is the cost-arbitrage layer for those tool calls —
+search, extract, browse, code-exec, embeddings — routed to a free/local
+provider first, falling back to the cheapest paid only when needed.
+Works with any model. One signed Go binary. Your keys. No account.
+Source-available (BUSL 1.1 → Apache 2.0).
 
-[frugal.sh](https://frugal.sh) · [GitHub](https://github.com/brainsparker/frugal) · [Strategy](./frugal-strategy-v5.md)
+[frugal.sh](https://frugal.sh) · [GitHub](https://github.com/brainsparker/frugal) · [Strategy](./frugal-strategy-v6.md)
 
 ```
-fresh-facts           · search + small hosted model
-research-synthesis    · long-context reasoner
-code-dev              · routed coder model
-factual-qa            · cheapest mini-tier model
-structured-extraction · cheapest JSON-mode model
+search    ·  SearXNG    → Serper       → Tavily
+extract   ·  Trafilatura → —            → Firecrawl
+browse    ·  Playwright  → Browserless  → Browserbase
+embed     ·  nomic-embed → 3-small      → 3-large
+code-exec ·  local Docker → E2B         → Modal
+chat      ·  Ollama       → mini/haiku  → frontier
 ```
 
-Most AI tasks are over-routed. Frontier models for fresh facts. Long
-context for one-line answers. Agent loops for single tool calls. Frugal
-picks the cheaper, equally-correct path.
+The leftmost configured provider wins. Free/local first, cheap paid as
+fallback, premium paid only when explicitly opted in. See the full
+rack-rate table on [frugal.sh](https://frugal.sh).
 
 ## Quickstart
 
@@ -181,7 +186,7 @@ each component carries one of three labels:
 
 Each component ships only when the eval harness has data saying a toolchain
 built around it clears the quality bar. The canonical source of truth for
-component status is [`frugal-strategy-v5.md`](./frugal-strategy-v5.md) §6 —
+component status is [`frugal-strategy-v6.md`](./frugal-strategy-v6.md) §6 —
 if this table disagrees, the strategy doc wins.
 
 ## How it works
@@ -292,7 +297,7 @@ Free is BYOK (your own provider keys), no account. The paid tier is a
 **ZDR enterprise dashboard**: customer self-hosts the receiver + dashboard
 inside their own VPC, Frugal-the-company never receives a single byte of
 their data. Aimed at regulated industries and security-conscious teams.
-Full positioning in [`frugal-strategy-v5.md`](./frugal-strategy-v5.md).
+Full positioning in [`frugal-strategy-v6.md`](./frugal-strategy-v6.md).
 
 ## v1.0 — breaking change from v0.x
 
@@ -312,7 +317,7 @@ migrate to one of:
   v0.x is in maintenance mode (security fixes only); routing logic and
   pricing tables remain shared.
 
-See [`frugal-strategy-v5.md`](./frugal-strategy-v5.md) §10 for the full
+See [`frugal-strategy-v6.md`](./frugal-strategy-v6.md) §10 for the full
 rationale.
 
 ## Development
