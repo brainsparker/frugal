@@ -75,6 +75,28 @@ func TestAuthMiddleware_CaseInsensitiveBearerPrefix(t *testing.T) {
 	}
 }
 
+func TestAuthMiddleware_RejectsBearerTokenWithExtraSegments(t *testing.T) {
+	h := AuthMiddleware("secret-token")(newTestOKHandler())
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)
+	req.Header.Set("Authorization", "Bearer secret-token extra")
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for multi-segment bearer token, got %d", rec.Code)
+	}
+}
+
+func TestAuthMiddleware_RejectsBearerTokenWithTabs(t *testing.T) {
+	h := AuthMiddleware("secret-token")(newTestOKHandler())
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)
+	req.Header.Set("Authorization", "Bearer secret-token\tmore")
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for tab-delimited bearer token, got %d", rec.Code)
+	}
+}
+
 func TestRateLimitMiddleware_TrivialRpsDisables(t *testing.T) {
 	h := RateLimitMiddleware(0, 0)(newTestOKHandler())
 	rec := httptest.NewRecorder()

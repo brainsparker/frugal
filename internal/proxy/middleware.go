@@ -161,7 +161,13 @@ func bearerFromHeader(h string) string {
 	if !strings.EqualFold(h[:len(prefix)], prefix) {
 		return ""
 	}
-	return strings.TrimSpace(h[len(prefix):])
+	// RFC 6750 bearer credentials are a single token; reject values that
+	// contain additional space-delimited segments to avoid ambiguous parsing.
+	token := strings.TrimSpace(h[len(prefix):])
+	if token == "" || strings.ContainsAny(token, " \t") {
+		return ""
+	}
+	return token
 }
 
 // HeaderExtractionMiddleware extracts X-Frugal-* headers into the request
