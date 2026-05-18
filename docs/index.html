@@ -51,36 +51,51 @@
 
   <main id="main">
     <section class="hero">
-      <p class="eyebrow" aria-hidden="true">source-available · BUSL 1.1 → Apache 2.0 · BYOK</p>
+      <div class="hero-grid">
+        <div class="hero-content">
+          <p class="eyebrow" aria-hidden="true">source-available · BUSL 1.1 → Apache 2.0 · BYOK</p>
 
-      <pre class="hero-catalog" aria-label="Recipe catalog">fresh-facts           · search + small hosted model
+          <h1>
+            An AI toolchain router for your
+            <span class="accent">agents.</span>
+          </h1>
+          <p class="lede">
+            Frugal routes each task through the cheapest reliable path —
+            search, chat, browser, code exec, or cache — exposed to your
+            agent stack as <code>frugal__*</code> tools over MCP (the
+            Model Context Protocol). One signed Go binary. Your keys.
+            No account.
+          </p>
+
+          <div class="pills" role="list">
+            <span role="listitem">No account</span>
+            <span role="listitem">BYOK</span>
+            <span role="listitem">Keys stay local</span>
+            <span role="listitem">Signed releases</span>
+          </div>
+
+          <div class="cta">
+            <a class="btn btn-primary" href="#install">Install in your agent →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">View on GitHub</a>
+          </div>
+        </div>
+
+        <aside class="hero-aside" aria-label="Recipe catalog and demo">
+          <pre class="hero-catalog" aria-label="Recipe catalog">fresh-facts           · search + small hosted model
 research-synthesis    · long-context reasoner
 code-dev              · routed coder model
 factual-qa            · cheapest mini-tier model
 structured-extraction · cheapest JSON-mode model</pre>
 
-      <h1>
-        An AI toolchain router for your
-        <span class="accent">agents.</span>
-      </h1>
-      <p class="lede">
-        Frugal routes each task through the cheapest reliable path —
-        search, chat, browser, code exec, or cache — exposed to your
-        agent stack as <code>frugal__*</code> tools over MCP (the Model
-        Context Protocol). One signed Go binary. Your keys. No account.
-      </p>
+          <div class="terminal" aria-label="Install command">
+            <div class="terminal-label"><span>install</span><span class="terminal-label-tag">one-liner</span></div>
+            <pre class="terminal-body"><code><span class="prompt">$</span> curl -fsSL https://frugal.sh/install | bash</code></pre>
+            <button class="copy" type="button" data-copy="curl -fsSL https://frugal.sh/install | bash" aria-label="Copy install command">Copy</button>
+          </div>
 
-      <div class="terminal" aria-label="Install command">
-        <div class="terminal-chrome" aria-hidden="true">
-          <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
-          <span class="terminal-title">install</span>
-        </div>
-        <pre class="terminal-body"><code><span class="prompt">$</span> curl -fsSL https://frugal.sh/install | bash</code></pre>
-        <button class="copy" type="button" data-copy="curl -fsSL https://frugal.sh/install | bash" aria-label="Copy install command">Copy</button>
-      </div>
-
-      <div class="terminal secondary" aria-label="Install Frugal into your agent stack">
-        <pre class="terminal-body"><code><span class="prompt">$</span> frugal mcp install
+          <div class="terminal" aria-label="Install Frugal into your agent stack">
+            <div class="terminal-label"><span>wire it into your agent</span><span class="terminal-label-tag">mcp</span></div>
+            <pre class="terminal-body"><code><span class="prompt">$</span> frugal mcp install
 <span class="muted">detected: Claude Desktop, Cursor
 ✓ wrote both configs.</span>
 
@@ -89,31 +104,22 @@ structured-extraction · cheapest JSON-mode model</pre>
 #   ↳ frugal__search routed to serper @ $0.0003
 #   ↳ gpt-4.1-nano synthesizes the result
 # done. cost: $0.0008</span></code></pre>
-        <button class="copy" type="button" data-copy="frugal mcp install" aria-label="Copy install example">Copy</button>
-      </div>
+            <button class="copy" type="button" data-copy="frugal mcp install" aria-label="Copy install example">Copy</button>
+          </div>
 
-      <div class="terminal secondary" aria-label="Or, from a script">
-        <pre class="terminal-body"><code><span class="muted"># Or, drive it from a script:</span>
-<span class="prompt">$</span> frugal run <span class="str">"current iPhone prices"</span>
+          <div class="terminal secondary" aria-label="Or, from a script">
+            <div class="terminal-label"><span>or drive it from a script</span><span class="terminal-label-tag">cli</span></div>
+            <pre class="terminal-body"><code><span class="prompt">$</span> frugal run <span class="str">"current iPhone prices"</span>
 <span class="muted">→ recipe: fresh-facts
 done. cost: $0.0008</span></code></pre>
-        <button class="copy" type="button" data-copy='frugal run "current iPhone prices"' aria-label="Copy run example">Copy</button>
-      </div>
-
-      <div class="pills" role="list">
-        <span role="listitem">No account</span>
-        <span role="listitem">BYOK</span>
-        <span role="listitem">Keys stay local</span>
-        <span role="listitem">Signed releases</span>
-      </div>
-
-      <div class="cta">
-        <a class="btn btn-primary" href="#install">Install in your agent →</a>
-        <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">View on GitHub</a>
+            <button class="copy" type="button" data-copy='frugal run "current iPhone prices"' aria-label="Copy run example">Copy</button>
+          </div>
+        </aside>
       </div>
     </section>
 
     <section class="why" aria-labelledby="why-heading">
+      <p class="section-label">The engine</p>
       <h2 id="why-heading">How Frugal decides</h2>
       <p class="prose">
         The expensive part of AI isn't the model. It's the wrong path —
@@ -143,6 +149,7 @@ done. cost: $0.0008</span></code></pre>
     </section>
 
     <section class="recipes" id="recipes" aria-labelledby="recipes-heading">
+      <p class="section-label">What it knows</p>
       <h2 id="recipes-heading">The recipe table</h2>
       <p class="prose">
         Eight common tasks. The cheapest reliable path for each. Status
@@ -176,6 +183,7 @@ done. cost: $0.0008</span></code></pre>
     </section>
 
     <section class="how" id="how" aria-labelledby="how-heading">
+      <p class="section-label">Flow</p>
       <h2 id="how-heading">One run, end to end</h2>
 <pre class="diagram" aria-label="Flow diagram">frugal run "summarize this repo"
        │
@@ -194,6 +202,7 @@ done. cost: $0.0008</span></code></pre>
     </section>
 
     <section class="surfaces" id="surfaces" aria-labelledby="surfaces-heading">
+      <p class="section-label">Surfaces</p>
       <h2 id="surfaces-heading">MCP to ship it. CLI to try it.</h2>
       <p class="prose">
         Agent stacks — Claude Code, Cursor, Claude Desktop, custom hosts —
@@ -240,6 +249,7 @@ baseline: gpt-4o      → $0.0182 → pass
     </section>
 
     <section class="quality" aria-labelledby="quality-heading">
+      <p class="section-label">Quality dial</p>
       <h2 id="quality-heading">Three tiers. Pick per call.</h2>
       <p class="prose"><code>--quality cost</code> for extractions and lookups.
       <code>--quality high</code> for planners and novel code. Default
@@ -264,6 +274,7 @@ baseline: gpt-4o      → $0.0182 → pass
     </section>
 
     <section class="providers" aria-labelledby="providers-heading">
+      <p class="section-label">Roadmap</p>
       <h2 id="providers-heading">Toolchain components</h2>
       <p class="prose">
         Hosted chat from OpenAI, Anthropic, Google. Routed search via
@@ -315,6 +326,7 @@ baseline: gpt-4o      → $0.0182 → pass
     </section>
 
     <section class="install-block" id="install" aria-labelledby="install-heading">
+      <p class="section-label">Get started</p>
       <h2 id="install-heading">Install</h2>
       <p class="prose">
         One Go binary, ~10 MB. <strong>No SaaS. No account.</strong>
@@ -352,6 +364,7 @@ baseline: gpt-4o      → $0.0182 → pass
     </section>
 
     <section class="trust" aria-labelledby="trust-heading">
+      <p class="section-label">Trust</p>
       <h2 id="trust-heading">Built to self-host</h2>
       <dl class="grid grid-trust">
         <div>
