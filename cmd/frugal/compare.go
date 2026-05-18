@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -74,6 +75,10 @@ func runCompare(args []string) int {
 		fmt.Fprintf(os.Stderr, "frugal compare: %v\n", err)
 		return 1
 	}
+	if err := validateBaselineModel(*baseline, provReg.AllModels()); err != nil {
+		fmt.Fprintf(os.Stderr, "frugal compare: %v\n", err)
+		return 2
+	}
 	rtr := router.New(modelEntries, thresholds)
 	cls := classifier.NewRuleBased()
 	costs := buildModelCosts(cfg)
@@ -117,6 +122,24 @@ func runCompare(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+func validateBaselineModel(model string, available []string) error {
+	trimmed := strings.TrimSpace(model)
+	if trimmed == "" {
+		return fmt.Errorf("baseline model cannot be empty")
+	}
+	for _, m := range available {
+		if m == trimmed {
+			return nil
+		}
+	}
+	sorted := append([]string(nil), available...)
+	sort.Strings(sorted)
+	if len(sorted) > 8 {
+		sorted = sorted[:8]
+	}
+	return fmt.Errorf("unknown baseline model %q; choose one of the registered models: %s", trimmed, strings.Join(sorted, ", "))
 }
 
 // syntheticBaselineRecipe builds an in-memory single-chat-step Recipe for
@@ -205,4 +228,3 @@ func indent(s string) string {
 	}
 	return strings.Join(lines, "\n")
 }
-
