@@ -240,6 +240,33 @@ func TestChatCompletions_Streaming(t *testing.T) {
 	}
 }
 
+func TestChatCompletions_ContentTypeValidation(t *testing.T) {
+	_, ts := setupHandler()
+	defer ts.Close()
+
+	body, _ := json.Marshal(types.ChatCompletionRequest{
+		Model:    "auto",
+		Messages: []types.Message{{Role: "user", Content: mustMarshalJSON("Hello")}},
+	})
+
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/v1/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "text/plain")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnsupportedMediaType {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 415, got %d: %s", resp.StatusCode, string(b))
+	}
+}
+
 func TestChatCompletions_ModelPinning(t *testing.T) {
 	_, ts := setupHandler()
 	defer ts.Close()

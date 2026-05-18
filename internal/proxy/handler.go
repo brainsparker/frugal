@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"strconv"
@@ -157,6 +158,11 @@ const maxChatCompletionsBodyBytes int64 = 1 << 20 // 1 MiB
 
 // ChatCompletions handles POST /v1/chat/completions
 func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
+	if err := validateJSONContentType(r); err != nil {
+		writeError(w, http.StatusUnsupportedMediaType, err.Error())
+		return
+	}
+
 	req, err := decodeChatCompletionRequest(w, r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
@@ -276,6 +282,21 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	if decision.EstimatedCost > 0 {
 		metrics.CostUSDTotal.WithLabelValues(decision.SelectedModel, decision.SelectedProvider).Add(decision.EstimatedCost)
 	}
+}
+
+func validateJSONContentType(r *http.Request) error {
+	ct := strings.TrimSpace(r.Header.Get("Content-Type"))
+	if ct == "" {
+		return nil
+	}
+	mediaType, _, err := mime.ParseMediaType(ct)
+	if err != nil {
+		return fmt.Errorf("invalid Content-Type header")
+	}
+	if !strings.EqualFold(mediaType, "application/json") {
+		return fmt.Errorf("Content-Type must be application/json")
+	}
+	return nil
 }
 
 func decodeChatCompletionRequest(w http.ResponseWriter, r *http.Request) (*types.ChatCompletionRequest, error) {
