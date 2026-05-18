@@ -101,9 +101,10 @@
       <h2 id="rack-rates-heading">The cheapest tools for AI.</h2>
       <p class="prose">
         Tool prices haven't fallen the way model prices have. A Firecrawl
-        scrape costs more than the gpt-4o-mini call that consumes it. A
-        Tavily search costs 25× a Serper search and 100× a self-hosted
-        SearXNG. <strong>Frugal walks the columns left to right</strong> —
+        scrape costs as much as the gpt-4o-mini call that consumes it.
+        Tavily at $0.008/call is 8× Serper at $0.001/call. SearXNG,
+        running on your own machine, is free.
+        <strong>Frugal walks the columns left to right</strong> —
         free / local first, cheap paid as fallback, premium paid only
         when you opt in.
       </p>
@@ -121,26 +122,26 @@
             <tr>
               <th scope="row">Search</th>
               <td><strong>SearXNG</strong> (self-host)</td>
-              <td><strong>Serper</strong> · $0.0003/call</td>
-              <td>Tavily $0.008 · Exa $0.005 · You.com</td>
+              <td><strong>Serper</strong> · $0.001/call</td>
+              <td>You.com $0.005 · Exa $0.007 · Tavily $0.008</td>
             </tr>
             <tr>
               <th scope="row">Extract</th>
               <td><strong>Trafilatura</strong>, <strong>readability.js</strong>, <strong>Mercury</strong> (self-host)</td>
               <td>—</td>
-              <td>Firecrawl $0.001–0.015/page</td>
+              <td>Firecrawl $0.001–0.005/page</td>
             </tr>
             <tr>
               <th scope="row">Browse</th>
               <td><strong>Playwright</strong> + Chromium (local)</td>
-              <td>Browserless $0.001–0.003/page</td>
-              <td>Browserbase $0.01+/session</td>
+              <td>Browserless ~$0.002/unit (30s)</td>
+              <td>Browserbase $0.10/hr (~$0.002/min)</td>
             </tr>
             <tr>
               <th scope="row">Code exec</th>
               <td><strong>local Docker</strong></td>
-              <td>E2B ~$0.0001/sec</td>
-              <td>Modal, hosted sandboxes</td>
+              <td>E2B ~$0.10/hr (2 vCPU)</td>
+              <td>Modal ~$0.14/hr (+GPU)</td>
             </tr>
             <tr>
               <th scope="row">Embeddings</th>

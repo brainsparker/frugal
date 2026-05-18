@@ -8,11 +8,11 @@
 **Tool calls are the new tokens.**
 
 For most agentic workloads in 2026, the tool bill exceeds the model bill.
-A single Firecrawl scrape costs more than the GPT-4o-mini call that
-consumes its output. A Tavily search costs 25× what a Serper search costs
-and 100× what a self-hosted SearXNG returns for free. An agent that loops
-on search → extract → reason × 10 iterations can run a $0.50 tool bill
-on top of a $0.005 model bill.
+A single Firecrawl scrape costs as much as the GPT-4o-mini call that
+consumes its output. A Tavily search at $0.008/call is 8× a Serper search
+at $0.001/call at list price; a self-hosted SearXNG returns the same
+result for $0. An agent that loops on search → extract → reason × 10
+iterations can run a $0.50 tool bill on top of a $0.005 model bill.
 
 Frugal is **the cost-arbitrage layer for tool calls in agentic
 workflows**. For every search, extraction, browse, code-exec, embedding,
@@ -79,12 +79,12 @@ table is the headline artifact on the homepage:
 
 | Capability | Free / local ($0) | Cheap paid | Premium paid (avoid by default) |
 |---|---|---|---|
-| Search | **SearXNG** (self-host) | **Serper** ($0.0003/call) | **Tavily** ($0.008), **Exa** ($0.005), **You.com** |
-| Extract | **Trafilatura**, **readability.js**, **Mercury** (self-host) | — | **Firecrawl** ($0.001–0.015/page) |
-| Browse | **Playwright** + Chromium (local) | **Browserless** ($0.001–0.003/page) | **Browserbase** ($0.01+/session) |
-| Code-exec | **Local Docker** | **E2B** (~$0.0001/sec) | Modal, hosted sandboxes |
+| Search | **SearXNG** (self-host) | **Serper** ($0.001/call list) | **You.com** ($0.005), **Exa** ($0.007), **Tavily** ($0.008) |
+| Extract | **Trafilatura**, **readability.js**, **Mercury** (self-host) | — | **Firecrawl** ($0.001–0.005/page) |
+| Browse | **Playwright** + Chromium (local) | **Browserless** (~$0.002/unit, 30s) | **Browserbase** ($0.10/hr, ~$0.002/min) |
+| Code-exec | **Local Docker** | **E2B** (~$0.10/hr, 2 vCPU) | Modal (~$0.14/hr CPU, +GPU rates) |
 | Embeddings | **nomic-embed-text**, **bge-large** (local) | **text-embedding-3-small** ($0.02/1M tokens) | text-embedding-3-large, Voyage-3, Cohere |
-| Transcription | **whisper.cpp** (local) | **Deepgram Nova** ($0.0043/min) | OpenAI Whisper API ($0.006/min), Speechmatics |
+| Transcription | **whisper.cpp** (local) | **Deepgram Nova-3** ($0.0043/min pre-recorded) | OpenAI Whisper API ($0.006/min), Speechmatics |
 | Chat (small) | **Ollama / LM Studio** (local OSS) | gpt-4o-mini ($0.15/1M in, $0.60/1M out), haiku, gemini-flash | gpt-4o, claude-sonnet |
 | Chat (large) | Kimi K2, Qwen 72B (local on serious HW) | — | gpt-4o, claude-opus, gemini-pro |
 
@@ -123,7 +123,7 @@ tool returns an error to the agent (no silent fallback to premium
 unless the recipe explicitly opts in).
 
 **Free/local providers are first-class.** A configured SearXNG instance
-ranks ahead of Serper because $0 < $0.0003. The implementation already
+ranks ahead of Serper because $0 < $0.001. The implementation already
 handles cost ordering; the only new behavior is honoring `$0` as the
 canonical floor.
 
