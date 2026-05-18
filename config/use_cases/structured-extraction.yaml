@@ -1,3 +1,6 @@
+# Recipe: "Structured extraction (text → JSON)". Smallest JSON-mode-reliable
+# hosted model — no toolchain components needed beyond chat. See
+# `frugal-strategy-v5.md` §6 for the canonical component status.
 id: structured-extraction
 description: >
   Free-text to JSON extraction, entity/field extraction, schema filling,

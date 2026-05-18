@@ -438,15 +438,65 @@ h3 { font-size: 1.05rem; }
   text-transform: uppercase;
   font-weight: 700;
 }
-.status-tag.tag-next {
+.status-tag.tag-next,
+.status-tag.tag-stubbed,
+.status-tag.tag-planned,
+.status-tag.tag-partial {
   background: transparent;
   color: var(--dim);
   border: 1px solid var(--border);
 }
+.status-tag.tag-stubbed { border-color: var(--accent); color: var(--accent); }
+.status-tag.tag-partial { border-color: var(--accent); color: var(--accent); }
 @media (prefers-color-scheme: light) {
   .status-tag { color: #fff; }
-  .status-tag.tag-next { color: var(--dim); }
+  .status-tag.tag-next,
+  .status-tag.tag-stubbed,
+  .status-tag.tag-planned,
+  .status-tag.tag-partial { color: var(--dim); }
+  .status-tag.tag-stubbed,
+  .status-tag.tag-partial { color: var(--accent); }
 }
+
+/* Recipes table ----------------------------------------------------------- */
+
+.recipes {
+  padding: 56px 0 8px;
+}
+.recipes h2 {
+  font-size: clamp(20px, 2.4vw, 28px);
+  margin: 0 0 14px;
+}
+.recipe-table-wrap {
+  overflow-x: auto;
+  margin: 18px 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.recipe-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14.5px;
+}
+.recipe-table th,
+.recipe-table td {
+  text-align: left;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.recipe-table thead th {
+  font-weight: 600;
+  color: var(--dim);
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(127, 127, 127, 0.04);
+}
+.recipe-table tbody tr:last-child td { border-bottom: none; }
+.recipe-table td:last-child { white-space: nowrap; }
+.recipes-foot { margin-top: 8px; color: var(--dim); font-size: 14px; }
+.component-legend { color: var(--dim); font-size: 14px; margin: 0 0 14px; }
 
 /* Install block ----------------------------------------------------------- */
 

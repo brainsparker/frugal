@@ -1,65 +1,194 @@
 # frugal
 
-**Open-source AI toolchain cost optimizer. Route every prompt to the cheapest model + toolchain bundle that won't compromise quality.**
+**Stop picking models. Pick the cheapest toolchain that completes the job.**
 
-[frugal.sh](https://frugal.sh) · [GitHub](https://github.com/brainsparker/frugal) · [Strategy](./frugal-strategy-v3.md)
+Open-source AI toolchain cost optimizer for local-first AI builders. Frugal
+routes each task to the cheapest reliable path — local models, hosted models,
+search, browser tools, code execution, or cache — through a CLI you can call
+directly and an MCP server your agent stack can install.
 
-No account. No code changes. One command.
+[frugal.sh](https://frugal.sh) · [GitHub](https://github.com/brainsparker/frugal) · [Strategy](./frugal-strategy-v5.md)
+
+Most AI tasks are over-routed. Frontier model when local-plus-search would
+have worked. Long-context stuffing when retrieval would have answered. Agent
+loops when a single tool call would have. Frugal picks the cheaper,
+equally-correct path.
 
 ```bash
 curl -fsSL https://frugal.sh/install | bash
 ```
 
-```bash
-frugal python my_app.py
-```
+Two ways to use it:
 
-Frugal wraps any command with a local OpenAI-compatible proxy, classifies each
-request by use case, and routes to the cheapest (model + toolchain) bundle that
-clears your quality bar. Your app doesn't change. Your API keys stay local.
+```bash
+# CLI — dispatch a task to the cheapest reliable toolchain
+frugal run "what's the weather in NYC right now"
+
+# MCP server — install Frugal as a routed-tool MCP server in your agent client
+frugal mcp install
+```
 
 ---
 
 ## Why Frugal isn't just another model router
 
-A model alone isn't the product — the use case is. Legal research wants a strong
-reasoner *and* good web search. Code work wants a code-aware model *and* targeted
-retrieval. Structured extraction wants the smallest model that passes the schema
-and nothing else.
+The model-router space is crowded — OpenRouter, LiteLLM, Martian, Helicone,
+Portkey. It collapses into a price/latency benchmark fight and the
+differentiation is thin. Routed-*search* MCP servers also exist — at least
+two open-source projects already route across 5–7 search providers.
 
-Frugal's wedge: classify each prompt's use case, then route to the cheapest
-**bundle** (model × toolchain) that clears the quality bar for that use case.
-Every bundle is grounded in the eval harness — routing isn't opinion, it's what
-the data says wins for your workload.
+Frugal's wedge: **breadth × cost-first × single binary × CLI as a peer
+surface to MCP.** One router across search + extract + browse + code-exec +
+embeddings + cache + chat — not just search. Every routing pick backed by
+the eval scorecard. Single signed Go binary, no Python venv. `frugal run`
+for scripts and humans, `frugal mcp serve` for agents.
+
+The pitch isn't "we route models" — it's "we route work."
 
 | Concept | What it is |
 |---|---|
-| **Capability** | A primitive: chat, web search, reranking, content extraction, browser. |
-| **Use case** | A named class of work (`research-synthesis`, `code-dev`, `factual-qa`, `structured-extraction`). Ships with a labeled benchmark workload. |
-| **Bundle** | The recommended (capability → provider) map for a use case at a quality tier. |
+| **Capability** | A toolchain primitive: local model, hosted model, search, browser/fetch, code execution, extraction, embeddings & vector search, semantic cache. |
+| **Recipe** | A deterministic step list — one or more tool calls and/or model calls — that solves a category of task at the cheapest reliable cost. |
+| **Use case** | The named runtime artifact for a recipe (`research-synthesis`, `code-dev`, `factual-qa`, `structured-extraction`, …) with its eval workload. |
 
-## Free vs paid
+## Recipes — common tasks, cheapest reliable paths
 
-| Component | Source | Pricing |
+Most AI tasks have a cheaper path than "call the frontier model." Each row is
+the cheapest reliable default Frugal aims to route. Status tags are honest —
+[component status](#toolchain-components) is the canonical source of truth.
+
+| Task | Cheapest reliable path | Status |
 |---|---|---|
-| Proxy | OSS (BUSL 1.1 → Apache 2.0) | Free |
-| Receiver *(planned)* | OSS (BUSL 1.1 → Apache 2.0) | Free for self-host |
-| Dashboard *(planned)* | Proprietary | Paid; ships alongside the receiver |
+| Summarize a document | Local small model | Planned (Phase 3) |
+| Fresh facts (news, prices, schedules) | Search + small hosted model | Phase 1 (search lands in PR 4) |
+| Extract from a webpage | Browser/fetch + local model | Planned (Phase 2 browser; Phase 3 local) |
+| Complex reasoning (planning, hard math, novel code) | Hosted frontier model | Phase 1 (recipe step uses internal chat router) |
+| Code generation, refactors | Local code model → hosted fallback | Partial (Phase 1 hosted; Phase 3 local) |
+| Repeated / near-duplicate questions | Semantic cache | Planned (Phase 2) |
+| Multi-source research | Search + rerank, hosted-if-needed | Phase 1 (search) + Phase 2 (rerank) |
+| Structured extraction (text → JSON) | Smallest JSON-mode-reliable hosted model | Phase 1 (recipe step uses internal chat router) |
 
-The proxy is free, BYOK (your own provider keys), no account. The paid tier is a **ZDR enterprise dashboard**: customer self-hosts the receiver + dashboard inside their own VPC, Frugal-the-company never receives a single byte of their data. Aimed at regulated industries and security-conscious teams. Full positioning in [`frugal-strategy-v3.md`](./frugal-strategy-v3.md).
+Four recipes ship as named use cases in `config/use_cases/`:
+[`research-synthesis`](./config/use_cases/research-synthesis.yaml),
+[`code-dev`](./config/use_cases/code-dev.yaml),
+[`factual-qa`](./config/use_cases/factual-qa.yaml), and
+[`structured-extraction`](./config/use_cases/structured-extraction.yaml).
+A new `fresh-facts` recipe lands alongside the search tool in Phase 1 PR 4.
+
+## Two surfaces, one router
+
+| Surface | Audience | What it does |
+|---|---|---|
+| **CLI** — `frugal run/route/compare` | Scripts, humans, CI, Makefiles, ad-hoc | Dispatches a natural-language task to the cheapest reliable recipe and executes it. |
+| **MCP server** — `frugal mcp serve` | Agent clients (Claude Code, Claude Desktop, Cursor, custom) | Exposes routed tools (`frugal__search`, later `frugal__extract`, `frugal__browse`, `frugal__chat`, …) over the [Model Context Protocol](https://modelcontextprotocol.io). |
+
+The MCP server speaks **stdio** by default (what Claude Desktop / Cursor /
+Claude Code consume for locally-installed servers) and **Streamable HTTP**
+behind `--http :PORT` for remote deployments. `frugal mcp install` writes
+the right config for each detected client.
+
+The CLI dispatches through the same routing engine — `frugal run` calls
+the same code path as an agent calling `frugal__search` via MCP, by
+loopback through the in-process server. One code path, one set of routing
+decisions, one set of metrics.
+
+### CLI
+
+```bash
+$ frugal run "current iPhone prices"
+→ recipe: fresh-facts
+→ step 1: frugal__search("current iPhone prices")
+→ step 2: gpt-4.1-nano(search results + question)
+done. cost: $0.0008
+
+$ frugal route "extract tables from this PDF"
+→ recipe: pdf-extract (planned)
+→ would call: frugal__extract(file://…)
+→ would call: gemini-2.5-flash
+estimated cost: $0.0009
+no execution. add --execute to run.
+
+$ frugal compare "write tests for this function"
+recipe path: gpt-4.1-mini   → $0.0021 → 5 tests, all pass
+baseline:    gpt-4o          → $0.0182 → 5 tests, all pass
+→ recipe path is 88% cheaper, same correctness.
+```
+
+### MCP server
+
+```bash
+$ frugal mcp install
+detected: Claude Desktop, Cursor
+write 'frugal' MCP server to both configs? [Y/n] y
+✓ wrote ~/Library/Application Support/Claude/claude_desktop_config.json
+✓ wrote ~/.cursor/mcp.json
+note: for Claude Code, run: claude mcp add frugal -- frugal mcp serve
+
+$ frugal mcp serve
+mcp ready on stdio. tools: frugal__search
+```
+
+In an MCP-aware client, `frugal__search` appears in the tool picker. The
+agent decides *when* to search; Frugal decides *which provider* (cheapest
+that clears the use-case eval) and bills it to your provider key.
+
+## Toolchain components
+
+Frugal's reach is bigger than what's wired today. Honesty over aspiration —
+each component carries one of three labels:
+
+- **Shipping** — in the binary today, routes live traffic, covered by tests and the benchmark.
+- **Stubbed** — API/schema slot exists so caller code doesn't break when it lands; no executor wired.
+- **Planned** — on the roadmap; no schema or executor yet.
+
+| Component | What it is | Status |
+|---|---|---|
+| Hosted chat models | OpenAI / Anthropic / Google chat completions, routed per use case | **Shipping (internal)** — used by recipe chat steps; exposed as `frugal__chat` MCP tool in Phase 2 |
+| Search API | Routed cheapest web search provider per use case (Tavily, Serper, …) | Stubbed (executor lands in Phase 1 PR 4) |
+| Local models | Local-server-backed chat for the cheap path on summarize / code / extract | Planned (Phase 3) |
+| Browser / fetch | Headless fetch + readable extraction for webpage tasks | Planned (Phase 2) |
+| Content extraction | URL → clean text routed across multiple providers | Planned (Phase 2) |
+| Semantic cache | Hash + similarity cache for repeated / near-duplicate questions | Planned (Phase 2) |
+| Embeddings & vector search | Retrieval over user-supplied corpora to displace long-context | Planned (Phase 3) |
+| Code execution | Sandboxed Python / shell for math, data-shaping, verification | Planned (Phase 3) |
+| Multi-step agent | Cheapest plan-and-call loop when one tool alone isn't enough (`frugal run --agent`) | Planned (Phase 3) |
+
+Each component ships only when the eval harness has data saying a toolchain
+built around it clears the quality bar. The canonical source of truth for
+component status is [`frugal-strategy-v5.md`](./frugal-strategy-v5.md) §6 —
+if this table disagrees, the strategy doc wins.
+
+## How it works
+
+```
+$ frugal run "summarize this repo"
+       │
+       ├─ classifies task → recipe ID + quality tier
+       ├─ loads recipe step list from config/use_cases/<id>.yaml
+       ├─ for each step:
+       │     ├─ tool step  → call MCP tool (loopback) → routed provider → result
+       │     └─ chat step  → router picks cheapest model meeting threshold
+       ├─ binds {task}, {step1.results}, … into subsequent step inputs
+       └─ prints final result + cost + recipe path
+```
+
+The same recipe runs whether invoked via the CLI (`frugal run`) or via an
+MCP client calling `frugal__chat` with the matching use-case hint. The
+router, eval scoring, and pricing data are shared between both surfaces.
 
 ## How much does it actually save?
 
-Run the benchmark on your own keys:
+Run the recipe-bake-off benchmark on your own keys:
 
 ```bash
 frugal bench --quality balanced --out bench.md
 ```
 
 Frugal runs every problem in `config/workloads/starter.yaml` twice — once
-through the router (cheapest model that clears your quality bar) and once
-pinned to the baseline model. Each output is scored against a deterministic
-scorer (exact match, substring, JSON schema, or numeric tolerance):
+through the routed recipe (cheapest path that clears your quality bar) and
+once pinned to the baseline model. Each output is scored against a
+deterministic scorer (exact match, substring, JSON schema, or numeric
+tolerance):
 
 ```
 # starter (quality=balanced, baseline=gpt-4o)
@@ -68,92 +197,26 @@ Problems: 20  ·  Frugal pass: 90.0%  ·  Baseline pass: 95.0%  ·  Δ: -5.0pp
 Cost: frugal $0.0043  ·  baseline $0.0118  ·  savings 63.6%
 ```
 
-No judge LLMs, no simulated numbers — these are the bytes your provider billed
-you for. See [`config/workloads/starter.yaml`](./config/workloads/starter.yaml)
+No judge LLMs, no simulated numbers — these are the bytes your provider
+billed you for. See [`config/workloads/starter.yaml`](./config/workloads/starter.yaml)
 for the problem set and [`config/CAPABILITIES.md`](./config/CAPABILITIES.md)
 for the methodology behind the capability scores the router uses.
 
-## Use cases routed today
+## Quality tiers
 
-The starter catalog ships four use cases in [`config/use_cases/`](./config/use_cases/).
-Set the `X-Frugal-Use-Case` header and the request routes to that bundle.
-
-| Use case | What it matches | Balanced tier chat model |
-|---|---|---|
-| `research-synthesis` | Long-form multi-source research | Claude Sonnet 4 |
-| `code-dev` | Code generation, debugging, review | GPT-4.1 mini |
-| `factual-qa` | Short factual lookups, trivia | GPT-4.1 nano |
-| `structured-extraction` | Free text → JSON | Gemini 2.5 Flash |
+Each recipe ships three quality tiers. Default is `balanced`. Override per
+invocation:
 
 ```bash
-curl -X POST http://localhost:8080/v1/chat/completions \
-  -H "X-Frugal-Use-Case: research-synthesis" \
-  -H "X-Frugal-Quality: balanced" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"auto","messages":[{"role":"user","content":"..."}]}'
+frugal run "extract the speakers from this PDF" --quality cost
+frugal route "plan a database migration" --quality high
 ```
 
-Inspect the bundles directly:
-
-```bash
-curl http://localhost:8080/v1/bundles                           # every use case
-curl http://localhost:8080/v1/bundles/research-synthesis        # default balanced tier
-curl http://localhost:8080/v1/bundles/research-synthesis?quality=high
-```
-
-Bundles today are **curated** (`source: curated` in the YAML) with `as_of` dates
-tracking when each was last refreshed. When `X-Frugal-Use-Case` is absent, the
-classifier/router path runs as before — use-case routing is opt-in.
-
-## Toolchain capabilities
-
-| Capability | Status |
+| Tier | Behavior |
 |---|---|
-| Chat (model routing) | **Shipping** (Ring 1a) |
-| Web search | Next (Ring 1b) |
-| Reranking | After search (Ring 1c) |
-| Content extraction | Roadmap |
-| Browser use | Roadmap |
-
-Today's bundles populate the `chat` slot only; `search`, `rerank`, `extract`,
-and `browser` slots exist in the YAML schema so the API shape is stable as
-capabilities land. Each capability ships only when the eval harness has data
-saying a bundle built around it clears the quality bar.
-
----
-
-## How it works
-
-Frugal wraps any command, spins up a lightweight local proxy, sets
-`OPENAI_BASE_URL` to point at it, and routes every request through the router.
-
-```
-frugal python app.py
-       │
-       ├─ starts proxy on a free port
-       ├─ injects OPENAI_BASE_URL into your command's environment
-       ├─ classifies each request (use case + required capabilities)
-       ├─ picks the cheapest (model + toolchain) bundle that clears the bar
-       ├─ calls bundled tools — web search, rerank, extract, browse — as needed
-       └─ shuts down proxy when your command exits
-```
-
-You're paying for capability you don't use on 60–80% of your AI calls, and when
-you *do* need capability, a bare chat model is rarely the answer.
-
-### What the classifier detects
-
-| Signal | How |
-|---|---|
-| Code | Regex for code blocks, `function`/`def`/`class` keywords |
-| Math | LaTeX patterns, equation keywords |
-| Reasoning depth | System prompt complexity, conversation length |
-| Output format | JSON mode, tool/function calling |
-| Domain | Keyword detection (coding, creative, analysis, math) |
-| Use case | Explicit header (`X-Frugal-Use-Case`) or inferred from signals above |
-
-Signals combine into a complexity score and a capability set. The router picks
-the cheapest bundle that clears every threshold.
+| `high` | Top-tier steps only. Planners, complex reasoning, novel code. |
+| `balanced` | Default. Best cost-quality tradeoff; right ~80% of the time. |
+| `cost` | Cheapest viable recipe path. Classification, extraction, simple summaries. |
 
 ## Install
 
@@ -161,9 +224,9 @@ the cheapest bundle that clears every threshold.
 curl -fsSL https://frugal.sh/install | bash
 ```
 
-Downloads a single signed binary (~10MB), verifies it with `cosign` if present,
-detects your API keys, adds `frugal` to your `PATH`. Pin a version with
-`FRUGAL_VERSION=v0.2.1 curl -fsSL … | bash`.
+Downloads a single signed binary (~10MB), verifies it with `cosign` if
+present, detects your API keys, adds `frugal` to your `PATH`. Pin a version
+with `FRUGAL_VERSION=v1.0.0 curl -fsSL … | bash`.
 
 ### From source
 
@@ -173,137 +236,64 @@ cd frugal
 make build
 ```
 
-## Usage
+## Supported providers
 
-### Wrap any command
+Model pricing synced from [models.dev](https://models.dev) on every startup.
 
-```bash
-frugal python my_app.py
-frugal node server.js
-frugal go run ./cmd/myservice
-frugal pytest tests/
-frugal bash -c 'curl https://api.openai.com/v1/...'
-```
-
-Frugal picks a free port, starts the proxy, sets `OPENAI_BASE_URL` in your
-command's environment, and cleans up on exit. Works with any OpenAI-compatible
-SDK — Python, Node, Go, Rust, curl.
-
-### Run as a server
-
-```bash
-frugal serve
-# or just: frugal (with no arguments)
-
-export OPENAI_BASE_URL=http://localhost:8080/v1
-```
-
-Optional hardening timeouts (Go duration syntax):
-
-- `FRUGAL_READ_HEADER_TIMEOUT` (default `5s`)
-- `FRUGAL_READ_TIMEOUT` (default `15s`)
-- `FRUGAL_WRITE_TIMEOUT` (default `120s`)
-- `FRUGAL_IDLE_TIMEOUT` (default `60s`)
-- `FRUGAL_MAX_HEADER_BYTES` (default `1048576`)
-
-### Auth, rate limits, logging (serve mode)
-
-| Env var | Default | Purpose |
-|---|---|---|
-| `FRUGAL_ADDR` | `127.0.0.1:8080` | Listen address. Non-loopback binds require `FRUGAL_AUTH_TOKEN` or `FRUGAL_ALLOW_UNAUTH=1`. |
-| `FRUGAL_AUTH_TOKEN` | *(unset)* | Shared bearer token. When set, every `/v1/*` call must send `Authorization: Bearer $FRUGAL_AUTH_TOKEN`. |
-| `FRUGAL_ALLOW_UNAUTH` | `0` | Escape hatch: setting to `1` allows unauthenticated binds on non-loopback. |
-| `FRUGAL_RPS` | `30` | Global token-bucket rate in requests/sec. `0` disables. |
-| `FRUGAL_BURST` | `60` | Token-bucket burst capacity. Clamped to `>= FRUGAL_RPS`. |
-| `FRUGAL_MAX_COST_PER_REQUEST_USD` | `1.00` | Reject requests whose routing-time estimate exceeds this cap. Pinned requests bypass. `0` disables. |
-| `FRUGAL_LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error`. |
-| `FRUGAL_LOG_FORMAT` | `text` | `text` for human-readable, `json` for structured ingestion. |
-| `FRUGAL_DECISION_BUFFER` | `1000` | Capacity of the async routing-decision ring buffer (capped at `10000` to prevent accidental memory blowups). |
-
-Prometheus metrics are served at `/metrics` behind the same auth as `/v1/*`.
-All responses carry `X-Request-ID`; generate one client-side if you want to
-correlate logs across your app and the proxy.
-
-### Quality tiers
-
-Control cost vs. quality per request:
-
-```python
-headers = {"X-Frugal-Quality": "cost"}  # high | balanced | cost
-```
-
-| Tier | Behavior |
+| Provider | Used as |
 |---|---|
-| `high` | Top-tier bundles only. Planners, complex reasoning, novel code. |
-| `balanced` | Default. Best cost-quality tradeoff; right ~80% of the time. |
-| `cost` | Cheapest viable bundle. Classification, extraction, simple summaries. |
+| OpenAI | Hosted chat (GPT-4o, GPT-4o-mini, GPT-4.1, GPT-4.1-mini, GPT-4.1-nano) |
+| Anthropic | Hosted chat (Claude Opus 4, Claude Sonnet 4, Claude Haiku 3.5) |
+| Google | Hosted chat (Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.0 Flash) |
+| Tavily *(Phase 1 PR 4)* | Routed search |
+| Serper *(Phase 1 PR 4)* | Routed search |
 
-### Model pinning
+Set the matching env vars: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`,
+`GOOGLE_API_KEY`, `TAVILY_API_KEY`, `SERPER_API_KEY`. Frugal registers
+whichever providers have keys.
 
-Skip routing for specific calls:
+Add models or providers by editing `~/.frugal/config/models.yaml`.
 
-```python
-response = client.chat.completions.create(
-    model="gpt-4o-mini",  # goes straight to this model
-    messages=[...]
-)
-```
+## Free vs paid
 
-### Fallback chains
+| Component | Source | Status | Pricing |
+|---|---|---|---|
+| CLI + MCP server | OSS (BUSL 1.1 → Apache 2.0) | Phase 1 | Free |
+| Receiver *(planned)* | OSS (BUSL 1.1 → Apache 2.0) | Plan | Free for self-host |
+| Dashboard *(planned)* | Proprietary | Plan | Paid; ships alongside the receiver |
 
-```python
-headers = {"X-Frugal-Fallback": "gpt-4o,claude-sonnet-4-20250514,gemini-2.5-flash"}
-```
+Free is BYOK (your own provider keys), no account. The paid tier is a
+**ZDR enterprise dashboard**: customer self-hosts the receiver + dashboard
+inside their own VPC, Frugal-the-company never receives a single byte of
+their data. Aimed at regulated industries and security-conscious teams.
+Full positioning in [`frugal-strategy-v5.md`](./frugal-strategy-v5.md).
 
-If the routed model errors, Frugal walks the chain. At most the first 3
-fallback models are attempted, to bound latency and cost. Duplicate entries
-and duplicates of the routed model are skipped.
+## v1.0 — breaking change from v0.x
 
-## Supported models
+Frugal v1.0 removes the OpenAI-compatible HTTP proxy (`frugal serve`) and
+the command-wrap mode (`frugal <cmd>`). A toolchain product can't be
+honestly delivered behind a chat-completions wire spec — search, browser,
+code-exec, and cache have no chat-completion shape.
 
-Pricing synced from [models.dev](https://models.dev) on every startup.
+If you used Frugal as `OPENAI_BASE_URL=…` in front of an OpenAI client,
+migrate to one of:
 
-| Provider | Models |
-|---|---|
-| OpenAI | GPT-4o, GPT-4o-mini, GPT-4.1, GPT-4.1-mini, GPT-4.1-nano |
-| Anthropic | Claude Opus 4, Claude Sonnet 4, Claude Haiku 3.5 |
-| Google | Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.0 Flash |
+- **`frugal mcp install`** if your client speaks MCP (Claude Code, Cursor,
+  Claude Desktop, custom MCP host). The `frugal__chat` MCP tool (Phase 2)
+  replaces the proxy's routed chat completions.
+- **`frugal run "<task>"`** for scripts and one-shot dispatch.
+- **Pin to v0.x** if you specifically need OpenAI-compatible routing.
+  v0.x is in maintenance mode (security fixes only); routing logic and
+  pricing tables remain shared.
 
-Set `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and/or `GOOGLE_API_KEY`. Frugal
-registers whichever providers have keys.
-
-Add models by editing `~/.frugal/config/models.yaml`.
-
-## Commands
-
-| Command | What it does |
-|---|---|
-| `frugal <cmd>` | Wrap a command with the routing proxy |
-| `frugal serve` | Run the proxy as a persistent server |
-| `frugal sync` | Update model pricing from models.dev |
-| `frugal bench` | Run the benchmark workload and print a cost/quality report |
-
-## API
-
-When running as a server, Frugal exposes an OpenAI-compatible API plus a few
-Frugal-specific endpoints:
-
-| Endpoint | Description |
-|---|---|
-| `POST /v1/chat/completions` | Routed chat (streaming + non-streaming) |
-| `GET /v1/models` | List available models |
-| `GET /v1/bundles` | List every use case and its bundle |
-| `GET /v1/bundles/{use-case}` | Bundle for a use case at a given quality tier |
-| `GET /v1/routing/explain` | Last routing decision — model, toolchain, why |
-| `GET /health` | Health check |
-| `GET /metrics` | Prometheus metrics (same auth as `/v1/*`) |
+See [`frugal-strategy-v5.md`](./frugal-strategy-v5.md) §10 for the full
+rationale.
 
 ## Development
 
 ```bash
 make build    # build binary
 make test     # run tests
-make run      # build + run server
 make release  # cross-compile for all platforms
 ```
 

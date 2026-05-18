@@ -227,6 +227,7 @@ main() {
     fi
 
     info "installing frugal.sh — the open-source AI toolchain cost optimizer"
+    info "stop picking models. pick the cheapest toolchain that completes the job."
     echo
 
     local platform version
@@ -350,7 +351,7 @@ main() {
     echo
 
     if [ "$keys" -eq 0 ]; then
-        printf '  \033[1;33m⚠\033[0m  no provider API keys detected — the proxy can'\''t make calls yet.\n'
+        printf '  \033[1;33m⚠\033[0m  no provider API keys detected — frugal can'\''t make calls yet.\n'
         echo
         printf '     \033[2mFrugal has no SaaS or account — use the keys you already have\n'
         printf '     from your model / toolchain provider.\033[0m\n'
@@ -366,23 +367,21 @@ main() {
         printf '  \033[1;32m▸\033[0m  OpenAI\n'
         printf '        \033[1m$\033[0m export OPENAI_API_KEY=...\n'
         echo
-        printf '  Then start the proxy:\n'
-        printf '        \033[1m$\033[0m frugal serve\n'
+        printf '  Then try it:\n'
+        printf '        \033[1m$\033[0m frugal run "summarize this README"\n'
         echo
         printf '  \033[2mNot sure yet?  See the live benchmark →\033[0m \033[1;36mhttps://frugal.sh/benchmark\033[0m\n'
     else
         printf '  \033[2m─── \033[0m\033[1;36mTry it\033[0m\033[2m ──────────────────────────────────────────\033[0m\n'
         echo
-        printf '  \033[1;32m1.\033[0m  \033[1mstart the proxy\033[0m\n'
-        printf '        \033[1m$\033[0m frugal serve\n'
+        printf '  \033[1;32m1.\033[0m  \033[1mdispatch a task\033[0m  \033[2m(deterministic recipe → cheapest reliable path)\033[0m\n'
+        printf '        \033[1m$\033[0m frugal run "what does this repo do"\n'
         echo
-        printf '  \033[1;32m2.\033[0m  \033[1mpoint your app at it\033[0m  \033[2m(any OpenAI-compatible SDK)\033[0m\n'
-        printf '        \033[1m$\033[0m export OPENAI_BASE_URL=http://localhost:8080/v1\n'
+        printf '  \033[1;32m2.\033[0m  \033[1mpreview the routing decision\033[0m  \033[2m(no execution, no API calls)\033[0m\n'
+        printf '        \033[1m$\033[0m frugal route "extract speakers from this PDF"\n'
         echo
-        printf '  \033[1;32m3.\033[0m  \033[1mroute by use case\033[0m  \033[2m— the toolchain bundle that wins on the bench\033[0m\n'
-        printf '        \033[1m$\033[0m curl "$OPENAI_BASE_URL/chat/completions" \\\n'
-        printf '            -H "X-Frugal-Use-Case: research-synthesis" \\\n'
-        printf '            -d '\''{"model":"auto","messages":[{"role":"user","content":"hi"}]}'\''\n'
+        printf '  \033[1;32m3.\033[0m  \033[1minstall as an MCP server\033[0m  \033[2m(Claude Desktop / Cursor / Claude Code)\033[0m\n'
+        printf '        \033[1m$\033[0m frugal mcp install\n'
         echo
         printf '  \033[1;32m4.\033[0m  \033[1msee what frugal saved\033[0m\n'
         printf '        \033[1m$\033[0m frugal bench --out BENCHMARKS.md\n'

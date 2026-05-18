@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>frugal benchmark — agent tool selection &amp; routing</title>
-  <meta name="description" content="An open benchmark for agent tool selection and routing. Scores cost first, tool-selection correctness second; latency and answer quality next. The same engine that scores routes lives inside the frugal proxy." />
+  <meta name="description" content="An open benchmark for agent tool selection and routing. Scores cost first, tool-selection correctness second; latency and answer quality next. The same engine that scores routes lives inside the frugal runtime." />
   <meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
   <meta name="color-scheme" content="dark light" />
@@ -12,12 +12,12 @@
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://frugal.sh/benchmark/" />
   <meta property="og:title" content="frugal benchmark — agent tool selection &amp; routing" />
-  <meta property="og:description" content="A public benchmark that measures decision quality — when to use search, which tool to call, which model tier to route to. Same engine as the frugal proxy." />
+  <meta property="og:description" content="A public benchmark that measures decision quality — when to use search, which tool to call, which model tier to route to. Same engine as the frugal runtime." />
   <meta property="og:site_name" content="frugal.sh" />
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="frugal benchmark — agent tool selection &amp; routing" />
-  <meta name="twitter:description" content="A public benchmark that measures decision quality. Same engine as the frugal proxy." />
+  <meta name="twitter:description" content="A public benchmark that measures decision quality. Same engine as the frugal runtime." />
 
   <link rel="canonical" href="https://frugal.sh/benchmark/" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -51,7 +51,7 @@
 
   <main id="main">
     <section class="hero">
-      <p class="eyebrow" aria-hidden="true">open benchmark · agent decision quality · live in the proxy</p>
+      <p class="eyebrow" aria-hidden="true">open benchmark · agent decision quality · live in the runtime</p>
       <h1>
         An open benchmark for
         <span class="accent">agent tool selection &amp; routing.</span>
@@ -61,7 +61,7 @@
         wrong tools. The frugal benchmark scores how well an agent picks <em>what</em>
         to call — search or no search, which model tier, which toolchain — across cost,
         latency, and answer quality. The same engine that scores routes lives inside
-        the frugal proxy, so what wins on the bench is what serves your next live
+        the frugal runtime, so what wins on the bench is what serves your next live
         request.
       </p>
 
@@ -97,7 +97,8 @@
         <div>
           <dt>Same engine, live</dt>
           <dd>The scorer that decides "right tool, right tier" on the bench is
-          the routing engine inside <code>frugal serve</code>. Bench wins ship.</dd>
+          the routing engine the <code>frugal run</code> CLI and <code>frugal mcp
+          serve</code> share. Bench wins ship.</dd>
         </div>
       </dl>
     </section>
@@ -108,7 +109,7 @@
         Three tiers, simple rule: try the cheapest tier that has a fighting chance,
         escalate only when confidence drops below the workload threshold. The
         per-tier cards below quote curated rationale from
-        <code>config/use_cases/factual-qa.yaml</code> — the bundle the proxy actually
+        <code>config/use_cases/factual-qa.yaml</code> — the bundle the runtime actually
         ships for short factual lookups today.
       </p>
       <div class="tier-cards">
@@ -219,7 +220,7 @@
       <h2 id="install-heading">Install</h2>
       <p class="prose">
         End users don't need to think about any of this. Install once and the
-        proxy applies the same routing logic the benchmark scores — cheap first,
+        runtime applies the same routing logic the benchmark scores — cheap first,
         escalate only when required — to every request.
       </p>
 

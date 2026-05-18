@@ -1,8 +1,8 @@
 # Security Policy
 
-Frugal is a local-first LLM proxy that handles provider API keys on behalf of
-the operator. We take security reports seriously and aim to respond within
-72 hours.
+Frugal is a local-first AI toolchain router (CLI + MCP server) that handles
+provider API keys on behalf of the operator. We take security reports
+seriously and aim to respond within 72 hours.
 
 ## Reporting a vulnerability
 
@@ -48,8 +48,14 @@ Out of scope:
 
 Operational expectations for deployers:
 
-- Set `FRUGAL_AUTH_TOKEN` before exposing the proxy beyond `127.0.0.1`.
-- Keep `FRUGAL_MAX_COST_PER_REQUEST_USD` at a sane ceiling for your account.
+- Keep provider API keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`,
+  `GOOGLE_API_KEY`, `TAVILY_API_KEY`, `SERPER_API_KEY`) out of shell
+  history, version control, and CI logs. Frugal reads them from the
+  environment and forwards requests upstream.
+- For `frugal mcp serve --http` deployments, run behind a reverse proxy
+  that terminates TLS and enforces authentication — Frugal's MCP HTTP
+  transport is intended for trusted networks (e.g., inside a VPC).
+  The default `frugal mcp serve` over stdio has no network surface.
 - Verify release artifacts with `cosign verify-blob` against the published
   `SHA256SUMS` file. The installer does this automatically when `cosign`
   is present.

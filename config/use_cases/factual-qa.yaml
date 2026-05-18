@@ -1,3 +1,6 @@
+# Recipe: "Fresh facts" (search + small hosted model). Today only the
+# small-hosted-model side ships; the search slot is stubbed (no executor
+# wired). See `frugal-strategy-v5.md` §6 for the canonical component status.
 id: factual-qa
 description: >
   Short factual lookups, trivia, definitional questions, and one-turn

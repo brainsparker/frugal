@@ -8,8 +8,11 @@
 //
 // This package is capability-agnostic — it stores `search` and `rerank`
 // fields on Bundle but doesn't care whether those capabilities have
-// providers wired yet. Ring 1a ships chat-only; Rings 1b/1c populate
-// the other fields without touching this package.
+// providers wired yet. Today only the `chat` slot routes live traffic;
+// `search`/`rerank` are stubbed schema slots and the broader toolchain
+// (local models, browser, code-exec, embeddings, semantic cache,
+// multi-step) is planned. See `frugal-strategy-v5.md` §6 for the
+// canonical shipping/stubbed/planned component-status matrix.
 package usecase
 
 import (

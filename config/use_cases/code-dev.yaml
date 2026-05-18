@@ -1,3 +1,6 @@
+# Recipe: "Code generation, refactors" (local code model → hosted fallback).
+# Today hosted chat ships; local-model fallback is planned. See
+# `frugal-strategy-v5.md` §6 for the canonical component status.
 id: code-dev
 description: >
   Code generation, debugging, code review, code explanation, and test

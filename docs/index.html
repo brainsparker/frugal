@@ -3,21 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>frugal — route every prompt to the cheapest model + toolchain bundle</title>
-  <meta name="description" content="Open-source AI toolchain cost optimizer. Routes every prompt to the cheapest (model + toolchain) bundle that clears the quality bar — chat, web search, reranking, content extraction, browser. No account. No code changes. One command." />
+  <title>frugal — stop overpaying for AI tasks</title>
+  <meta name="description" content="Open-source AI toolchain cost optimizer for local-first builders. CLI + MCP server that routes each task to the cheapest reliable toolchain — local models, hosted models, search, browser, code execution, or cache. No account. BYOK." />
   <meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
   <meta name="color-scheme" content="dark light" />
 
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://frugal.sh/" />
-  <meta property="og:title" content="frugal — drop your AI bill 40–70%" />
-  <meta property="og:description" content="Open-source AI toolchain cost optimizer that routes every prompt to the cheapest (model + toolchain) bundle that clears the quality bar. No account. No code changes. One command." />
+  <meta property="og:title" content="frugal — stop overpaying for AI tasks" />
+  <meta property="og:description" content="Open-source AI toolchain cost optimizer for local-first builders. CLI + MCP server that routes each task to the cheapest reliable toolchain. No account. BYOK." />
   <meta property="og:site_name" content="frugal.sh" />
 
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="frugal — drop your AI bill 40–70%" />
-  <meta name="twitter:description" content="Open-source AI toolchain cost optimizer. No account. No code changes. One command." />
+  <meta name="twitter:title" content="frugal — stop overpaying for AI tasks" />
+  <meta name="twitter:description" content="Open-source AI toolchain cost optimizer for local-first builders. CLI + MCP server that routes work, not just models. No account. BYOK." />
 
   <link rel="canonical" href="https://frugal.sh/" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -43,8 +43,8 @@
     </a>
     <nav class="top-nav" aria-label="Primary">
       <a href="#how">How it works</a>
+      <a href="#surfaces">CLI &amp; MCP</a>
       <a href="#install">Install</a>
-      <a href="#usage">Usage</a>
       <a href="/benchmark/">Benchmark</a>
       <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
     </nav>
@@ -52,16 +52,18 @@
 
   <main id="main">
     <section class="hero">
-      <p class="eyebrow" aria-hidden="true">open-source · AI toolchain cost optimizer · zero-config</p>
+      <p class="eyebrow" aria-hidden="true">open-source · toolchain cost optimizer · for local-first AI builders</p>
       <h1>
-        Route every prompt to the <span class="accent">cheapest model&nbsp;+&nbsp;toolchain</span>
-        bundle that won't compromise quality.
+        Stop overpaying for AI tasks. Frugal routes each request to the
+        <span class="accent">cheapest reliable toolchain</span> — local models,
+        hosted models, search, browser tools, code execution, or cache.
       </h1>
       <p class="lede">
-        You write a prompt. Frugal classifies it, picks the cheapest (model + toolchain)
-        bundle that clears the quality bar, and sends it there. Research, code, marketing,
-        extraction — whatever the job — every prompt gets routed through the same proxy.
-        No account. No code changes. One command.
+        Most AI tasks are over-routed. Frontier model when local-plus-search
+        would have worked. Long-context when retrieval would have. Agent loops
+        when one tool call would have. Frugal picks the cheaper,
+        equally-correct path — through a CLI you can call directly and an MCP
+        server your agent stack can install.
       </p>
 
       <div class="terminal" aria-label="Install command">
@@ -73,138 +75,189 @@
         <button class="copy" type="button" data-copy="curl -fsSL https://frugal.sh/install | bash" aria-label="Copy install command">Copy</button>
       </div>
 
-      <div class="terminal secondary" aria-label="Wrap any command">
-        <pre class="terminal-body"><code><span class="prompt">$</span> frugal python my_app.py
-<span class="muted"># frugal starts a proxy, sets OPENAI_BASE_URL, runs your command,
-# and shuts down when it exits. Your app doesn't change.</span></code></pre>
-        <button class="copy" type="button" data-copy="frugal python my_app.py" aria-label="Copy example command">Copy</button>
+      <div class="terminal secondary" aria-label="frugal run example">
+        <pre class="terminal-body"><code><span class="prompt">$</span> frugal run <span class="str">"current iPhone prices"</span>
+<span class="muted">→ recipe: fresh-facts
+→ step 1: frugal__search(...)
+→ step 2: gpt-4.1-nano(search results + question)
+done. cost: $0.0008</span></code></pre>
+        <button class="copy" type="button" data-copy='frugal run "current iPhone prices"' aria-label="Copy run example">Copy</button>
+      </div>
+
+      <div class="terminal secondary" aria-label="frugal mcp install example">
+        <pre class="terminal-body"><code><span class="prompt">$</span> frugal mcp install
+<span class="muted">detected: Claude Desktop, Cursor
+✓ wrote ~/Library/Application Support/Claude/claude_desktop_config.json
+✓ wrote ~/.cursor/mcp.json
+tool 'frugal__search' now available in your agent stack.</span></code></pre>
+        <button class="copy" type="button" data-copy="frugal mcp install" aria-label="Copy install example">Copy</button>
       </div>
 
       <div class="pills" role="list">
         <span role="listitem">No account</span>
-        <span role="listitem">No code changes</span>
+        <span role="listitem">BYOK</span>
         <span role="listitem">Keys stay local</span>
         <span role="listitem">Signed releases</span>
       </div>
 
       <div class="cta">
         <a class="btn btn-primary" href="https://github.com/brainsparker/frugal" rel="noopener">View on GitHub</a>
-        <a class="btn btn-ghost" href="#usage">See usage →</a>
+        <a class="btn btn-ghost" href="#surfaces">See it in action →</a>
       </div>
     </section>
 
     <section class="why" aria-labelledby="why-heading">
       <h2 id="why-heading">The insight</h2>
       <p class="prose">
-        You're paying for capability you don't use on <strong>60–80% of your AI calls</strong> —
-        and when you <em>do</em> need capability, a bare chat model is rarely the answer.
-        Legal research needs a strong reasoner paired with good web search. A code-dev loop
-        needs Claude paired with code-aware retrieval. Structured extraction needs Haiku
-        with nothing else. Frugal classifies each request by <strong>use case</strong> and
-        routes to the cheapest (model&nbsp;+&nbsp;toolchain) bundle that clears the quality bar.
+        Most AI tasks are over-routed. You're paying for capability you don't
+        use on <strong>60–80% of your calls</strong> — and when you <em>do</em>
+        need capability, a bare chat model is rarely the answer. The expensive
+        part isn't the model. It's the wrong path: a frontier API when a local
+        model plus search would have worked, long-context when retrieval would
+        have, an agent loop when one tool call would have. Frugal classifies
+        each request and routes to the cheapest reliable toolchain that clears
+        the quality bar.
       </p>
       <dl class="grid">
         <div>
-          <dt>Use-case classifier</dt>
-          <dd>Detects the use case — research synthesis, code dev, factual Q&amp;A,
-          structured extraction, and more — plus the capabilities required
-          (chat, search, rerank, extract, browse).</dd>
+          <dt>Toolchain classifier</dt>
+          <dd>Detects the task and the capabilities required — local model,
+          hosted model, search, browser, code execution, extraction,
+          embeddings, semantic cache, or a multi-step combination.</dd>
         </div>
         <div>
-          <dt>Bundle router</dt>
-          <dd>Per use case and quality tier, picks the cheapest
-          (model&nbsp;+&nbsp;toolchain) bundle that clears every threshold.
-          One proxy, one service, one routing decision.</dd>
+          <dt>Cheapest-path router</dt>
+          <dd>Per task and quality tier, picks the cheapest reliable toolchain
+          that clears every threshold. One runtime, one routing decision,
+          shared between CLI and MCP server.</dd>
         </div>
         <div>
           <dt>Eval as source of truth</dt>
-          <dd>Use-case benchmarks decide which bundles win. Routing isn't opinion —
-          it's what the data says wins for your workload, rerun on every release.</dd>
+          <dd>Use-case benchmarks decide which toolchains win. Routing isn't
+          opinion — it's what the data says wins for your workload, rerun on
+          every release.</dd>
         </div>
       </dl>
     </section>
 
-    <section class="how" id="how" aria-labelledby="how-heading">
-      <h2 id="how-heading">How it works</h2>
-<pre class="diagram" aria-label="Flow diagram">frugal python app.py
-       │
-       ├─ starts proxy on a free port
-       ├─ injects OPENAI_BASE_URL into your command's environment
-       ├─ classifies each request (use case + required capabilities)
-       ├─ picks the cheapest (model + toolchain) bundle that clears the bar
-       ├─ calls bundled tools — web search, rerank, extract, browse — as needed
-       └─ shuts down proxy when your command exits</pre>
+    <section class="recipes" aria-labelledby="recipes-heading">
+      <h2 id="recipes-heading">Recipes — common tasks, cheapest reliable paths</h2>
+      <p class="prose">
+        Each row is the cheapest reliable default Frugal aims to route. Status
+        tags are honest: <strong>Shipping</strong> routes live traffic today,
+        <strong>Stubbed</strong> means the schema slot exists so caller code
+        won't break when it lands, <strong>Planned</strong> is on the roadmap.
+      </p>
+      <div class="recipe-table-wrap">
+        <table class="recipe-table">
+          <thead>
+            <tr><th scope="col">Task</th><th scope="col">Cheapest reliable path</th><th scope="col">Status</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Summarize a document</td><td>Local small model</td><td><span class="status-tag tag-planned">Planned</span></td></tr>
+            <tr><td>Fresh facts (news, prices, schedules)</td><td>Search + small hosted model</td><td><span class="status-tag tag-stubbed">Phase 1</span></td></tr>
+            <tr><td>Extract from a webpage</td><td>Browser/fetch + local model</td><td><span class="status-tag tag-planned">Planned</span></td></tr>
+            <tr><td>Complex reasoning (planning, hard math, novel code)</td><td>Hosted frontier model</td><td><span class="status-tag tag-shipping">Shipping</span></td></tr>
+            <tr><td>Code generation, refactors</td><td>Local code model → hosted fallback</td><td><span class="status-tag tag-partial">Partial</span></td></tr>
+            <tr><td>Repeated / near-duplicate questions</td><td>Semantic cache</td><td><span class="status-tag tag-planned">Planned</span></td></tr>
+            <tr><td>Multi-source research</td><td>Search + rerank, hosted-if-needed</td><td><span class="status-tag tag-stubbed">Phase 1</span></td></tr>
+            <tr><td>Structured extraction (text → JSON)</td><td>Smallest JSON-mode-reliable hosted model</td><td><span class="status-tag tag-shipping">Shipping</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose recipes-foot">
+        Four of these recipes ship today as named use cases —
+        <code>research-synthesis</code>, <code>code-dev</code>,
+        <code>factual-qa</code>, <code>structured-extraction</code>.
+        <a href="https://github.com/brainsparker/frugal#recipes--common-tasks-cheapest-reliable-paths" rel="noopener">See all recipes in the README →</a>
+      </p>
     </section>
 
-    <section class="compat" id="usage" aria-labelledby="compat-heading">
-      <h2 id="compat-heading">Works with any OpenAI-compatible SDK</h2>
+    <section class="how" id="how" aria-labelledby="how-heading">
+      <h2 id="how-heading">How it works</h2>
+<pre class="diagram" aria-label="Flow diagram">frugal run "summarize this repo"
+       │
+       ├─ classifies task → recipe ID + quality tier
+       ├─ loads recipe step list from config/use_cases/&lt;id&gt;.yaml
+       ├─ for each step:
+       │     ├─ tool step  → call MCP tool (loopback) → routed provider → result
+       │     └─ chat step  → router picks cheapest model meeting threshold
+       ├─ binds {task}, {step1.results}, … into subsequent step inputs
+       └─ prints final result + cost + recipe path</pre>
       <p class="prose">
-        Frugal speaks the OpenAI chat-completions API. Point your existing SDK at the
-        proxy and nothing else changes. Toolchain capabilities — search, rerank,
-        extract, browse — are exposed on the same proxy under their own endpoints,
-        so your code stays in control and Frugal routes each capability to the
-        cheapest provider that clears the bar for your use case.
+        Same recipe runs whether invoked via the CLI (<code>frugal run</code>)
+        or via an MCP client calling a tool like <code>frugal__chat</code>
+        with the matching use-case hint. The router, eval scoring, and
+        pricing data are shared between both surfaces.
+      </p>
+    </section>
+
+    <section class="surfaces" id="surfaces" aria-labelledby="surfaces-heading">
+      <h2 id="surfaces-heading">Two surfaces, one router</h2>
+      <p class="prose">
+        The <strong>CLI</strong> is for scripts, humans, CI, Makefiles, and
+        ad-hoc tasks. The <strong>MCP server</strong> is for agents that
+        already speak the
+        <a href="https://modelcontextprotocol.io" rel="noopener">Model Context Protocol</a>
+        — Claude Code, Claude Desktop, Cursor, custom hosts. Same routing
+        engine underneath; agents call it via MCP, humans and scripts call
+        it via CLI.
       </p>
       <div class="code-grid">
         <figure>
-          <figcaption>Python</figcaption>
-<pre><code><span class="cmt"># unchanged from before frugal</span>
-from openai import OpenAI
-client = OpenAI()
-resp = client.chat.completions.create(
-    model=<span class="str">"auto"</span>,
-    messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"hi"</span>}],
-)</code></pre>
+          <figcaption>CLI — run</figcaption>
+<pre><code><span class="prompt">$</span> frugal run <span class="str">"current iPhone prices"</span>
+<span class="muted">→ recipe: fresh-facts
+→ step 1: frugal__search(...)
+→ step 2: gpt-4.1-nano(results + question)
+done. cost: $0.0008</span></code></pre>
         </figure>
         <figure>
-          <figcaption>Node</figcaption>
-<pre><code><span class="cmt">// unchanged from before frugal</span>
-import OpenAI from <span class="str">"openai"</span>;
-const client = new OpenAI();
-const resp = await client.chat.completions.create({
-  model: <span class="str">"auto"</span>,
-  messages: [{ role: <span class="str">"user"</span>, content: <span class="str">"hi"</span> }],
-});</code></pre>
+          <figcaption>CLI — route (dry-run)</figcaption>
+<pre><code><span class="prompt">$</span> frugal route <span class="str">"extract tables from this PDF"</span>
+<span class="muted">→ recipe: pdf-extract (planned)
+→ would call: frugal__extract(...)
+→ would call: gemini-2.5-flash
+estimated cost: $0.0009</span></code></pre>
         </figure>
         <figure>
-          <figcaption>curl</figcaption>
-<pre><code>curl <span class="str">"$OPENAI_BASE_URL/chat/completions"</span> \
-  -H <span class="str">"Content-Type: application/json"</span> \
-  -H <span class="str">"Authorization: Bearer $OPENAI_API_KEY"</span> \
-  -d <span class="str">'{"model":"auto","messages":[{"role":"user","content":"hi"}]}'</span></code></pre>
+          <figcaption>CLI — compare</figcaption>
+<pre><code><span class="prompt">$</span> frugal compare <span class="str">"write tests for fn"</span>
+<span class="muted">recipe:   gpt-4.1-mini → $0.0021 → pass
+baseline: gpt-4o      → $0.0182 → pass
+→ recipe is 88% cheaper, same correctness.</span></code></pre>
         </figure>
         <figure>
-          <figcaption>Go</figcaption>
-<pre><code>client := openai.NewClient(os.Getenv(<span class="str">"OPENAI_API_KEY"</span>))
-resp, _ := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-    Model: <span class="str">"auto"</span>,
-    Messages: []openai.ChatCompletionMessage{{
-        Role: openai.ChatMessageRoleUser, Content: <span class="str">"hi"</span>,
-    }},
-})</code></pre>
+          <figcaption>MCP — install &amp; serve</figcaption>
+<pre><code><span class="prompt">$</span> frugal mcp install
+<span class="muted">detected: Claude Desktop, Cursor
+✓ wrote both configs.</span>
+
+<span class="prompt">$</span> frugal mcp serve
+<span class="muted">mcp ready on stdio. tools: frugal__search</span></code></pre>
         </figure>
       </div>
     </section>
 
     <section class="quality" aria-labelledby="quality-heading">
-      <h2 id="quality-heading">Three quality tiers — pick per request</h2>
-      <p class="prose">Send <code>X-Frugal-Quality: cost</code> for a quick extraction.
-      Send <code>high</code> for your agent's planner step. Default <code>balanced</code> for everything else.</p>
+      <h2 id="quality-heading">Three quality tiers — pick per invocation</h2>
+      <p class="prose">Pass <code>--quality cost</code> for a quick extraction.
+      <code>--quality high</code> for your agent's planner step. Default <code>balanced</code> for everything else.</p>
       <div class="tiers">
         <article class="tier">
           <h3>high</h3>
-          <p>Top-tier models only. Use for planners, complex reasoning, novel code.</p>
-          <code>X-Frugal-Quality: high</code>
+          <p>Top-tier steps only. Planners, complex reasoning, novel code.</p>
+          <code>frugal run --quality high</code>
         </article>
         <article class="tier tier-featured">
           <h3>balanced <span class="default-tag">default</span></h3>
-          <p>Best cost-quality tradeoff. The right choice 80% of the time.</p>
-          <code>X-Frugal-Quality: balanced</code>
+          <p>Best cost-quality tradeoff. The right choice ~80% of the time.</p>
+          <code>frugal run --quality balanced</code>
         </article>
         <article class="tier">
           <h3>cost</h3>
-          <p>Cheapest viable model. Classification, extraction, simple summaries.</p>
-          <code>X-Frugal-Quality: cost</code>
+          <p>Cheapest viable recipe path. Classification, extraction, summaries.</p>
+          <code>frugal run --quality cost</code>
         </article>
       </div>
     </section>
@@ -212,9 +265,9 @@ resp, _ := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
     <section class="providers" aria-labelledby="providers-heading">
       <h2 id="providers-heading">What routes today</h2>
       <p class="prose">Model pricing synced from <a href="https://models.dev" rel="noopener">models.dev</a> on every startup.
-      Extend by editing <code>~/.frugal/config/models.yaml</code>. Toolchain capabilities
-      roll out one at a time, each gated by the eval harness — web search and reranking
-      first, content extraction and browser next.</p>
+      Extend by editing <code>~/.frugal/config/models.yaml</code>. Each toolchain
+      component below ships only when the eval harness has data saying a
+      toolchain built around it clears the quality bar.</p>
 
       <h3 class="provider-subhead">Model providers</h3>
       <div class="provider-grid">
@@ -232,50 +285,73 @@ resp, _ := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
         </div>
       </div>
 
-      <h3 class="provider-subhead">Toolchain capabilities</h3>
+      <h3 class="provider-subhead">Toolchain components</h3>
+      <p class="prose component-legend">
+        <strong>Shipping</strong> — routes live traffic today.
+        <strong>Stubbed</strong> — schema slot exists; no executor wired.
+        <strong>Planned</strong> — on the roadmap.
+      </p>
       <div class="provider-grid">
         <div class="provider">
-          <h3>Web search <span class="status-tag tag-next">next</span></h3>
-          <p>Route each search to the cheapest provider that clears recall &amp; freshness for the use case.</p>
+          <h3>Hosted chat models <span class="status-tag tag-shipping">shipping (internal)</span></h3>
+          <p>OpenAI, Anthropic, Google chat completions inside recipe chat steps. Exposed as <code>frugal__chat</code> MCP tool in Phase 2.</p>
         </div>
         <div class="provider">
-          <h3>Reranking <span class="status-tag tag-next">next</span></h3>
-          <p>Cross-encoder rerank of retrieved passages. Ships after web search.</p>
+          <h3>Search API <span class="status-tag tag-stubbed">phase 1</span></h3>
+          <p>Routed cheapest web search per use case (Tavily, Serper). Ships in Phase 1 PR 4 as the <code>frugal__search</code> MCP tool.</p>
         </div>
         <div class="provider">
-          <h3>Content extraction <span class="status-tag tag-next">roadmap</span></h3>
-          <p>Clean text &amp; structured content from URLs. Bundled with search for factual Q&amp;A.</p>
+          <h3>Local models <span class="status-tag tag-planned">planned</span></h3>
+          <p>Local-server-backed chat for the cheap path on summarize, code, extract (Phase 3).</p>
         </div>
         <div class="provider">
-          <h3>Browser use <span class="status-tag tag-next">roadmap</span></h3>
-          <p>Headless browsing for interactive sites. Bundled for use cases search can't reach.</p>
+          <h3>Browser / fetch <span class="status-tag tag-planned">planned</span></h3>
+          <p>Headless fetch + readable extraction for webpage tasks.</p>
+        </div>
+        <div class="provider">
+          <h3>Code execution <span class="status-tag tag-planned">planned</span></h3>
+          <p>Sandboxed Python / shell for math, data-shaping, verification.</p>
+        </div>
+        <div class="provider">
+          <h3>Embeddings &amp; vector search <span class="status-tag tag-planned">planned</span></h3>
+          <p>Retrieval over user-supplied corpora to displace long-context.</p>
+        </div>
+        <div class="provider">
+          <h3>Semantic cache <span class="status-tag tag-planned">planned</span></h3>
+          <p>Hash + similarity cache for repeated / near-duplicate questions.</p>
+        </div>
+        <div class="provider">
+          <h3>Multi-step agent <span class="status-tag tag-planned">planned</span></h3>
+          <p>Cheapest plan-and-call loop when one tool alone isn't enough.</p>
         </div>
       </div>
     </section>
 
     <section class="usecases" aria-labelledby="usecases-heading">
-      <h2 id="usecases-heading">Routed per use case</h2>
+      <h2 id="usecases-heading">Recipes that ship today</h2>
       <p class="prose">
-        A use case is a named class of work. Each one ships with a labeled benchmark workload
-        and a curated bundle — the (capability → provider) map the eval says wins. Call
-        <code>/v1/bundles/{use-case}</code> to see what's picked and why.
+        Each recipe is a deterministic step list in
+        <code>config/use_cases/&lt;id&gt;.yaml</code> with three quality tiers
+        and a labeled benchmark workload. The classifier picks one per
+        invocation; the executor runs it; the result includes the recipe ID
+        and the actual cost paid so you can audit the routing decision.
       </p>
       <div class="provider-grid">
         <div class="provider">
           <h3>research-synthesis</h3>
-          <p>Chat + web search + rerank. Strong reasoner, broad recall, tight context.</p>
+          <p>Long-form multi-source research. Chat today; search + rerank steps land in Phase 1.</p>
         </div>
         <div class="provider">
           <h3>code-dev</h3>
-          <p>Chat with code-aware retrieval. Pairs a strong coder model with targeted search.</p>
+          <p>Code generation, debugging, review. Hosted chat now; local-model fallback in Phase 3.</p>
         </div>
         <div class="provider">
           <h3>factual-qa</h3>
-          <p>Chat + search + extraction. Cheapest model that holds grounding on the benchmark wins.</p>
+          <p>Short factual lookups, trivia. Cheapest mini-tier model on the benchmark wins.</p>
         </div>
         <div class="provider">
           <h3>structured-extraction</h3>
-          <p>Chat only, JSON-mode. No toolchain needed — the smallest model that passes the schema.</p>
+          <p>Free text → JSON. Smallest JSON-mode-reliable model that passes the schema.</p>
         </div>
       </div>
     </section>
@@ -283,10 +359,11 @@ resp, _ := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
     <section class="install-block" id="install" aria-labelledby="install-heading">
       <h2 id="install-heading">Install</h2>
       <p class="prose">One binary, ~10 MB. <strong>Frugal has no SaaS and issues no keys</strong>
-      — the proxy uses your existing <code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>,
-      or <code>GOOGLE_API_KEY</code> from your environment. Adds <code>frugal</code> to your
-      <code>PATH</code>. Release artifacts are signed with cosign; the installer verifies the
-      checksum before moving the binary into place.</p>
+      — it uses your existing <code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>,
+      <code>GOOGLE_API_KEY</code>, <code>TAVILY_API_KEY</code>, <code>SERPER_API_KEY</code>
+      from your environment. Adds <code>frugal</code> to your <code>PATH</code>.
+      Release artifacts are signed with cosign; the installer verifies the checksum
+      before moving the binary into place.</p>
 
       <div class="terminal">
         <pre class="terminal-body"><code><span class="prompt">$</span> curl -fsSL https://frugal.sh/install | bash</code></pre>
@@ -298,18 +375,19 @@ resp, _ := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
         <pre class="terminal-body"><code><span class="prompt">$</span> git clone https://github.com/brainsparker/frugal.git &amp;&amp; cd frugal &amp;&amp; make build</code></pre>
       </div>
 
-      <h3>Run as a server</h3>
+      <h3>Install as an MCP server in your agent stack</h3>
       <div class="terminal compact">
-        <pre class="terminal-body"><code><span class="prompt">$</span> export FRUGAL_AUTH_TOKEN=$(openssl rand -hex 16)
-<span class="prompt">$</span> frugal serve
-<span class="prompt">$</span> export OPENAI_BASE_URL=http://localhost:8080/v1</code></pre>
+        <pre class="terminal-body"><code><span class="prompt">$</span> frugal mcp install
+<span class="muted"># auto-detects Claude Desktop, Cursor, Claude Code and merges the
+# 'frugal' MCP server into each detected config. Idempotent.</span></code></pre>
       </div>
 
       <p class="fine">
-        When binding outside <code>127.0.0.1</code>, Frugal refuses to start without an
-        auth token (override with <code>FRUGAL_ALLOW_UNAUTH=1</code>). Prometheus metrics
-        are served at <code>/metrics</code>. Full env-var reference in the
-        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">README</a>.
+        Migrating from v0.x? The OpenAI-compatible HTTP proxy and command-wrap
+        mode were removed in v1.0 — see the
+        <a href="https://github.com/brainsparker/frugal/blob/main/frugal-strategy-v5.md#10-v10-breaking-change" rel="noopener">v1.0 breaking-change note</a>
+        for the migration path. Pin <code>FRUGAL_VERSION=v0.2.x</code> in the
+        installer to stay on v0.x if you need the legacy proxy.
       </p>
     </section>
 
@@ -331,9 +409,9 @@ resp, _ := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
         </div>
         <div>
           <dt>Observable by default</dt>
-          <dd>Structured logs, <code>X-Request-ID</code> propagation, Prometheus
-          <code>/metrics</code>, and <code>/v1/routing/explain</code> to see exactly
-          which bundle was picked — model, toolchain, and why.</dd>
+          <dd>Structured logs, every recipe run prints its routing decision —
+          recipe ID, step list, model picks, and the actual cost paid.
+          <code>frugal route</code> previews the decision without executing.</dd>
         </div>
         <div>
           <dt>Source-available, BUSL 1.1</dt>

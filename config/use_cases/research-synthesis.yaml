@@ -1,3 +1,6 @@
+# Recipe: "Multi-source research" (search + rerank, hosted-if-needed).
+# Today only the `chat` slot ships; `search`/`rerank` are stubbed schema
+# slots. See `frugal-strategy-v5.md` §6 for the canonical component status.
 id: research-synthesis
 description: >
   Long-form research questions requiring multi-source synthesis. Examples:
@@ -13,9 +16,10 @@ as_of: "2026-04-21"
 confidence: medium
 
 # Each bundle declares the recommended (capability → model) map for a quality
-# tier. Ring 1a populates only `chat`. `search` lights up in Ring 1b (web
-# search capability) and `rerank` in Ring 1c. Null fields are intentionally
-# left in place so the schema is stable as capabilities expand.
+# tier. Today only `chat` routes live traffic; `search` and `rerank` slots
+# exist but are stubbed (no executor wired). They light up when the eval
+# supports them. Null fields are intentionally left in place so the schema
+# is stable as capabilities expand.
 bundles:
   high:
     chat: claude-opus-4-20250918
