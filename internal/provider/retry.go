@@ -80,7 +80,7 @@ func isRetryable(err error) bool {
 		return false
 	}
 	msg := strings.ToLower(err.Error())
-	for _, needle := range []string{" 429", " 502", " 503", " 504", "rate limit", "temporarily unavailable"} {
+	for _, needle := range []string{" 408", " 429", " 500", " 502", " 503", " 504", "rate limit", "temporarily unavailable"} {
 		if strings.Contains(msg, needle) {
 			return true
 		}

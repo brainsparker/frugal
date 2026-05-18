@@ -79,6 +79,29 @@ func TestWithRetry_GivesUpAfterMaxAttempts(t *testing.T) {
 	}
 }
 
+func TestWithRetry_RetriesOn500(t *testing.T) {
+	orig := retryBackoff
+	retryBackoff = []time.Duration{time.Millisecond, time.Millisecond, time.Millisecond}
+	defer func() { retryBackoff = orig }()
+
+	inner := &mockInner{
+		errs:     []error{errors.New("openai error 500: internal server error")},
+		response: &types.ChatCompletionResponse{ID: "ok"},
+	}
+	p := WithRetry(inner)
+
+	resp, err := p.ChatCompletion(context.Background(), "m", &types.ChatCompletionRequest{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp == nil || resp.ID != "ok" {
+		t.Fatalf("unexpected response: %+v", resp)
+	}
+	if got := inner.calls.Load(); got != 2 {
+		t.Fatalf("expected 2 calls (1 retry + success), got %d", got)
+	}
+}
+
 func TestWithRetry_DoesNotRetryNonTransient(t *testing.T) {
 	inner := &mockInner{
 		errs: []error{errors.New("openai error 400: bad request")},
