@@ -136,3 +136,22 @@ func TestEnvIntOrDefaultInvalidValues(t *testing.T) {
 		t.Fatalf("expected fallback for negative int, got %d", got)
 	}
 }
+
+func TestEnvNonNegativeIntOrDefault(t *testing.T) {
+	const key = "FRUGAL_NONNEG_INT_TEST"
+
+	t.Setenv(key, "0")
+	if got := envNonNegativeIntOrDefault(key, 1234); got != 0 {
+		t.Fatalf("expected zero to be accepted, got %d", got)
+	}
+
+	t.Setenv(key, "-1")
+	if got := envNonNegativeIntOrDefault(key, 1234); got != 1234 {
+		t.Fatalf("expected fallback for negative int, got %d", got)
+	}
+
+	t.Setenv(key, "oops")
+	if got := envNonNegativeIntOrDefault(key, 1234); got != 1234 {
+		t.Fatalf("expected fallback for invalid int, got %d", got)
+	}
+}
