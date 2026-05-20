@@ -215,21 +215,30 @@ func withBearerAuth(next http.Handler, token string, skipPaths ...string) http.H
 	for _, p := range skipPaths {
 		skip[p] = struct{}{}
 	}
-	expected := "Bearer " + token
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := skip[r.URL.Path]; ok {
 			next.ServeHTTP(w, r)
 			return
 		}
-		got := r.Header.Get("Authorization")
+		got := bearerTokenFromHeader(r.Header.Get("Authorization"))
 		// Constant-time compare to avoid leaking the token via timing.
-		if !constantTimeStringEqual(got, expected) {
+		if !constantTimeStringEqual(got, token) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="frugal"`)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// bearerTokenFromHeader extracts the bearer token while treating the
+// auth-scheme as case-insensitive and tolerating surrounding whitespace.
+func bearerTokenFromHeader(v string) string {
+	v = strings.TrimSpace(v)
+	if len(v) < 7 || !strings.EqualFold(v[:7], "Bearer ") {
+		return ""
+	}
+	return strings.TrimSpace(v[7:])
 }
 
 // constantTimeStringEqual compares two strings in constant time. Pulled
