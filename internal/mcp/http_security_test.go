@@ -67,6 +67,27 @@ func TestWithBearerAuth_SkipsConfiguredPaths(t *testing.T) {
 	}
 }
 
+func TestConstantTimeStringEqual(t *testing.T) {
+	tests := []struct {
+		name string
+		a    string
+		b    string
+		want bool
+	}{
+		{name: "equal", a: "Bearer secret", b: "Bearer secret", want: true},
+		{name: "same length different", a: "Bearer secret", b: "Bearer SECRET", want: false},
+		{name: "shorter", a: "Bearer sec", b: "Bearer secret", want: false},
+		{name: "longer", a: "Bearer secret-extra", b: "Bearer secret", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := constantTimeStringEqual(tt.a, tt.b); got != tt.want {
+				t.Errorf("constantTimeStringEqual(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestWithRateLimit_BlocksAfterBudget(t *testing.T) {
 	h := withRateLimit(echoHandler(), 3) // 3/min budget
 	const ip = "192.0.2.10:5555"

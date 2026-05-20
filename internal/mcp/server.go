@@ -218,12 +218,23 @@ func withBearerAuth(next http.Handler, token string, skipPaths ...string) http.H
 // constantTimeStringEqual compares two strings in constant time. Pulled
 // out so the auth middleware stays readable.
 func constantTimeStringEqual(a, b string) bool {
-	if len(a) != len(b) {
-		return false
+	maxLen := len(a)
+	if len(b) > maxLen {
+		maxLen = len(b)
 	}
 	var diff byte
-	for i := 0; i < len(a); i++ {
-		diff |= a[i] ^ b[i]
+	for i := 0; i < maxLen; i++ {
+		var ca, cb byte
+		if i < len(a) {
+			ca = a[i]
+		}
+		if i < len(b) {
+			cb = b[i]
+		}
+		diff |= ca ^ cb
+	}
+	if len(a) != len(b) {
+		diff |= 1
 	}
 	return diff == 0
 }
