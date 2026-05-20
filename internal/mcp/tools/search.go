@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -99,27 +100,31 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics) func(c
 		if in.Query == "" {
 			return nil, SearchOutput{}, fmt.Errorf("frugal__search: query is required")
 		}
+		freshness, err := normalizeFreshness(in.Freshness)
+		if err != nil {
+			return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", err)
+		}
 		q := search.Query{
 			Text:       in.Query,
 			MaxResults: in.MaxResults,
-			Freshness:  in.Freshness,
+			Freshness:  freshness,
 		}
 		logger := slog.Default()
 
 		start := time.Now()
 		var (
-			used search.Searcher
-			res  search.Results
-			err  error
+			used       search.Searcher
+			res        search.Results
+			searchErr  error
 		)
 		if isAuto(in.Provider) {
-			used, res, err = search.CallWithFallback(ctx, searchers, q, logger, hook)
+			used, res, searchErr = search.CallWithFallback(ctx, searchers, q, logger, hook)
 		} else {
-			used, res, err = search.CallPinned(ctx, searchers, in.Provider, q, logger, hook)
+			used, res, searchErr = search.CallPinned(ctx, searchers, in.Provider, q, logger, hook)
 		}
 		latency := time.Since(start).Milliseconds()
-		if err != nil {
-			return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", err)
+		if searchErr != nil {
+			return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", searchErr)
 		}
 
 		out := SearchOutput{
@@ -148,3 +153,16 @@ func joinNames(searchers []search.Searcher) string {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+func normalizeFreshness(in string) (string, error) {
+	v := strings.ToLower(strings.TrimSpace(in))
+	if v == "" {
+		return "", nil
+	}
+	switch v {
+	case "day", "week", "month":
+		return v, nil
+	default:
+		return "", fmt.Errorf("freshness must be one of: day, week, month")
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -189,6 +190,63 @@ func TestCallTool_ExplicitProviderOverridesAuto(t *testing.T) {
 	}
 	if out.ProviderUsed != "expensive" {
 		t.Errorf("explicit provider override failed: got %q want expensive", out.ProviderUsed)
+	}
+}
+
+func TestCallTool_NormalizesFreshnessValue(t *testing.T) {
+	cheap := &fakeSearcher{name: "cheap", cost: 0.001, results: []search.Item{{Title: "ok"}}}
+	srv := newServer()
+	RegisterSearch(srv, []search.Searcher{cheap}, nil)
+
+	client, cleanup := dialClient(t, srv)
+	defer cleanup()
+
+	res, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "frugal__search",
+		Arguments: map[string]any{
+			"query":     "x",
+			"freshness": "  WEEK  ",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool transport: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("unexpected tool error: %+v", res)
+	}
+	if cheap.lastQuery.Freshness != "week" {
+		t.Fatalf("freshness normalization failed: got %q want week", cheap.lastQuery.Freshness)
+	}
+}
+
+func TestCallTool_InvalidFreshnessErrors(t *testing.T) {
+	srv := newServer()
+	RegisterSearch(srv, []search.Searcher{&fakeSearcher{name: "only", cost: 0.001}}, nil)
+
+	client, cleanup := dialClient(t, srv)
+	defer cleanup()
+
+	res, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "frugal__search",
+		Arguments: map[string]any{
+			"query":     "x",
+			"freshness": "year",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool transport: %v", err)
+	}
+	if !res.IsError {
+		t.Fatalf("expected isError=true for invalid freshness")
+	}
+	joined := ""
+	for _, c := range res.Content {
+		if t, ok := c.(*sdkmcp.TextContent); ok {
+			joined += t.Text
+		}
+	}
+	if !strings.Contains(joined, "freshness must be one of") {
+		t.Fatalf("missing freshness validation message: %q", joined)
 	}
 }
 
