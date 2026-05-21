@@ -123,7 +123,8 @@ type HTTPOptions struct {
 // Auth + rate-limit live in HTTPOptions; a zero-value HTTPOptions still
 // requires explicit AllowAnon to start (see HTTPOptions.AllowAnon).
 func (s *Server) ServeHTTP(ctx context.Context, addr string, opts HTTPOptions) error {
-	if opts.AuthToken == "" && !opts.AllowAnon {
+	authToken := strings.TrimSpace(opts.AuthToken)
+	if authToken == "" && !opts.AllowAnon {
 		return errors.New("mcp serve: --http requires FRUGAL_AUTH_TOKEN or --allow-anon (refusing to expose an unauthenticated MCP server)")
 	}
 
@@ -149,9 +150,9 @@ func (s *Server) ServeHTTP(ctx context.Context, addr string, opts HTTPOptions) e
 	if opts.RateLimitPerMinute > 0 {
 		handler = withRateLimit(handler, opts.RateLimitPerMinute)
 	}
-	if opts.AuthToken != "" {
+	if authToken != "" {
 		// /metrics path stays unauth'd; the auth middleware skips it.
-		handler = withBearerAuth(handler, opts.AuthToken, "/metrics")
+		handler = withBearerAuth(handler, authToken, "/metrics")
 	}
 
 	srv := &http.Server{
@@ -166,7 +167,7 @@ func (s *Server) ServeHTTP(ctx context.Context, addr string, opts HTTPOptions) e
 		s.Logger.Info("mcp serve",
 			"transport", "streamable-http",
 			"addr", addr,
-			"auth", opts.AuthToken != "",
+			"auth", authToken != "",
 			"rate_limit_rpm", opts.RateLimitPerMinute,
 			"metrics_endpoint", opts.Metrics != nil)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

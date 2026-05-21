@@ -110,6 +110,25 @@ func TestServeHTTP_RefusesAnonymousWithoutFlag(t *testing.T) {
 	}
 }
 
+func TestServeHTTP_WhitespaceOnlyTokenStillRefusesAnonymousWithoutFlag(t *testing.T) {
+	srv := New("frugal", "v", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	err := srv.ServeHTTP(context.Background(), ":0", HTTPOptions{AuthToken: " \t\n "})
+	if err == nil || !strings.Contains(err.Error(), "FRUGAL_AUTH_TOKEN") {
+		t.Errorf("expected refusal for whitespace-only token; got %v", err)
+	}
+}
+
+func TestWithBearerAuth_AcceptsTrimmedTokenValueFromOptions(t *testing.T) {
+	h := withBearerAuth(echoHandler(), strings.TrimSpace("  secret\t"))
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer secret")
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+}
+
 func TestServeHTTP_MetricsEndpointBypassesAuth(t *testing.T) {
 	m := obs.NewMetrics()
 	m.RecordCall("youcom", 100*time.Millisecond, 0.005, nil)
