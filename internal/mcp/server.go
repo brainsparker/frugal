@@ -161,12 +161,7 @@ func (s *Server) ServeHTTP(ctx context.Context, addr string, opts HTTPOptions) e
 	}
 	handler = withSecurityHeaders(handler)
 
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		ReadHeaderTimeout: 5 * time.Second,
-		IdleTimeout:       60 * time.Second,
-	}
+	srv := newHTTPServer(addr, handler)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -353,4 +348,15 @@ func clientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+func newHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 }

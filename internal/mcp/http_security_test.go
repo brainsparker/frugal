@@ -169,6 +169,22 @@ func TestRateLimiterCleanup_RemovesStaleBuckets(t *testing.T) {
 	}
 }
 
+func TestNewHTTPServer_SetsSafeTimeoutDefaults(t *testing.T) {
+	srv := newHTTPServer(":0", echoHandler())
+	if srv.ReadHeaderTimeout != 5*time.Second {
+		t.Fatalf("ReadHeaderTimeout = %s, want %s", srv.ReadHeaderTimeout, 5*time.Second)
+	}
+	if srv.ReadTimeout != 30*time.Second {
+		t.Fatalf("ReadTimeout = %s, want %s", srv.ReadTimeout, 30*time.Second)
+	}
+	if srv.WriteTimeout != 60*time.Second {
+		t.Fatalf("WriteTimeout = %s, want %s", srv.WriteTimeout, 60*time.Second)
+	}
+	if srv.IdleTimeout != 60*time.Second {
+		t.Fatalf("IdleTimeout = %s, want %s", srv.IdleTimeout, 60*time.Second)
+	}
+}
+
 func TestServeHTTP_MetricsEndpointBypassesAuth(t *testing.T) {
 	m := obs.NewMetrics()
 	m.RecordCall("youcom", 100*time.Millisecond, 0.005, nil)
