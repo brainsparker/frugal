@@ -193,3 +193,17 @@ func TestServeHTTP_MetricsEndpointBypassesAuth(t *testing.T) {
 		t.Errorf("/ status without auth = %d, want 401", resp2.StatusCode)
 	}
 }
+
+func TestWithSecurityHeaders_SetsNoSniffAndNoStore(t *testing.T) {
+	h := withSecurityHeaders(echoHandler())
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	h.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("X-Content-Type-Options = %q, want nosniff", got)
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", got)
+	}
+}

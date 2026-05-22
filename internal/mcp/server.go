@@ -154,6 +154,7 @@ func (s *Server) ServeHTTP(ctx context.Context, addr string, opts HTTPOptions) e
 		// /metrics path stays unauth'd; the auth middleware skips it.
 		handler = withBearerAuth(handler, opts.AuthToken, "/metrics")
 	}
+	handler = withSecurityHeaders(handler)
 
 	srv := &http.Server{
 		Addr:              addr,
@@ -189,6 +190,16 @@ func (s *Server) ServeHTTP(ctx context.Context, addr string, opts HTTPOptions) e
 		}
 		return nil
 	}
+}
+
+// withSecurityHeaders applies conservative HTTP security defaults suitable
+// for MCP responses that may contain prompts, tool inputs, or model output.
+func withSecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // withBearerAuth rejects requests whose Authorization header doesn't carry
