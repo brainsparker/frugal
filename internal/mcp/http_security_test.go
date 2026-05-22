@@ -160,7 +160,12 @@ func TestServeHTTP_MetricsEndpointBypassesAuth(t *testing.T) {
 	// Build the same handler chain ServeHTTP wires up so we can hit it
 	// through httptest without owning a real listener.
 	mux := http.NewServeMux()
-	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.Header().Set("Allow", "GET, HEAD")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		_ = m.WritePrometheus(w)
 	})
@@ -191,5 +196,19 @@ func TestServeHTTP_MetricsEndpointBypassesAuth(t *testing.T) {
 	defer resp2.Body.Close()
 	if resp2.StatusCode != http.StatusUnauthorized {
 		t.Errorf("/ status without auth = %d, want 401", resp2.StatusCode)
+	}
+
+	// Non-GET/HEAD on /metrics should be rejected.
+	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/metrics", strings.NewReader("x"))
+	resp3, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("post /metrics: %v", err)
+	}
+	defer resp3.Body.Close()
+	if resp3.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("POST /metrics status = %d, want 405", resp3.StatusCode)
+	}
+	if allow := resp3.Header.Get("Allow"); allow != "GET, HEAD" {
+		t.Errorf("POST /metrics Allow = %q, want %q", allow, "GET, HEAD")
 	}
 }

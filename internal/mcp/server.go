@@ -137,6 +137,11 @@ func (s *Server) ServeHTTP(ctx context.Context, addr string, opts HTTPOptions) e
 		// /metrics bypasses auth so Prometheus scrapers don't need the
 		// bearer token. Keep it on a known path the operator controls.
 		mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				w.Header().Set("Allow", "GET, HEAD")
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
 			w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 			if err := opts.Metrics.WritePrometheus(w); err != nil {
 				s.Logger.Warn("metrics endpoint write", "err", err)
