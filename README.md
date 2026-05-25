@@ -23,6 +23,43 @@ The first command drops the binary in your `$PATH`. The second auto-detects
 Claude Desktop, Cursor, and Claude Code and merges `frugal` into each
 configured MCP server list.
 
+### Verified, signed, reproducible
+
+Releases are signed with [cosign](https://docs.sigstore.dev/cosign/)
+in keyless mode by the GitHub Actions workflow that builds them, and
+the binary is built reproducibly (`-trimpath`, `-buildvcs=false`,
+`CGO_ENABLED=0`, pinned Go toolchain). Two builds of the same tag
+produce byte-identical binaries — you can rebuild any release yourself
+and check the hash matches.
+
+The installer verifies the signature and the SHA-256 checksum before
+moving the binary into place; it skips the cosign step (loudly) only
+if `cosign` isn't on your `PATH`. To verify manually:
+
+```bash
+cosign verify-blob \
+  --bundle SHA256SUMS.sig \
+  --certificate-identity-regexp \
+    'https://github.com/brainsparker/frugal/\.github/workflows/release\.yml@refs/tags/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  SHA256SUMS
+
+sha256sum -c SHA256SUMS  # macOS: shasum -a 256 -c SHA256SUMS
+```
+
+### Audit before you serve
+
+Want to see exactly which providers `frugal` would route to (and which
+env vars gated each in or out) before it talks to a single network?
+
+```bash
+frugal mcp serve --dry-run
+```
+
+Prints the full route plan — capability, provider, cost, reason — then
+exits. No drivers are instantiated, no requests are served, no network
+is reached.
+
 ## Set your keys
 
 BYOK. Frugal reads provider credentials from your environment:

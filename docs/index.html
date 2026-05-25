@@ -286,11 +286,15 @@
         <h2 id="install-heading">Install</h2>
         <p class="prose">
           One Go binary, ~10 MB. <strong>No SaaS. No account.</strong>
-          Reads <code>OPENAI_API_KEY</code>,
-          <code>ANTHROPIC_API_KEY</code>,
-          <code>SERPER_API_KEY</code> from your env and forwards calls
-          upstream. Releases are cosign-signed; the installer verifies
-          the checksum before moving the binary into place.
+          Reads <code>SERPER_API_KEY</code>,
+          <code>YDC_API_KEY</code>,
+          <code>FIRECRAWL_API_KEY</code>,
+          <code>BROWSERLESS_TOKEN</code> from your env and forwards
+          calls upstream. Releases are
+          <a href="https://docs.sigstore.dev/cosign/" rel="noopener">cosign</a>-signed
+          (keyless, GitHub OIDC) and built reproducibly; the installer
+          verifies the signature and SHA-256 checksum before moving the
+          binary into place.
         </p>
 
         <div class="terminal">
@@ -309,6 +313,21 @@
 <span class="muted"># auto-detects Claude Desktop, Cursor, Claude Code.
 # merges 'frugal' into each detected config. idempotent.</span></code></pre>
         </div>
+
+        <h3>Audit before you serve</h3>
+        <p class="prose">
+          Print the route plan — every configured provider, its cost,
+          whether it would be active at startup, and the env var that
+          gated it — then exit. No drivers are instantiated; no network
+          is reached.
+        </p>
+        <div class="terminal compact">
+          <pre class="terminal-body"><code><span class="prompt">$</span> frugal mcp serve --dry-run
+<span class="muted">frugal__search: registered with 2 provider(s):
+  ACTIVE  marginalia  $0.0000/call  public endpoint (no key required)
+  ACTIVE  serper      $0.0010/call  $SERPER_API_KEY set
+  SKIP    youcom      $0.0050/call  skipped: $YDC_API_KEY not set</span></code></pre>
+        </div>
       </div>
     </section>
 
@@ -320,7 +339,22 @@
           <div>
             <dt>Your keys stay local</dt>
             <dd>API keys never leave your machine. No control plane.
-            <strong>No data retention by architecture.</strong></dd>
+            <strong>No data retention by architecture.</strong>
+            <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md#threat-model" rel="noopener">Threat model →</a></dd>
+          </div>
+          <div>
+            <dt>Signed &amp; reproducible</dt>
+            <dd>Every release is cosign-signed by a public GitHub
+            Actions workflow and built with <code>-trimpath</code> +
+            <code>CGO_ENABLED=0</code> on a pinned Go toolchain. Two
+            builds of the same tag produce byte-identical binaries —
+            <strong>rebuild and verify the hash yourself.</strong></dd>
+          </div>
+          <div>
+            <dt>Auditable routing</dt>
+            <dd><code>frugal mcp serve --dry-run</code> prints the full
+            route plan — every provider, its cost, the env var that
+            gated it — without making a single network call.</dd>
           </div>
           <div>
             <dt>BUSL 1.1 → Apache 2.0</dt>
