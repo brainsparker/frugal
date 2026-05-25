@@ -155,6 +155,22 @@ func TestExtract_EmptyURLIsPermanent(t *testing.T) {
 	}
 }
 
+func TestExtract_ResponseBodyTooLargeIsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"markdown":"` + strings.Repeat("a", int(maxResponseBodyBytes)+1) + `","metadata":{}}}`))
+	}))
+	defer srv.Close()
+
+	c := New("k", srv.URL, 0.001)
+	_, err := c.Extract(context.Background(), extract.Query{URL: "https://x"})
+	if err == nil {
+		t.Fatalf("expected decode error for oversized response body")
+	}
+	if !routing.IsTransient(err) {
+		t.Errorf("oversized response should classify as transient; got %v", err)
+	}
+}
+
 func TestNameAndCost(t *testing.T) {
 	c := New("k", "", 0.001)
 	if c.Name() != "firecrawl" {

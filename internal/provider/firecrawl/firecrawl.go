@@ -23,6 +23,10 @@ import (
 // DefaultBaseURL is the Firecrawl production endpoint.
 const DefaultBaseURL = "https://api.firecrawl.dev"
 
+// maxResponseBodyBytes caps successful API response reads to avoid
+// unbounded memory growth on malformed or malicious upstream responses.
+const maxResponseBodyBytes int64 = 2 << 20 // 2 MiB
+
 // Client implements extract.Extractor against Firecrawl.
 type Client struct {
 	apiKey      string
@@ -109,7 +113,7 @@ func (c *Client) doOnce(ctx context.Context, body []byte) (extract.Result, error
 	}
 
 	var parsed firecrawlResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBodyBytes)).Decode(&parsed); err != nil {
 		return extract.Result{}, routing.Transient(c.Name(), resp.StatusCode, fmt.Errorf("decode response: %w", err))
 	}
 
