@@ -50,6 +50,29 @@ func TestWithBearerAuth_RejectsWrongToken(t *testing.T) {
 	}
 }
 
+func TestWithBearerAuth_RejectsMultipleAuthorizationHeaders(t *testing.T) {
+	h := withBearerAuth(echoHandler(), "secret")
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Add("Authorization", "Bearer secret")
+	req.Header.Add("Authorization", "Bearer secret")
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rec.Code)
+	}
+}
+
+func TestWithBearerAuth_AcceptsSurroundingWhitespace(t *testing.T) {
+	h := withBearerAuth(echoHandler(), "secret")
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "   Bearer secret\t")
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+}
+
 func TestWithBearerAuth_AcceptsCorrectToken(t *testing.T) {
 	h := withBearerAuth(echoHandler(), "secret")
 	rec := httptest.NewRecorder()
