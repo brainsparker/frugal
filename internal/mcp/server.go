@@ -108,6 +108,10 @@ type HTTPOptions struct {
 	// already handles long-poll'ish streaming; cap at the proxy layer for
 	// remote deployments).
 	RequestTimeout time.Duration
+	// MaxHeaderBytes caps inbound HTTP header bytes to reduce memory abuse
+	// from oversized-header requests. Zero/negative falls back to a safe
+	// default (1 MiB).
+	MaxHeaderBytes int
 }
 
 // ServeHTTP runs the MCP server over Streamable HTTP on addr. Returns when
@@ -166,6 +170,7 @@ func (s *Server) ServeHTTP(ctx context.Context, addr string, opts HTTPOptions) e
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    resolveMaxHeaderBytes(opts.MaxHeaderBytes),
 	}
 
 	errCh := make(chan error, 1)
@@ -199,6 +204,13 @@ func (s *Server) ServeHTTP(ctx context.Context, addr string, opts HTTPOptions) e
 
 // withSecurityHeaders applies conservative HTTP security defaults suitable
 // for MCP responses that may contain prompts, tool inputs, or model output.
+func resolveMaxHeaderBytes(v int) int {
+	if v <= 0 {
+		return 1 << 20 // 1 MiB
+	}
+	return v
+}
+
 func withSecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")

@@ -229,6 +229,18 @@ func TestServeHTTP_MetricsEndpointBypassesAuth(t *testing.T) {
 	}
 }
 
+func TestResolveMaxHeaderBytes_DefaultAndOverride(t *testing.T) {
+	if got := resolveMaxHeaderBytes(0); got != 1<<20 {
+		t.Fatalf("default max header bytes = %d, want %d", got, 1<<20)
+	}
+	if got := resolveMaxHeaderBytes(-5); got != 1<<20 {
+		t.Fatalf("negative max header bytes = %d, want %d", got, 1<<20)
+	}
+	if got := resolveMaxHeaderBytes(8192); got != 8192 {
+		t.Fatalf("override max header bytes = %d, want %d", got, 8192)
+	}
+}
+
 func TestWithSecurityHeaders_SetsNoSniffAndNoStore(t *testing.T) {
 	h := withSecurityHeaders(echoHandler())
 	rec := httptest.NewRecorder()
