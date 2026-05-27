@@ -68,6 +68,24 @@ func TestValidate_RejectsMissingAPIKeyAndBaseURL(t *testing.T) {
 	}
 }
 
+func TestValidate_RejectsWhitespaceOnlyProviderConfigFields(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cfg.yaml")
+	yaml := `search_providers:
+  bad:
+    api_key_env: "   "
+    base_url: "  "
+    base_url_env: "\t"
+    cost_per_call: 0.001
+`
+	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatalf("expected validation error for whitespace-only api_key_env/base_url/base_url_env")
+	}
+}
+
 func TestLoad_RejectsUnknownTopLevelField(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cfg.yaml")

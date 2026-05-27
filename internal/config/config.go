@@ -100,7 +100,10 @@ func validateProviders(scope string, providers map[string]SearchProviderConfig) 
 		if sp.CostPerCall < 0 {
 			return fmt.Errorf("%s.%s.cost_per_call must be non-negative", scope, name)
 		}
-		if sp.APIKeyEnv != "" || sp.BaseURL != "" || sp.BaseURLEnv != "" {
+		hasAPIKeyEnv := strings.TrimSpace(sp.APIKeyEnv) != ""
+		hasBaseURL := strings.TrimSpace(sp.BaseURL) != ""
+		hasBaseURLEnv := strings.TrimSpace(sp.BaseURLEnv) != ""
+		if hasAPIKeyEnv || hasBaseURL || hasBaseURLEnv {
 			continue
 		}
 		// Pure-in-process drivers that don't talk to a network endpoint
