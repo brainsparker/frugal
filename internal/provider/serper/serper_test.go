@@ -3,6 +3,7 @@ package serper
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -127,5 +128,27 @@ func TestNameAndCost(t *testing.T) {
 	}
 	if c.CostPerCall() != 0.0003 {
 		t.Errorf("CostPerCall: got %v", c.CostPerCall())
+	}
+}
+
+func TestSearch_OversizedResponseIsRejected(t *testing.T) {
+	largeSnippet := strings.Repeat("a", maxResponseBodyBytes)
+	payload := fmt.Sprintf(`{"organic":[{"title":"x","link":"https://x","snippet":"%s"}]}`, largeSnippet)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(payload))
+	}))
+	defer srv.Close()
+
+	c := New("k", srv.URL, 0.0003)
+	_, err := c.Search(context.Background(), search.Query{Text: "x"})
+	if err == nil {
+		t.Fatalf("expected oversized response error")
+	}
+	if !strings.Contains(err.Error(), "response exceeds") {
+		t.Fatalf("expected size limit error, got: %v", err)
+	}
+	if !routing.IsTransient(err) {
+		t.Fatalf("expected transient classification, got: %v", err)
 	}
 }
