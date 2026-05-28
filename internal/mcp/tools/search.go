@@ -117,16 +117,17 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics) func(c
 		}
 		logger := slog.Default()
 
+		provider := normalizeProvider(in.Provider)
 		start := time.Now()
 		var (
 			used      search.Searcher
 			res       search.Results
 			searchErr error
 		)
-		if isAuto(in.Provider) {
+		if isAuto(provider) {
 			used, res, searchErr = search.CallWithFallback(ctx, searchers, q, logger, hook)
 		} else {
-			used, res, searchErr = search.CallPinned(ctx, searchers, in.Provider, q, logger, hook)
+			used, res, searchErr = search.CallPinned(ctx, searchers, provider, q, logger, hook)
 		}
 		latency := time.Since(start).Milliseconds()
 		if searchErr != nil {
@@ -147,6 +148,10 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics) func(c
 // isAuto reports whether the caller wants auto-routing (the default).
 // Empty string or the explicit sentinel "auto" both mean "pick for me."
 func isAuto(requested string) bool { return requested == "" || requested == "auto" }
+
+func normalizeProvider(in string) string {
+	return strings.ToLower(strings.TrimSpace(in))
+}
 
 func joinNames(searchers []search.Searcher) string {
 	if len(searchers) == 0 {
