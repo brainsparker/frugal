@@ -93,6 +93,8 @@ func TestStripHTML_BasicStrip(t *testing.T) {
 		{"<style>p{color:red}</style>after", "after"},
 		{"  leading and  multiple   spaces  ", "leading and multiple spaces"},
 		{"<div class=\"x\">attr-quoted</div>", "attr-quoted"},
+		{"AT&amp;T &lt;ok&gt; &quot;yes&quot;", "AT&T <ok> \"yes\""},
+		{"a&nbsp;&nbsp;b", "a b"},
 	}
 	for _, c := range cases {
 		got := StripHTML(c.in)

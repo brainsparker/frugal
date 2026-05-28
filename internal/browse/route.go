@@ -3,8 +3,10 @@ package browse
 import (
 	"context"
 	"errors"
+	htmlpkg "html"
 	"log/slog"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/frugalsh/frugal/internal/routing"
@@ -224,5 +226,7 @@ func StripHTML(html string) string {
 	for len(out) > 0 && out[len(out)-1] == ' ' {
 		out = out[:len(out)-1]
 	}
-	return string(out)
+	decoded := htmlpkg.UnescapeString(string(out))
+	// Guard against entities like &nbsp; that decode to unicode whitespace.
+	return strings.Join(strings.Fields(decoded), " ")
 }
