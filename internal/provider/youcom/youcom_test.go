@@ -130,6 +130,23 @@ func TestSearch_NetworkErrorIsTransient(t *testing.T) {
 	}
 }
 
+func TestSearch_OversizedJSONBodyIsTransient(t *testing.T) {
+	oversizedHit := `{"title":"t","url":"https://x","description":"` + strings.Repeat("a", (2<<20)+1024) + `"}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"hits":[` + oversizedHit + `]}`))
+	}))
+	defer srv.Close()
+
+	c := New("k", srv.URL, 0.005)
+	_, err := c.Search(context.Background(), search.Query{Text: "x"})
+	if err == nil {
+		t.Fatalf("expected decode error for oversized response body")
+	}
+	if !routing.IsTransient(err) {
+		t.Errorf("oversized decode error must classify as transient; got %v", err)
+	}
+}
+
 func TestSearch_RetrySucceedsAfterTransient(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

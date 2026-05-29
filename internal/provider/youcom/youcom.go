@@ -34,6 +34,10 @@ import (
 // https://you.com/docs/api-reference/search/v1-search.
 const DefaultBaseURL = "https://ydc-index.io"
 
+// Keep JSON decoding bounded so a malformed or hostile upstream response
+// cannot force unbounded memory growth inside the provider.
+const maxResponseBodyBytes = 2 << 20 // 2 MiB
+
 // Client implements search.Searcher against You.com.
 type Client struct {
 	apiKey      string
@@ -132,7 +136,7 @@ func (c *Client) doOnce(ctx context.Context, endpoint string) (search.Results, e
 	}
 
 	var parsed youcomResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBodyBytes)).Decode(&parsed); err != nil {
 		// 200 with malformed body — give the retry loop another shot.
 		return search.Results{}, routing.Transient(c.Name(), resp.StatusCode, fmt.Errorf("decode response: %w", err))
 	}
