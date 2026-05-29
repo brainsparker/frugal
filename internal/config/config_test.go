@@ -81,6 +81,31 @@ func TestValidate_RejectsMissingAPIKeyAndBaseURL(t *testing.T) {
 	}
 }
 
+func TestLoad_RejectsWhitespaceOnlyProviderFields(t *testing.T) {
+	t.Setenv("FRUGAL_CONFIG", "")
+	content := `
+search_providers:
+  bad:
+    api_key_env: "   "
+    base_url: "\t"
+    base_url_env: "\n"
+    cost_per_call: 0.001
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected validation error for whitespace-only provider fields")
+	}
+	if !strings.Contains(err.Error(), "set api_key_env") {
+		t.Fatalf("expected missing provider configuration error, got: %v", err)
+	}
+}
+
 func TestLoad_RejectsUnknownTopLevelField(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cfg.yaml")
