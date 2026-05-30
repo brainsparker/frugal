@@ -64,6 +64,35 @@ func TestValidate_RejectsNegativeCost(t *testing.T) {
 	}
 }
 
+func TestValidate_RejectsNonFiniteCost(t *testing.T) {
+	tests := []struct {
+		name string
+		cost string
+	}{
+		{name: "nan", cost: ".nan"},
+		{name: "positive_inf", cost: ".inf"},
+		{name: "negative_inf", cost: "-.inf"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "cfg.yaml")
+			yaml := `search_providers:
+  bad:
+    api_key_env: X
+    cost_per_call: ` + tc.cost + `
+`
+			if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Load(path); err == nil {
+				t.Fatalf("expected validation error for non-finite cost_per_call")
+			}
+		})
+	}
+}
+
 func TestValidate_RejectsMissingAPIKeyAndBaseURL(t *testing.T) {
 	// Either an api_key_env (hosted) or a base_url / base_url_env
 	// (self-hosted) is required — without one we have no way to dispatch.
