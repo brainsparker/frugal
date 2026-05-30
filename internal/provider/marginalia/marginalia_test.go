@@ -3,6 +3,7 @@ package marginalia
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -147,5 +148,21 @@ func TestNew_TrimsTrailingSlash(t *testing.T) {
 	c := New("https://api.marginalia.nu/")
 	if c.baseURL != "https://api.marginalia.nu" {
 		t.Errorf("baseURL: got %q, want trimmed", c.baseURL)
+	}
+}
+
+func TestSearch_OversizedResponseBodyIsTransient(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(fmt.Sprintf(`{"results":[{"title":"%s`, strings.Repeat("x", int(maxResponseBodyBytes)+2048))))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL)
+	_, err := c.Search(context.Background(), search.Query{Text: "x"})
+	if err == nil {
+		t.Fatalf("expected decode error for oversized body")
+	}
+	if !routing.IsTransient(err) {
+		t.Fatalf("expected transient error, got %v", err)
 	}
 }

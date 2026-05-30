@@ -2,8 +2,10 @@ package searxng
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -112,5 +114,21 @@ func TestNameAndCost(t *testing.T) {
 	}
 	if c.CostPerCall() != 0 {
 		t.Errorf("CostPerCall must be 0 for the free/local provider; got %v", c.CostPerCall())
+	}
+}
+
+func TestSearch_OversizedResponseBodyIsTransient(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(fmt.Sprintf(`{"results":[{"title":"%s`, strings.Repeat("x", int(maxResponseBodyBytes)+2048))))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL)
+	_, err := c.Search(context.Background(), search.Query{Text: "x"})
+	if err == nil {
+		t.Fatalf("expected decode error for oversized body")
+	}
+	if !routing.IsTransient(err) {
+		t.Fatalf("expected transient error, got %v", err)
 	}
 }
