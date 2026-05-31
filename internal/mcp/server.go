@@ -227,6 +227,10 @@ func withMaxContentLength(next http.Handler, maxBytes int64) http.Handler {
 			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
 			return
 		}
+		// Enforce the same cap for requests with unknown length (for example,
+		// chunked transfer-encoding) so oversized bodies cannot bypass the
+		// Content-Length precheck.
+		r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 		next.ServeHTTP(w, r)
 	})
 }
