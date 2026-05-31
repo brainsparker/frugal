@@ -112,8 +112,18 @@ func (c *Client) doOnce(ctx context.Context, body []byte) (extract.Result, error
 		}
 	}
 
+	limited := io.LimitReader(resp.Body, maxResponseBodyBytes)
+	dec := json.NewDecoder(limited)
+	dec.DisallowUnknownFields()
+
 	var parsed firecrawlResponse
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBodyBytes)).Decode(&parsed); err != nil {
+	if err := dec.Decode(&parsed); err != nil {
+		return extract.Result{}, routing.Transient(c.Name(), resp.StatusCode, fmt.Errorf("decode response: %w", err))
+	}
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			err = fmt.Errorf("multiple JSON values")
+		}
 		return extract.Result{}, routing.Transient(c.Name(), resp.StatusCode, fmt.Errorf("decode response: %w", err))
 	}
 

@@ -171,6 +171,38 @@ func TestExtract_ResponseBodyTooLargeIsError(t *testing.T) {
 	}
 }
 
+func TestExtract_RejectsUnknownTopLevelField(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"markdown":"ok","metadata":{}},"unexpected":true}`))
+	}))
+	defer srv.Close()
+
+	c := New("k", srv.URL, 0.001)
+	_, err := c.Extract(context.Background(), extract.Query{URL: "https://x"})
+	if err == nil {
+		t.Fatalf("expected decode error for unknown field")
+	}
+	if !routing.IsTransient(err) {
+		t.Errorf("unknown field should classify as transient; got %v", err)
+	}
+}
+
+func TestExtract_RejectsMultipleJSONValues(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"markdown":"ok","metadata":{}}} {}`))
+	}))
+	defer srv.Close()
+
+	c := New("k", srv.URL, 0.001)
+	_, err := c.Extract(context.Background(), extract.Query{URL: "https://x"})
+	if err == nil {
+		t.Fatalf("expected decode error for multiple JSON values")
+	}
+	if !routing.IsTransient(err) {
+		t.Errorf("multiple JSON values should classify as transient; got %v", err)
+	}
+}
+
 func TestNameAndCost(t *testing.T) {
 	c := New("k", "", 0.001)
 	if c.Name() != "firecrawl" {
