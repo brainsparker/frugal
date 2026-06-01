@@ -29,6 +29,8 @@ import (
 )
 
 // Client implements search.Searcher against a SearXNG instance.
+const maxResponseBodyBytes = 1 << 20 // 1 MiB cap for provider JSON payloads.
+
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
@@ -112,7 +114,7 @@ func (c *Client) doOnce(ctx context.Context, q search.Query) (search.Results, er
 	}
 
 	var parsed searxResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBodyBytes)).Decode(&parsed); err != nil {
 		return search.Results{}, routing.Transient(c.Name(), resp.StatusCode, fmt.Errorf("decode response: %w", err))
 	}
 

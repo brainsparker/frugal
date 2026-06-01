@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -102,6 +103,23 @@ func TestSearch_NetworkErrorIsTransient(t *testing.T) {
 	}
 	if !routing.IsTransient(err) {
 		t.Errorf("network failure should classify as transient; got %v", err)
+	}
+}
+
+func TestSearch_ResponseBodyTooLarge(t *testing.T) {
+	over := strings.Repeat(" ", maxResponseBodyBytes+1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(over + `{"results":[{"title":"Too late","url":"https://x"}]}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL)
+	_, err := c.Search(context.Background(), search.Query{Text: "x"})
+	if err == nil {
+		t.Fatalf("expected decode failure when response body exceeds cap")
+	}
+	if !routing.IsTransient(err) {
+		t.Fatalf("expected transient error for oversized response, got %v", err)
 	}
 }
 
