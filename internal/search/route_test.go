@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -89,23 +90,81 @@ func TestCallWithFallback_FallsBackOnTransient(t *testing.T) {
 	}
 }
 
-func TestCallWithFallback_StopsOnPermanent(t *testing.T) {
+func TestCallWithFallback_FallsThroughOnPermanent(t *testing.T) {
+	// A permanent error is provider-scoped — a 401 from one provider says
+	// nothing about the next one's credentials — so the chain keeps going.
 	free := &stubSearcher{name: "free", cost: 0,
 		err: routing.Permanent("free", 401, errors.New("invalid api key"))}
 	cheap := &stubSearcher{name: "cheap", cost: 0.001,
-		res: Results{Items: []Item{{Title: "should-not-be-tried"}}, CostUSD: 0.001}}
-	_, _, err := CallWithFallback(context.Background(), []Searcher{cheap, free}, Query{Text: "x"}, discardLogger(), nil)
-	if err == nil {
-		t.Fatalf("expected permanent error, got nil")
-	}
-	if !routing.IsPermanent(err) {
-		t.Errorf("expected IsPermanent, got %v", err)
+		res: Results{Items: []Item{{Title: "via-cheap"}}, CostUSD: 0.001}}
+	used, res, err := CallWithFallback(context.Background(), []Searcher{cheap, free}, Query{Text: "x"}, discardLogger(), nil)
+	if err != nil {
+		t.Fatalf("expected fallback past the permanent error, got %v", err)
 	}
 	if free.calls != 1 {
 		t.Errorf("free calls=%d, want 1", free.calls)
 	}
+	if cheap.calls != 1 {
+		t.Errorf("cheap should be tried after free's permanent failure; calls=%d", cheap.calls)
+	}
+	if used.Name() != "cheap" || res.Items[0].Title != "via-cheap" {
+		t.Errorf("unexpected winner: %v / %+v", used.Name(), res)
+	}
+}
+
+func TestCallWithFallback_StopsOnFatal(t *testing.T) {
+	free := &stubSearcher{name: "free", cost: 0,
+		err: routing.Fatal("free", 0, errors.New("request cannot succeed"))}
+	cheap := &stubSearcher{name: "cheap", cost: 0.001,
+		res: Results{Items: []Item{{Title: "should-not-be-tried"}}}}
+	_, _, err := CallWithFallback(context.Background(), []Searcher{cheap, free}, Query{Text: "x"}, discardLogger(), nil)
+	if err == nil {
+		t.Fatalf("expected fatal error to propagate")
+	}
+	if !routing.IsFatal(err) {
+		t.Errorf("expected IsFatal, got %v", err)
+	}
 	if cheap.calls != 0 {
-		t.Errorf("cheap should NOT be tried after permanent failure; calls=%d", cheap.calls)
+		t.Errorf("cheap must NOT be tried after a fatal error; calls=%d", cheap.calls)
+	}
+}
+
+func TestCallWithFallback_AllFailedErrorNamesEveryProvider(t *testing.T) {
+	// The agent-visible error must not hide the cheap provider's root
+	// cause behind whatever the last provider happened to say.
+	free := &stubSearcher{name: "free", cost: 0,
+		err: routing.Permanent("free", 401, errors.New("invalid api key"))}
+	cheap := &stubSearcher{name: "cheap", cost: 0.001,
+		err: routing.Transient("cheap", 503, errors.New("upstream down"))}
+	_, _, err := CallWithFallback(context.Background(), []Searcher{cheap, free}, Query{Text: "x"}, discardLogger(), nil)
+	if err == nil {
+		t.Fatalf("expected error when all providers fail")
+	}
+	for _, want := range []string{"invalid api key", "upstream down"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("joined error should mention %q; got %v", want, err)
+		}
+	}
+}
+
+func TestCallWithFallback_StopsWhenContextDone(t *testing.T) {
+	// When the caller cancels, walking the remaining providers just burns
+	// quota on requests nobody is waiting for.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	first := &stubSearcher{name: "first", cost: 0,
+		err: routing.Permanent("first", 0, context.Canceled)}
+	second := &stubSearcher{name: "second", cost: 0.001,
+		res: Results{Items: []Item{{Title: "should-not-be-tried"}}}}
+	_, _, err := CallWithFallback(ctx, []Searcher{second, first}, Query{Text: "x"}, discardLogger(), nil)
+	if err == nil {
+		t.Fatalf("expected error when context is canceled")
+	}
+	if first.calls != 1 {
+		t.Errorf("first calls=%d, want 1", first.calls)
+	}
+	if second.calls != 0 {
+		t.Errorf("second should NOT be tried once ctx is done; calls=%d", second.calls)
 	}
 }
 

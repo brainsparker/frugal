@@ -26,8 +26,10 @@ func OrderByCost(browsers []Browser) []Browser {
 }
 
 // CallWithFallback walks browsers in cost order, returning the first
-// success. Permanent error stops the chain. Transient logs + falls
-// back. Hook (may be nil) fires once per attempt.
+// success. Every per-provider failure — transient or permanent — logs
+// and falls through to the next provider; the chain stops early when
+// ctx is done or a driver reports a fatal (request-scoped) error.
+// Hook (may be nil) fires once per attempt.
 func CallWithFallback(ctx context.Context, browsers []Browser, q Query, logger *slog.Logger, hook AttemptHook) (Browser, Result, error) {
 	if logger == nil {
 		logger = slog.Default()
@@ -36,7 +38,7 @@ func CallWithFallback(ctx context.Context, browsers []Browser, q Query, logger *
 		return nil, Result{}, errors.New("frugal: no browse providers configured")
 	}
 	ordered := OrderByCost(browsers)
-	var lastErr error
+	var errs []error
 	for i, b := range ordered {
 		start := time.Now()
 		res, err := b.Render(ctx, q)
@@ -53,22 +55,30 @@ func CallWithFallback(ctx context.Context, browsers []Browser, q Query, logger *
 				"chars", len(res.HTML)+len(res.Text))
 			return b, res, nil
 		}
-		lastErr = err
-		if routing.IsPermanent(err) {
-			logger.Warn("browse permanent error; aborting fallback chain",
+		errs = append(errs, err)
+		if routing.IsFatal(err) {
+			logger.Warn("browse fatal error; request can't succeed anywhere — aborting chain",
 				"provider", b.Name(),
 				"latency_ms", latency.Milliseconds(),
 				"err", err)
 			return b, Result{}, err
 		}
-		logger.Warn("browse transient error; falling back",
+		if ctx.Err() != nil {
+			logger.Warn("browse aborted; context done",
+				"provider", b.Name(),
+				"latency_ms", latency.Milliseconds(),
+				"err", err)
+			return b, Result{}, routing.JoinAttempts(errs)
+		}
+		logger.Warn("browse error; falling back",
 			"provider", b.Name(),
+			"permanent", routing.IsPermanent(err),
 			"attempt", i+1,
 			"remaining", len(ordered)-i-1,
 			"latency_ms", latency.Milliseconds(),
 			"err", err)
 	}
-	return ordered[len(ordered)-1], Result{}, lastErr
+	return ordered[len(ordered)-1], Result{}, routing.JoinAttempts(errs)
 }
 
 // CallPinned dispatches one render against the named provider only.

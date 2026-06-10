@@ -15,13 +15,17 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 // Kind classifies a provider error for routing decisions. Transient
-// errors get a retry inside the driver and a fallback to the
-// next-cheapest provider at the router. Permanent errors stop both —
-// retrying a 401 doesn't help, and falling back to a different provider
-// when the *query* was bad just multiplies cost for no gain.
+// errors get a retry inside the driver and a fallback to the next
+// provider at the router. Permanent errors skip the in-driver retry —
+// retrying a 401 doesn't help — but still fall back at the router:
+// auth, quota, and endpoint failures are provider-scoped verdicts, and
+// the next provider may well succeed. Fatal errors stop both: the
+// request itself can't succeed anywhere, so walking the rest of the
+// chain only spends quota rediscovering the same answer.
 type Kind int
 
 const (
@@ -31,10 +35,16 @@ const (
 	// KindTransient: retryable. Network failures, 408/429/5xx, context
 	// deadline exceeded.
 	KindTransient
-	// KindPermanent: don't retry, don't fall back. Auth failures (401/403),
-	// quota/billing problems (402), bad request (400/422), unprocessable
-	// query.
+	// KindPermanent: don't retry inside the driver. Auth failures
+	// (401/403), quota/billing problems (402), bad request (400/422).
+	// The router still falls through to the next provider — these are
+	// facts about this provider, not about the request.
 	KindPermanent
+	// KindFatal: don't retry, don't fall back. The request itself cannot
+	// succeed with any provider — e.g. the target URL is gone (404/410
+	// from the target site) or unparseable. Falling back would spend the
+	// next provider's quota rediscovering the same dead end.
+	KindFatal
 )
 
 // String renders Kind for logs.
@@ -44,6 +54,8 @@ func (k Kind) String() string {
 		return "transient"
 	case KindPermanent:
 		return "permanent"
+	case KindFatal:
+		return "fatal"
 	}
 	return "unknown"
 }
@@ -85,6 +97,12 @@ func Permanent(provider string, status int, cause error) *Error {
 	return &Error{Provider: provider, Kind: KindPermanent, Status: status, Err: cause}
 }
 
+// Fatal constructs a fatal *Error — the request can't succeed with any
+// provider, so the router stops the fallback chain.
+func Fatal(provider string, status int, cause error) *Error {
+	return &Error{Provider: provider, Kind: KindFatal, Status: status, Err: cause}
+}
+
 // ClassifyHTTPStatus maps an HTTP status code to a Kind. Used by drivers
 // after a non-200 response. Treats 408/429 and any 5xx as transient.
 // 401/403/402/422 and any other 4xx as permanent.
@@ -115,9 +133,9 @@ func ClassifyNetwork(err error) Kind {
 		return KindTransient
 	}
 	if errors.Is(err, context.Canceled) {
-		// Caller went away. Not really transient or permanent — propagate
-		// as-is and let upper layers decide. Treat as permanent for routing
-		// (don't try another provider if the caller bailed).
+		// Caller went away. Classified permanent so the in-driver retry
+		// loop stops; the routers' own ctx-done check is what stops the
+		// fallback chain.
 		return KindPermanent
 	}
 	var urlErr *url.Error
@@ -147,4 +165,36 @@ func IsTransient(err error) bool {
 }
 
 // IsPermanent is the negation of IsTransient for clarity at call sites.
+// Fatal errors are permanent in this sense — DoWithRetry gates on it, and
+// fatal must not retry either.
 func IsPermanent(err error) bool { return err != nil && !IsTransient(err) }
+
+// IsFatal reports whether err (which may wrap an *Error) is fatal — no
+// retry, no fallback.
+func IsFatal(err error) bool {
+	var e *Error
+	if errors.As(err, &e) {
+		return e.Kind == KindFatal
+	}
+	return false
+}
+
+// JoinAttempts collapses the per-provider errors from one fallback walk
+// into a single error. Is/As/IsTransient classify against the LAST
+// attempt (the error the caller would previously have seen), while the
+// message also names every earlier provider that failed — so an agent
+// staring at a timeout from the expensive provider still sees the cheap
+// provider's 401 that actually needs fixing.
+func JoinAttempts(errs []error) error {
+	switch len(errs) {
+	case 0:
+		return nil
+	case 1:
+		return errs[0]
+	}
+	parts := make([]string, 0, len(errs)-1)
+	for _, e := range errs[:len(errs)-1] {
+		parts = append(parts, e.Error())
+	}
+	return fmt.Errorf("%w (earlier attempts: %s)", errs[len(errs)-1], strings.Join(parts, "; "))
+}

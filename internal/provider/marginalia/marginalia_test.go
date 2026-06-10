@@ -19,8 +19,10 @@ func TestSearch_HappyPath(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedUA = r.Header.Get("User-Agent")
 		capturedPath = r.URL.Path
-		if !strings.HasPrefix(r.URL.Path, "/search/") {
-			t.Errorf("path should start with /search/, got %s", r.URL.Path)
+		// The /public/ segment is the anonymous API-key slot — omitting it
+		// is a live 404 against api.marginalia.nu, so pin the exact prefix.
+		if !strings.HasPrefix(r.URL.Path, "/public/search/") {
+			t.Errorf("path should start with /public/search/, got %s", r.URL.Path)
 		}
 		if r.URL.Query().Get("count") != "3" {
 			t.Errorf("count: got %q want 3", r.URL.Query().Get("count"))

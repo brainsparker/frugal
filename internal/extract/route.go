@@ -29,8 +29,14 @@ func OrderByCost(extractors []Extractor) []Extractor {
 }
 
 // CallWithFallback walks extractors in cost order, returning the first
-// success. Permanent error from a driver stops the chain (the URL is
-// broken, not the provider). Transient error logs + falls back.
+// success. Every per-provider failure — transient or permanent — logs
+// and falls through to the next provider. This is what makes the
+// goreadability → Firecrawl handoff work: goreadability classifies an
+// empty-content (JS-rendered) page as Permanent, and the next driver
+// down the chain can render it. The chain stops early in two cases:
+// ctx is done (the caller went away), or a driver reports a fatal
+// error — a dead target URL (404/410) is dead for every provider, so
+// falling through would spend a paid scrape rediscovering that.
 //
 // Hook (may be nil) fires once per attempt with provider name, latency,
 // per-call cost, and the error (nil on success). Used by the metrics
@@ -43,7 +49,7 @@ func CallWithFallback(ctx context.Context, extractors []Extractor, q Query, logg
 		return nil, Result{}, errors.New("frugal: no extract providers configured")
 	}
 	ordered := OrderByCost(extractors)
-	var lastErr error
+	var errs []error
 	for i, e := range ordered {
 		start := time.Now()
 		res, err := e.Extract(ctx, q)
@@ -60,22 +66,30 @@ func CallWithFallback(ctx context.Context, extractors []Extractor, q Query, logg
 				"chars", len(res.Markdown)+len(res.HTML)+len(res.Text))
 			return e, res, nil
 		}
-		lastErr = err
-		if routing.IsPermanent(err) {
-			logger.Warn("extract permanent error; aborting fallback chain",
+		errs = append(errs, err)
+		if routing.IsFatal(err) {
+			logger.Warn("extract fatal error; request can't succeed anywhere — aborting chain",
 				"provider", e.Name(),
 				"latency_ms", latency.Milliseconds(),
 				"err", err)
 			return e, Result{}, err
 		}
-		logger.Warn("extract transient error; falling back",
+		if ctx.Err() != nil {
+			logger.Warn("extract aborted; context done",
+				"provider", e.Name(),
+				"latency_ms", latency.Milliseconds(),
+				"err", err)
+			return e, Result{}, routing.JoinAttempts(errs)
+		}
+		logger.Warn("extract error; falling back",
 			"provider", e.Name(),
+			"permanent", routing.IsPermanent(err),
 			"attempt", i+1,
 			"remaining", len(ordered)-i-1,
 			"latency_ms", latency.Milliseconds(),
 			"err", err)
 	}
-	return ordered[len(ordered)-1], Result{}, lastErr
+	return ordered[len(ordered)-1], Result{}, routing.JoinAttempts(errs)
 }
 
 // CallPinned dispatches one extract against the named provider only —

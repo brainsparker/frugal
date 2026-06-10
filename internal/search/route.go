@@ -36,15 +36,22 @@ func OrderByCost(searchers []Searcher) []Searcher {
 }
 
 // CallWithFallback walks searchers in cost order, calling Search on each
-// until one succeeds. On transient error it logs and tries the next
-// provider. On permanent error it returns immediately — falling back
-// after a 401 just wastes the next provider's quota on the same broken
-// query/auth/billing.
+// until one succeeds. Every per-provider failure — transient (network
+// blip, 5xx) or permanent (auth, quota, provider-side 4xx) — logs and
+// falls through to the next provider: a 401 or 404 from one provider says
+// nothing about the next one's credentials or endpoints, and the product
+// promise is "the cheapest provider that returns a result". Permanent
+// still matters inside the driver (no retry there); out here it only
+// changes the log line. The chain stops early in two cases: ctx is done
+// (the caller went away), or a driver reports a fatal error — the
+// request itself can't succeed anywhere, so the rest of the chain would
+// only rediscover that for money.
 //
 // Returns the searcher that produced the result, its Results, and nil
-// error on success. On all-transient failure returns the last error
-// (the one from the last attempted provider). On no searchers configured
-// returns a non-nil error with no provider.
+// error on success. When every provider fails, the returned error
+// classifies as the last attempt but its message names every failed
+// provider (routing.JoinAttempts). On no searchers configured returns a
+// non-nil error with no provider.
 //
 // logger is used for per-attempt logging at debug level (success) and
 // warn level (fallback). Pass slog.Default() if no logger context is
@@ -58,7 +65,7 @@ func CallWithFallback(ctx context.Context, searchers []Searcher, q Query, logger
 		return nil, Results{}, errors.New("frugal: no search providers configured")
 	}
 	ordered := OrderByCost(searchers)
-	var lastErr error
+	var errs []error
 	for i, s := range ordered {
 		start := time.Now()
 		res, err := s.Search(ctx, q)
@@ -75,22 +82,30 @@ func CallWithFallback(ctx context.Context, searchers []Searcher, q Query, logger
 				"results", len(res.Items))
 			return s, res, nil
 		}
-		lastErr = err
-		if routing.IsPermanent(err) {
-			logger.Warn("search permanent error; aborting fallback chain",
+		errs = append(errs, err)
+		if routing.IsFatal(err) {
+			logger.Warn("search fatal error; request can't succeed anywhere — aborting chain",
 				"provider", s.Name(),
 				"latency_ms", latency.Milliseconds(),
 				"err", err)
 			return s, Results{}, err
 		}
-		logger.Warn("search transient error; falling back",
+		if ctx.Err() != nil {
+			logger.Warn("search aborted; context done",
+				"provider", s.Name(),
+				"latency_ms", latency.Milliseconds(),
+				"err", err)
+			return s, Results{}, routing.JoinAttempts(errs)
+		}
+		logger.Warn("search error; falling back",
 			"provider", s.Name(),
+			"permanent", routing.IsPermanent(err),
 			"attempt", i+1,
 			"remaining", len(ordered)-i-1,
 			"latency_ms", latency.Milliseconds(),
 			"err", err)
 	}
-	return ordered[len(ordered)-1], Results{}, lastErr
+	return ordered[len(ordered)-1], Results{}, routing.JoinAttempts(errs)
 }
 
 // CallPinned dispatches one call against the named searcher only — no

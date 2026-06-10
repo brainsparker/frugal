@@ -89,7 +89,7 @@ func TestMergeJSONConfig_IdempotentOverwrite(t *testing.T) {
 
 func TestPlanFor_JSONClient(t *testing.T) {
 	c := Client{ID: "claude-desktop", Kind: KindJSONFile, ConfigPath: "/tmp/desktop.json"}
-	plan := PlanFor(c, "/usr/local/bin/frugal")
+	plan := PlanFor(c, "/usr/local/bin/frugal", nil)
 	if !strings.Contains(plan, "mcpServers.frugal") {
 		t.Errorf("plan should mention mcpServers.frugal: %s", plan)
 	}
@@ -101,9 +101,21 @@ func TestPlanFor_JSONClient(t *testing.T) {
 	}
 }
 
+func TestPlanFor_JSONClient_ShowsEnvNamesNotValues(t *testing.T) {
+	c := Client{ID: "claude-desktop", Kind: KindJSONFile, ConfigPath: "/tmp/desktop.json"}
+	env := map[string]string{"SERPER_API_KEY": "s3cret-value"}
+	plan := PlanFor(c, "/usr/local/bin/frugal", env)
+	if !strings.Contains(plan, "SERPER_API_KEY") {
+		t.Errorf("plan should list the env var name: %s", plan)
+	}
+	if strings.Contains(plan, "s3cret-value") {
+		t.Errorf("plan must never print env var values: %s", plan)
+	}
+}
+
 func TestPlanFor_CLIClient_PrintsClaudeCommand(t *testing.T) {
 	c := Client{ID: "claude-code", Kind: KindCLI}
-	plan := PlanFor(c, "/usr/local/bin/frugal")
+	plan := PlanFor(c, "/usr/local/bin/frugal", nil)
 	if !strings.Contains(plan, "claude mcp add frugal") {
 		t.Errorf("plan should suggest claude mcp add: %s", plan)
 	}
@@ -116,13 +128,60 @@ func TestApply_JSONFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
 	c := Client{ID: "claude-desktop", Kind: KindJSONFile, ConfigPath: path}
-	if _, err := Apply(c, "/bin/frugal"); err != nil {
+	if _, err := Apply(c, "/bin/frugal", nil); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 	root := loadJSON(t, path)
 	servers, _ := root["mcpServers"].(map[string]any)
-	if _, ok := servers["frugal"]; !ok {
-		t.Errorf("frugal entry missing after Apply: %#v", servers)
+	frugal, _ := servers["frugal"].(map[string]any)
+	if frugal == nil {
+		t.Fatalf("frugal entry missing after Apply: %#v", servers)
+	}
+	if _, hasEnv := frugal["env"]; hasEnv {
+		t.Errorf("no env vars passed; env block should be omitted: %#v", frugal)
+	}
+}
+
+func TestApply_JSONFile_PreservesBakedEnvOnRerun(t *testing.T) {
+	// Re-running install from a fresh shell (no exports) must not strip
+	// the keys a previous shell baked in; new values win on conflicts.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	c := Client{ID: "claude-desktop", Kind: KindJSONFile, ConfigPath: path}
+	if _, err := Apply(c, "/bin/frugal", map[string]string{"SERPER_API_KEY": "old", "YDC_API_KEY": "keep-me"}); err != nil {
+		t.Fatalf("first Apply: %v", err)
+	}
+	if _, err := Apply(c, "/bin/frugal", map[string]string{"SERPER_API_KEY": "rotated"}); err != nil {
+		t.Fatalf("second Apply: %v", err)
+	}
+	root := loadJSON(t, path)
+	servers, _ := root["mcpServers"].(map[string]any)
+	frugal, _ := servers["frugal"].(map[string]any)
+	got, _ := frugal["env"].(map[string]any)
+	if got["SERPER_API_KEY"] != "rotated" {
+		t.Errorf("re-run should refresh rotated value; got %#v", got)
+	}
+	if got["YDC_API_KEY"] != "keep-me" {
+		t.Errorf("re-run must preserve previously baked keys; got %#v", got)
+	}
+}
+
+func TestApply_JSONFile_WritesEnvBlock(t *testing.T) {
+	// GUI clients spawn the server with no login shell, so the only way a
+	// key set in .zshrc reaches Frugal is the client config's env block.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	c := Client{ID: "claude-desktop", Kind: KindJSONFile, ConfigPath: path}
+	env := map[string]string{"SERPER_API_KEY": "k1", "SEARXNG_URL": "http://localhost:8080"}
+	if _, err := Apply(c, "/bin/frugal", env); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	root := loadJSON(t, path)
+	servers, _ := root["mcpServers"].(map[string]any)
+	frugal, _ := servers["frugal"].(map[string]any)
+	got, _ := frugal["env"].(map[string]any)
+	if got["SERPER_API_KEY"] != "k1" || got["SEARXNG_URL"] != "http://localhost:8080" {
+		t.Errorf("env block not written through: %#v", frugal)
 	}
 }
 
@@ -132,7 +191,7 @@ func TestApply_CLIClient_ExecSuccess(t *testing.T) {
 	claudeMCPAdder = func(string) error { return nil }
 
 	c := Client{ID: "claude-code", Kind: KindCLI}
-	suggestion, err := Apply(c, "/bin/frugal")
+	suggestion, err := Apply(c, "/bin/frugal", nil)
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
@@ -147,7 +206,7 @@ func TestApply_CLIClient_ExecFailureFallsBackToSuggestion(t *testing.T) {
 	claudeMCPAdder = func(string) error { return fmt.Errorf("simulated exec failure") }
 
 	c := Client{ID: "claude-code", Kind: KindCLI}
-	suggestion, err := Apply(c, "/bin/frugal")
+	suggestion, err := Apply(c, "/bin/frugal", nil)
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
 	}

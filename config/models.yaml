@@ -15,8 +15,10 @@ search_providers:
         cost_per_call: 0.0
     # Free / public: community-run indie-web search. No API key required;
     # the driver identifies itself via User-Agent per Marginalia etiquette.
-    # Ties with SearXNG on cost (both 0) — config order decides which is
-    # hit first when both are configured.
+    # Ties with SearXNG on cost (both 0) go to SearXNG — the operator
+    # stood that instance up deliberately. YAML maps don't preserve file
+    # order, so the tie-break comes from the canonical provider order in
+    # the binary, not from this file's ordering.
     marginalia:
         base_url: https://api.marginalia.nu
         cost_per_call: 0.0
@@ -37,9 +39,12 @@ search_providers:
         cost_per_call: 0.005
 
 # Extract providers consumed by the frugal__extract MCP tool. Same
-# routing rules as search: cheapest configured wins; transient errors
-# fall through; permanent (e.g. empty content → likely JS-rendered)
-# stop the chain and surface to the agent.
+# routing rules as search: cheapest configured wins; any per-provider
+# failure — transient or permanent (e.g. empty content → likely
+# JS-rendered) — falls through to the next provider, and the error the
+# agent sees names every provider that failed. The exception is a fatal
+# request error (target URL gone — 404/410 from the site itself): no
+# provider can fix that, so the chain stops without spending a paid call.
 extract_providers:
     # Free / local: pure-Go Readability port. Fetches the URL with the
     # operator's HTTP client and runs an in-process content-extraction

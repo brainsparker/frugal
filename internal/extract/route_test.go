@@ -20,8 +20,8 @@ type stubExtractor struct {
 	calls int
 }
 
-func (s *stubExtractor) Name() string                                  { return s.name }
-func (s *stubExtractor) CostPerCall() float64                          { return s.cost }
+func (s *stubExtractor) Name() string         { return s.name }
+func (s *stubExtractor) CostPerCall() float64 { return s.cost }
 func (s *stubExtractor) Extract(_ context.Context, _ Query) (Result, error) {
 	s.calls++
 	return s.res, s.err
@@ -77,20 +77,57 @@ func TestCallWithFallback_FallsBackOnTransient(t *testing.T) {
 	}
 }
 
-func TestCallWithFallback_StopsOnPermanent(t *testing.T) {
+func TestCallWithFallback_FallsThroughOnPermanent(t *testing.T) {
+	// The advertised goreadability → Firecrawl handoff: empty content on a
+	// JS-rendered page classifies Permanent, and the next driver renders it.
 	free := &stubExtractor{name: "free", cost: 0,
 		err: routing.Permanent("free", 0, errors.New("page empty (needs JS?)"))}
 	paid := &stubExtractor{name: "paid", cost: 0.001,
-		res: Result{Markdown: "should-not-be-tried"}}
-	_, _, err := CallWithFallback(context.Background(), []Extractor{paid, free}, Query{URL: "https://x"}, discardLogger(), nil)
-	if err == nil {
-		t.Fatalf("expected permanent error to propagate")
+		res: Result{Markdown: "via-paid", CostUSD: 0.001}}
+	used, res, err := CallWithFallback(context.Background(), []Extractor{paid, free}, Query{URL: "https://x"}, discardLogger(), nil)
+	if err != nil {
+		t.Fatalf("expected fallback past the permanent error, got %v", err)
 	}
-	if !routing.IsPermanent(err) {
-		t.Errorf("expected IsPermanent, got %v", err)
+	if free.calls != 1 || paid.calls != 1 {
+		t.Errorf("expected each tried once; free=%d paid=%d", free.calls, paid.calls)
+	}
+	if used.Name() != "paid" || res.Markdown != "via-paid" {
+		t.Errorf("unexpected winner: %v / %+v", used, res)
+	}
+}
+
+func TestCallWithFallback_StopsOnFatal(t *testing.T) {
+	// A dead target URL (404/410) is dead for every provider — the chain
+	// must stop before spending a paid scrape on it.
+	free := &stubExtractor{name: "free", cost: 0,
+		err: routing.Fatal("free", 404, errors.New("http 404"))}
+	paid := &stubExtractor{name: "paid", cost: 0.001,
+		res: Result{Markdown: "should-not-be-tried"}}
+	_, _, err := CallWithFallback(context.Background(), []Extractor{paid, free}, Query{URL: "https://x/dead"}, discardLogger(), nil)
+	if err == nil {
+		t.Fatalf("expected fatal error to propagate")
+	}
+	if !routing.IsFatal(err) {
+		t.Errorf("expected IsFatal, got %v", err)
 	}
 	if paid.calls != 0 {
-		t.Errorf("paid should NOT be tried after permanent; calls=%d", paid.calls)
+		t.Errorf("paid must NOT be tried after a fatal error; calls=%d", paid.calls)
+	}
+}
+
+func TestCallWithFallback_StopsWhenContextDone(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	first := &stubExtractor{name: "first", cost: 0,
+		err: routing.Permanent("first", 0, context.Canceled)}
+	second := &stubExtractor{name: "second", cost: 0.001,
+		res: Result{Markdown: "should-not-be-tried"}}
+	_, _, err := CallWithFallback(ctx, []Extractor{second, first}, Query{URL: "https://x"}, discardLogger(), nil)
+	if err == nil {
+		t.Fatalf("expected error when context is canceled")
+	}
+	if first.calls != 1 || second.calls != 0 {
+		t.Errorf("expected only first tried once ctx is done; first=%d second=%d", first.calls, second.calls)
 	}
 }
 

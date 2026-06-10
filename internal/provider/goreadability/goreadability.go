@@ -54,14 +54,17 @@ func (c *Client) CostPerCall() float64 { return 0 }
 // Extract fetches q.URL and pipes the response body through Readability.
 // Network and HTTP failures are retried by the driver; an empty
 // TextContent after a successful fetch is classified Permanent so the
-// router falls through to a paid extractor that can render JS.
+// router falls through to a paid extractor that can render JS. A dead
+// target (404/410 from the site itself) or unusable URL is Fatal — no
+// extractor can fix the request, so the router must not spend a paid
+// call rediscovering that.
 func (c *Client) Extract(ctx context.Context, q extract.Query) (extract.Result, error) {
 	if q.URL == "" {
-		return extract.Result{}, routing.Permanent(c.Name(), 0, fmt.Errorf("empty url"))
+		return extract.Result{}, routing.Fatal(c.Name(), 0, fmt.Errorf("empty url"))
 	}
 	parsed, err := url.Parse(q.URL)
 	if err != nil {
-		return extract.Result{}, routing.Permanent(c.Name(), 0, fmt.Errorf("parse url: %w", err))
+		return extract.Result{}, routing.Fatal(c.Name(), 0, fmt.Errorf("parse url: %w", err))
 	}
 
 	var out extract.Result
@@ -92,9 +95,18 @@ func (c *Client) doOnce(ctx context.Context, u *url.URL) (extract.Result, error)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		kind := routing.ClassifyHTTPStatus(resp.StatusCode)
+		// 404/410 here comes from the TARGET site, not from a provider
+		// API — the page is gone for every extractor. Fatal stops the
+		// chain instead of forwarding the dead link to a paid scraper.
+		// (A 403, by contrast, stays Permanent and falls through: it's
+		// often an anti-bot block a rendering provider can get past.)
+		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+			kind = routing.KindFatal
+		}
 		return extract.Result{}, &routing.Error{
 			Provider: c.Name(),
-			Kind:     routing.ClassifyHTTPStatus(resp.StatusCode),
+			Kind:     kind,
 			Status:   resp.StatusCode,
 			Err:      fmt.Errorf("http %d", resp.StatusCode),
 		}

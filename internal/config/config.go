@@ -10,9 +10,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	defaults "github.com/frugalsh/frugal/config"
 )
 
 // Config is the on-disk model.yaml decoded.
@@ -40,17 +43,69 @@ type SearchProviderConfig struct {
 	CostPerCall float64 `yaml:"cost_per_call"`
 }
 
-// Load reads the config from the given path, or from FRUGAL_CONFIG env var.
+// Load reads the config from the given path. Environment resolution
+// ($FRUGAL_CONFIG, installer layout, embedded default) lives in LoadAuto
+// — Load itself is filesystem-pure so tests and explicit callers get
+// exactly the file they named.
 func Load(path string) (*Config, error) {
-	if envPath := strings.TrimSpace(os.Getenv("FRUGAL_CONFIG")); envPath != "" {
-		path = envPath
-	}
-
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading config: %w", err)
 	}
+	return Parse(data)
+}
 
+// LoadAuto resolves the config source in precedence order:
+//
+//  1. $FRUGAL_CONFIG — explicit operator override. A broken path here is
+//     an error, not a fall-through: the operator asked for that file.
+//  2. ./config/models.yaml — running from a source checkout.
+//  3. ~/.frugal/config/models.yaml — the curl-installer layout.
+//  4. The default models.yaml embedded in the binary — npm wrapper,
+//     MCP-registry installs, and GUI-spawned processes that see no shell
+//     environment at all.
+//
+// A file that exists but fails to parse is an error at every step; a
+// silent fall-through would mask the operator's typo with defaults.
+// Returns the config and a human-readable source description for logs.
+func LoadAuto() (*Config, string, error) {
+	return loadResolved(true)
+}
+
+// LoadTrusted is LoadAuto minus the cwd-relative ./config/models.yaml
+// candidate. `frugal mcp install` uses it to decide which env vars get
+// copied out of the shell into client configs: a config file in
+// whatever directory the user happened to run install from must not get
+// to name which secrets are harvested and persisted. $FRUGAL_CONFIG and
+// the home-dir config are operator-owned; the cwd is not.
+func LoadTrusted() (*Config, string, error) {
+	return loadResolved(false)
+}
+
+func loadResolved(trustCwd bool) (*Config, string, error) {
+	if envPath := strings.TrimSpace(os.Getenv("FRUGAL_CONFIG")); envPath != "" {
+		cfg, err := Load(envPath)
+		return cfg, "$FRUGAL_CONFIG (" + envPath + ")", err
+	}
+	var candidates []string
+	if trustCwd {
+		candidates = append(candidates, filepath.Join("config", "models.yaml"))
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		candidates = append(candidates, filepath.Join(home, ".frugal", "config", "models.yaml"))
+	}
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			cfg, err := Load(p)
+			return cfg, p, err
+		}
+	}
+	cfg, err := Parse(defaults.DefaultModelsYAML)
+	return cfg, "embedded default", err
+}
+
+// Parse decodes and validates one models.yaml document.
+func Parse(data []byte) (*Config, error) {
 	var cfg Config
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)

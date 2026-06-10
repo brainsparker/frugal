@@ -104,17 +104,43 @@ func TestExtract_5xxRetried(t *testing.T) {
 }
 
 func TestExtract_4xxIsPermanent(t *testing.T) {
+	// 403 is typically an anti-bot block — permanent for THIS extractor
+	// (no retry) but NOT fatal: a rendering provider may get past it, so
+	// the router must keep falling through.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusForbidden)
 	}))
 	defer srv.Close()
 	c := New()
 	_, err := c.Extract(context.Background(), extract.Query{URL: srv.URL})
 	if err == nil {
-		t.Fatalf("expected error on 404")
+		t.Fatalf("expected error on 403")
 	}
 	if !routing.IsPermanent(err) {
-		t.Errorf("404 must classify as permanent; got %v", err)
+		t.Errorf("403 must classify as permanent; got %v", err)
+	}
+	if routing.IsFatal(err) {
+		t.Errorf("403 must NOT be fatal (a rendering provider may pass the block); got %v", err)
+	}
+}
+
+func TestExtract_DeadTargetIsFatal(t *testing.T) {
+	// 404/410 from the target site is a fact about the URL, not this
+	// extractor — fatal stops the router from spending a paid scrape on
+	// a dead link.
+	for _, status := range []int{http.StatusNotFound, http.StatusGone} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(status)
+		}))
+		c := New()
+		_, err := c.Extract(context.Background(), extract.Query{URL: srv.URL})
+		srv.Close()
+		if err == nil {
+			t.Fatalf("expected error on %d", status)
+		}
+		if !routing.IsFatal(err) {
+			t.Errorf("%d from the target must classify as fatal; got %v", status, err)
+		}
 	}
 }
 
@@ -130,14 +156,14 @@ func TestExtract_NetworkErrorIsTransient(t *testing.T) {
 	}
 }
 
-func TestExtract_EmptyURLIsPermanent(t *testing.T) {
+func TestExtract_EmptyURLIsFatal(t *testing.T) {
 	c := New()
 	_, err := c.Extract(context.Background(), extract.Query{})
 	if err == nil {
 		t.Fatalf("expected error for empty URL")
 	}
-	if !routing.IsPermanent(err) {
-		t.Errorf("empty URL should be permanent; got %v", err)
+	if !routing.IsFatal(err) {
+		t.Errorf("empty URL should be fatal (no provider can extract nothing); got %v", err)
 	}
 }
 

@@ -45,17 +45,53 @@ func TestCallWithFallback_PicksCheapest(t *testing.T) {
 	}
 }
 
-func TestCallWithFallback_StopsOnPermanent(t *testing.T) {
+func TestCallWithFallback_FallsThroughOnPermanent(t *testing.T) {
 	first := &stubBrowser{name: "first", cost: 0.001,
-		err: routing.Permanent("first", 400, errors.New("bad url"))}
+		err: routing.Permanent("first", 400, errors.New("render rejected"))}
+	second := &stubBrowser{name: "second", cost: 0.002,
+		res: Result{HTML: "via-second", CostUSD: 0.002}}
+	used, res, err := CallWithFallback(context.Background(), []Browser{first, second}, Query{URL: "https://x"}, discardLogger(), nil)
+	if err != nil {
+		t.Fatalf("expected fallback past the permanent error, got %v", err)
+	}
+	if first.calls != 1 || second.calls != 1 {
+		t.Errorf("expected each tried once; first=%d second=%d", first.calls, second.calls)
+	}
+	if used.Name() != "second" || res.HTML != "via-second" {
+		t.Errorf("unexpected winner: %v / %+v", used, res)
+	}
+}
+
+func TestCallWithFallback_StopsOnFatal(t *testing.T) {
+	first := &stubBrowser{name: "first", cost: 0.001,
+		err: routing.Fatal("first", 410, errors.New("target gone"))}
 	second := &stubBrowser{name: "second", cost: 0.002,
 		res: Result{HTML: "should-not-be-tried"}}
 	_, _, err := CallWithFallback(context.Background(), []Browser{first, second}, Query{URL: "https://x"}, discardLogger(), nil)
 	if err == nil {
-		t.Fatalf("expected permanent error to propagate")
+		t.Fatalf("expected fatal error to propagate")
+	}
+	if !routing.IsFatal(err) {
+		t.Errorf("expected IsFatal, got %v", err)
 	}
 	if second.calls != 0 {
-		t.Errorf("second should not be called after permanent; calls=%d", second.calls)
+		t.Errorf("second must NOT be tried after a fatal error; calls=%d", second.calls)
+	}
+}
+
+func TestCallWithFallback_StopsWhenContextDone(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	first := &stubBrowser{name: "first", cost: 0.001,
+		err: routing.Permanent("first", 0, context.Canceled)}
+	second := &stubBrowser{name: "second", cost: 0.002,
+		res: Result{HTML: "should-not-be-tried"}}
+	_, _, err := CallWithFallback(ctx, []Browser{first, second}, Query{URL: "https://x"}, discardLogger(), nil)
+	if err == nil {
+		t.Fatalf("expected error when context is canceled")
+	}
+	if first.calls != 1 || second.calls != 0 {
+		t.Errorf("expected only first tried once ctx is done; first=%d second=%d", first.calls, second.calls)
 	}
 }
 

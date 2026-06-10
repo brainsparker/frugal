@@ -8,17 +8,19 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/frugalsh/frugal/internal/browse"
 	"github.com/frugalsh/frugal/internal/config"
+	"github.com/frugalsh/frugal/internal/extract"
 	"github.com/frugalsh/frugal/internal/install"
 	"github.com/frugalsh/frugal/internal/mcp"
 	"github.com/frugalsh/frugal/internal/mcp/tools"
 	"github.com/frugalsh/frugal/internal/obs"
-	"github.com/frugalsh/frugal/internal/browse"
-	"github.com/frugalsh/frugal/internal/extract"
 	"github.com/frugalsh/frugal/internal/provider/browserless"
 	"github.com/frugalsh/frugal/internal/provider/firecrawl"
 	"github.com/frugalsh/frugal/internal/provider/goreadability"
@@ -81,17 +83,14 @@ func runMCPServe(args []string) int {
 		return 2
 	}
 
-	configPath := "config/models.yaml"
-	if p := os.Getenv("FRUGAL_CONFIG"); p != "" {
-		configPath = p
-	}
-	cfg, err := config.Load(configPath)
+	cfg, cfgSrc, err := config.LoadAuto()
 	if err != nil {
 		// stdio mode keeps stdout free of non-JSON bytes — failure logs go to
 		// stderr, which is the contract every MCP client respects.
 		fmt.Fprintf(os.Stderr, "frugal mcp serve: load config: %v\n", err)
 		return 1
 	}
+	slog.Info("mcp serve: config loaded", "source", cfgSrc)
 
 	// stdio transport is single-session; logging to stderr is safe and
 	// preserves the MCP newline-delimited JSON-RPC contract on stdout.
@@ -191,6 +190,8 @@ func runMCPInstall(args []string) int {
 		return 1
 	}
 
+	env := providerEnvVars()
+
 	clients := install.DetectClients()
 	targets, err := filterClients(clients, *clientID)
 	if err != nil {
@@ -220,7 +221,7 @@ func runMCPInstall(args []string) int {
 	fmt.Fprintf(os.Stderr, "frugal binary: %s\n", binPath)
 	fmt.Fprintln(os.Stderr, "planned changes:")
 	for _, c := range targets {
-		fmt.Fprintf(os.Stderr, "  - %s: %s\n", c.Title, install.PlanFor(c, binPath))
+		fmt.Fprintf(os.Stderr, "  - %s: %s\n", c.Title, install.PlanFor(c, binPath, env))
 	}
 	fmt.Fprintln(os.Stderr)
 
@@ -235,8 +236,9 @@ func runMCPInstall(args []string) int {
 	}
 
 	var hadErr bool
+	var wroteJSON bool
 	for _, c := range targets {
-		suggestion, err := install.Apply(c, binPath)
+		suggestion, err := install.Apply(c, binPath, env)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "✗ %s: %v\n", c.Title, err)
 			hadErr = true
@@ -244,6 +246,7 @@ func runMCPInstall(args []string) int {
 		}
 		switch c.Kind {
 		case install.KindJSONFile:
+			wroteJSON = true
 			fmt.Fprintf(os.Stderr, "✓ %s: wrote %s\n", c.Title, c.ConfigPath)
 		case install.KindCLI:
 			if suggestion == "" {
@@ -259,11 +262,108 @@ func runMCPInstall(args []string) int {
 	}
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "next steps:")
-	fmt.Fprintln(os.Stderr, "  1. set SERPER_API_KEY and/or YDC_API_KEY in the env where the agent runs")
-	fmt.Fprintln(os.Stderr, "     (for Claude Desktop: add env vars to the same config; for Cursor: same)")
+	switch {
+	case len(env) > 0 && wroteJSON:
+		fmt.Fprintln(os.Stderr, "  1. provider settings found in this shell (keys / URLs) were copied into")
+		fmt.Fprintln(os.Stderr, "     the GUI client configs (GUI apps don't read your shell rc); after")
+		fmt.Fprintln(os.Stderr, "     rotating a key, re-run `frugal mcp install` to refresh the values")
+	case len(env) > 0:
+		fmt.Fprintln(os.Stderr, "  1. Claude Code spawns frugal from your shell, so it inherits your")
+		fmt.Fprintln(os.Stderr, "     exported keys live — nothing needed baking into a config file")
+	default:
+		fmt.Fprintln(os.Stderr, "  1. optional: export SERPER_API_KEY and/or YDC_API_KEY, then re-run")
+		fmt.Fprintln(os.Stderr, "     `frugal mcp install` so GUI clients get the keys too — zero-key")
+		fmt.Fprintln(os.Stderr, "     search via Marginalia works without this step")
+	}
 	fmt.Fprintln(os.Stderr, "  2. restart the agent client to pick up the new MCP server")
 	fmt.Fprintln(os.Stderr, "  3. look for the 'frugal__search' tool in the agent's tool picker")
 	return 0
+}
+
+// canonicalProviderOrder fixes the tie-break between same-cost providers:
+// self-hosted first (the operator stood that instance up deliberately),
+// then public-free, then paid by ascending list price. YAML maps don't
+// preserve file order, so this list — not the config file — is what makes
+// registration (and therefore OrderByCost's stable ties) deterministic.
+// Providers not listed here sort last, by name.
+var canonicalProviderOrder = []string{
+	"searxng", "marginalia", "serper", "youcom", // search
+	"goreadability", "firecrawl", // extract
+	"browserless", // browse
+}
+
+// sortedProviderNames returns the provider map's keys in canonical order.
+func sortedProviderNames(providers map[string]config.SearchProviderConfig) []string {
+	rank := make(map[string]int, len(canonicalProviderOrder))
+	for i, n := range canonicalProviderOrder {
+		rank[n] = i
+	}
+	names := make([]string, 0, len(providers))
+	for name := range providers {
+		names = append(names, name)
+	}
+	sort.Slice(names, func(i, j int) bool {
+		ri, iKnown := rank[names[i]]
+		rj, jKnown := rank[names[j]]
+		switch {
+		case iKnown && jKnown:
+			return ri < rj
+		case iKnown:
+			return true
+		case jKnown:
+			return false
+		default:
+			return names[i] < names[j]
+		}
+	})
+	return names
+}
+
+// providerEnvVars collects the env vars the active config can consume —
+// every api_key_env / base_url_env on every provider — that are set in
+// the installer's environment. Claude Desktop and Cursor spawn MCP
+// servers without a login shell, so rc-file exports never reach them;
+// copying the values into each client's env block is the only way paid
+// fallback works there.
+//
+// The names come from config.LoadTrusted, NOT LoadAuto: a crafted
+// config/models.yaml in an untrusted cwd must not get to name arbitrary
+// secrets (AWS keys, GitHub tokens) for harvesting into client configs.
+//
+// FRUGAL_CONFIG itself is copied only when it demonstrably loads — and
+// as an absolute path, because GUI clients spawn the server from `/`,
+// where a checkout-relative value would silently recreate the
+// crash-on-launch that the embedded default exists to fix.
+func providerEnvVars() map[string]string {
+	env := map[string]string{}
+	cfg, _, err := config.LoadTrusted()
+	if err == nil {
+		for _, providers := range []map[string]config.SearchProviderConfig{
+			cfg.SearchProviders, cfg.ExtractProviders, cfg.BrowseProviders,
+		} {
+			for _, p := range providers {
+				for _, name := range []string{p.APIKeyEnv, p.BaseURLEnv} {
+					if name == "" {
+						continue
+					}
+					if v := os.Getenv(name); v != "" {
+						env[name] = v
+					}
+				}
+			}
+		}
+	}
+	if p := strings.TrimSpace(os.Getenv("FRUGAL_CONFIG")); p != "" {
+		switch {
+		case err != nil:
+			fmt.Fprintf(os.Stderr, "warning: FRUGAL_CONFIG is set but fails to load (%v); not copying it into client configs\n", err)
+		default:
+			if abs, absErr := filepath.Abs(p); absErr == nil {
+				env["FRUGAL_CONFIG"] = abs
+			}
+		}
+	}
+	return env
 }
 
 // filterClients narrows the catalog down to the install targets per the
@@ -348,7 +448,8 @@ func logMetricsPeriodically(ctx context.Context, m *obs.Metrics, interval time.D
 // to add new providers, but driver wiring lives here in code.
 func buildSearchers(cfg *config.Config) []search.Searcher {
 	var out []search.Searcher
-	for name, sp := range cfg.SearchProviders {
+	for _, name := range sortedProviderNames(cfg.SearchProviders) {
+		sp := cfg.SearchProviders[name]
 		key := ""
 		if sp.APIKeyEnv != "" {
 			key = os.Getenv(sp.APIKeyEnv)
@@ -394,7 +495,8 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 // gates on FIRECRAWL_API_KEY. Unknown names log a warning and are skipped.
 func buildExtractors(cfg *config.Config) []extract.Extractor {
 	var out []extract.Extractor
-	for name, sp := range cfg.ExtractProviders {
+	for _, name := range sortedProviderNames(cfg.ExtractProviders) {
+		sp := cfg.ExtractProviders[name]
 		key := ""
 		if sp.APIKeyEnv != "" {
 			key = os.Getenv(sp.APIKeyEnv)
@@ -427,7 +529,8 @@ func buildExtractors(cfg *config.Config) []extract.Extractor {
 // only Browserless is supported; local Playwright is deferred.
 func buildBrowsers(cfg *config.Config) []browse.Browser {
 	var out []browse.Browser
-	for name, sp := range cfg.BrowseProviders {
+	for _, name := range sortedProviderNames(cfg.BrowseProviders) {
+		sp := cfg.BrowseProviders[name]
 		key := ""
 		if sp.APIKeyEnv != "" {
 			key = os.Getenv(sp.APIKeyEnv)

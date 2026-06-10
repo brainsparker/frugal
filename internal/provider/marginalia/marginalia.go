@@ -6,8 +6,9 @@
 // SearXNG, giving the router a second $0 provider with different result
 // characteristics — Marginalia's index leans toward small, hand-curated
 // sites and tends to return content SearXNG misses on long-tail
-// queries. When both are configured, OrderByCost is stable on ties so
-// config order decides which is hit first.
+// queries. When both are configured, OrderByCost is stable on ties and
+// registration follows the binary's canonical provider order — the
+// self-hosted SearXNG instance first, Marginalia next in the chain.
 //
 // Etiquette: Marginalia is donation-funded and asks API consumers to
 // identify themselves with a User-Agent. The driver sets
@@ -86,8 +87,10 @@ func (c *Client) Search(ctx context.Context, q search.Query) (search.Results, er
 // doOnce runs one HTTP attempt. The retry loop in Search wraps this;
 // the returned error is already a *routing.Error.
 func (c *Client) doOnce(ctx context.Context, q search.Query) (search.Results, error) {
-	// Marginalia's URL form: /search/<query>?index=1&count=N
-	// The query goes in the path, URL-encoded.
+	// Marginalia's URL form: /{key}/search/<query>?index=1&count=N — the
+	// first path segment is the API key slot, with the literal key
+	// "public" granting anonymous rate-limited access. The query goes in
+	// the path, URL-encoded.
 	n := q.MaxResults
 	if n <= 0 {
 		n = 5
@@ -95,7 +98,7 @@ func (c *Client) doOnce(ctx context.Context, q search.Query) (search.Results, er
 	if n > 20 {
 		n = 20
 	}
-	endpoint := c.baseURL + "/search/" + url.PathEscape(q.Text) +
+	endpoint := c.baseURL + "/public/search/" + url.PathEscape(q.Text) +
 		"?index=1&count=" + strconv.Itoa(n)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)

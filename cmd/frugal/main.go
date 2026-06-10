@@ -40,7 +40,8 @@ Usage:
   frugal -h | --help              Show this help
 
 Common environment:
-  FRUGAL_CONFIG                   Path to models.yaml (default: config/models.yaml)
+  FRUGAL_CONFIG                   Path to models.yaml (default: ./config/models.yaml,
+                                  then ~/.frugal/config/models.yaml, then built-in defaults)
   FRUGAL_LOG_LEVEL                debug | info | warn | error
   FRUGAL_LOG_FORMAT               text | json
   SERPER_API_KEY                  Cheap-paid web search (Serper)

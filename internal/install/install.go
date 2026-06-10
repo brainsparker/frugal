@@ -4,9 +4,10 @@
 // Two install patterns live here:
 //
 //   - File-based clients (Claude Desktop, Cursor) keep `mcpServers` in a
-//     JSON config file. We idempotently merge `mcpServers.frugal = {command,
-//     args}` into the existing file (or create it), preserving every other
-//     key the user has set.
+//     JSON config file. We idempotently merge `mcpServers.frugal =
+//     {command, args, env}` into the existing file (or create it),
+//     preserving every other key the user has set — including env values
+//     a previous install baked that this run doesn't supply.
 //
 //   - CLI-managed clients (Claude Code) own their own config and expect
 //     `claude mcp add` to mutate it. We shell out to the claude CLI when
@@ -28,6 +29,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
+	"strings"
 )
 
 // ServerName is the key Frugal registers under in every client's
@@ -122,11 +125,17 @@ func DetectClients() []Client {
 }
 
 // PlanFor returns the human-readable change description that Apply would
-// effect for client c, given the path to the frugal binary. Used by
-// `frugal mcp install --print` to preview without writing.
-func PlanFor(c Client, binPath string) string {
+// effect for client c, given the path to the frugal binary and the env
+// vars that will ride along. Used by `frugal mcp install --print` to
+// preview without writing. Env var NAMES appear in the plan; values are
+// secrets and never get printed.
+func PlanFor(c Client, binPath string, env map[string]string) string {
 	switch c.Kind {
 	case KindJSONFile:
+		if len(env) > 0 {
+			return fmt.Sprintf("merge `mcpServers.%s = {command: %q, args: [mcp serve], env: {%s}}` into %s (env values copied from this shell)",
+				ServerName, binPath, strings.Join(sortedKeys(env), ", "), c.ConfigPath)
+		}
 		return fmt.Sprintf("merge `mcpServers.%s = {command: %q, args: [mcp serve]}` into %s",
 			ServerName, binPath, c.ConfigPath)
 	case KindCLI:
@@ -136,15 +145,20 @@ func PlanFor(c Client, binPath string) string {
 }
 
 // Apply writes (or schedules) the install for one client. For JSON-file
-// clients the config is read, merged, and written atomically. For CLI
-// clients (Claude Code) Apply shells out to `claude mcp` to register
-// Frugal idempotently; if the exec fails it returns the equivalent
-// command string so the caller can print it as a fallback. A non-empty
+// clients the config is read, merged, and written atomically — including
+// env, because Claude Desktop and Cursor spawn the server without a
+// login shell, so the user's rc-file exports never reach it. CLI clients
+// (Claude Code) deliberately get NO baked env: the claude CLI runs from
+// a shell and its MCP children inherit that environment live, so baking
+// values would only let them go stale after a key rotation. For CLI
+// clients Apply shells out to `claude mcp` to register Frugal
+// idempotently; if the exec fails it returns the equivalent command
+// string so the caller can print it as a fallback. A non-empty
 // suggestion always means "exec didn't run — show this to the user."
-func Apply(c Client, binPath string) (suggestion string, err error) {
-	entry := ServerEntry{Command: binPath, Args: []string{"mcp", "serve"}}
+func Apply(c Client, binPath string, env map[string]string) (suggestion string, err error) {
 	switch c.Kind {
 	case KindJSONFile:
+		entry := ServerEntry{Command: binPath, Args: []string{"mcp", "serve"}, Env: env}
 		return "", mergeJSONConfig(c.ConfigPath, ServerName, entry)
 	case KindCLI:
 		if err := claudeMCPAdder(binPath); err != nil {
@@ -153,6 +167,17 @@ func Apply(c Client, binPath string) (suggestion string, err error) {
 		return "", nil
 	}
 	return "", fmt.Errorf("unknown client kind: %s", c.Kind)
+}
+
+// sortedKeys returns env's keys in stable order so plans and JSON output
+// don't shuffle between runs.
+func sortedKeys(env map[string]string) []string {
+	keys := make([]string, 0, len(env))
+	for k := range env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // claudeMCPAdder is swappable so tests can avoid shelling out. Default
@@ -246,9 +271,34 @@ func mergeJSONConfig(path, name string, entry ServerEntry) error {
 	if servers == nil {
 		servers = map[string]any{}
 	}
+	entry.Env = mergeEnv(servers[name], entry.Env)
 	servers[name] = entryToMap(entry)
 	root["mcpServers"] = servers
 	return writeJSONFile(path, root)
+}
+
+// mergeEnv folds the prior entry's env block into the new one. A re-run
+// of `frugal mcp install` from a fresh shell (no exports) must not
+// silently strip the keys a previous shell baked in — the post-install
+// text tells users to re-run after rotating a key, so this path is hot.
+// New values win on conflicts; removing a baked key entirely is a
+// hand-edit of the client config by design.
+func mergeEnv(prevEntry any, env map[string]string) map[string]string {
+	prev, _ := prevEntry.(map[string]any)
+	prevEnv, _ := prev["env"].(map[string]any)
+	if len(prevEnv) == 0 {
+		return env
+	}
+	merged := make(map[string]string, len(prevEnv)+len(env))
+	for k, v := range prevEnv {
+		if s, ok := v.(string); ok {
+			merged[k] = s
+		}
+	}
+	for k, v := range env {
+		merged[k] = v
+	}
+	return merged
 }
 
 func entryToMap(e ServerEntry) map[string]any {
