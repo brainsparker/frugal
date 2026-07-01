@@ -1,4 +1,4 @@
-package marginalia
+package wikipedia
 
 import (
 	"context"
@@ -15,37 +15,43 @@ import (
 
 func TestSearch_HappyPath(t *testing.T) {
 	var capturedUA string
-	var capturedPath string
+	var capturedQuery string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedUA = r.Header.Get("User-Agent")
-		capturedPath = r.URL.Path
-		// The /public/ segment is the anonymous API-key slot — omitting it
-		// is a live 404 against api.marginalia.nu, so pin the exact prefix.
-		if !strings.HasPrefix(r.URL.Path, "/public/search/") {
-			t.Errorf("path should start with /public/search/, got %s", r.URL.Path)
+		capturedQuery = r.URL.Query().Get("q")
+		if !strings.HasPrefix(r.URL.Path, "/w/rest.php/v1/search/page") {
+			t.Errorf("path should be the REST search endpoint, got %s", r.URL.Path)
 		}
-		if r.URL.Query().Get("count") != "3" {
-			t.Errorf("count: got %q want 3", r.URL.Query().Get("count"))
+		if r.URL.Query().Get("limit") != "3" {
+			t.Errorf("limit: got %q want 3", r.URL.Query().Get("limit"))
 		}
 		_, _ = w.Write([]byte(`{
-		  "results": [
-		    {"title":"Marginalia Search","url":"https://search.marginalia.nu","description":"An indie search engine"},
-		    {"title":"LWN","url":"https://lwn.net","description":"Linux news"}
+		  "pages": [
+		    {"key":"CrewAI","title":"CrewAI","excerpt":"Crew<span class=\"searchmatch\">AI</span> is an open-source <span class=\"searchmatch\">framework</span> &amp; platform","description":"Open-source AI agent framework"},
+		    {"key":"AI_agent","title":"AI agent","excerpt":"","description":"Autonomous artificial intelligence agent"}
 		  ]
 		}`))
 	}))
 	defer srv.Close()
 
 	c := New(srv.URL)
-	res, err := c.Search(context.Background(), search.Query{Text: "linux kernel news", MaxResults: 3})
+	res, err := c.Search(context.Background(), search.Query{Text: "AI agent framework", MaxResults: 3})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
 	if len(res.Items) != 2 {
 		t.Fatalf("expected 2 items, got %d", len(res.Items))
 	}
-	if res.Items[0].Title != "Marginalia Search" || res.Items[0].Snippet != "An indie search engine" {
-		t.Errorf("item[0] = %+v", res.Items[0])
+	// Highlight spans stripped, entities unescaped.
+	if res.Items[0].Snippet != "CrewAI is an open-source framework & platform" {
+		t.Errorf("snippet not cleaned: %q", res.Items[0].Snippet)
+	}
+	// Empty excerpt falls back to the short description.
+	if res.Items[1].Snippet != "Autonomous artificial intelligence agent" {
+		t.Errorf("empty excerpt should use description; got %q", res.Items[1].Snippet)
+	}
+	if res.Items[0].URL != srv.URL+"/wiki/CrewAI" {
+		t.Errorf("URL: got %q", res.Items[0].URL)
 	}
 	if res.CostUSD != 0 {
 		t.Errorf("CostUSD must be 0; got %v", res.CostUSD)
@@ -54,10 +60,23 @@ func TestSearch_HappyPath(t *testing.T) {
 	if !strings.Contains(capturedUA, "frugal") {
 		t.Errorf("User-Agent should identify as frugal; got %q", capturedUA)
 	}
-	// Query lands in the path (httptest decodes %20 → space when reading
-	// r.URL.Path; we just check the decoded form contains the query).
-	if !strings.Contains(capturedPath, "linux kernel news") {
-		t.Errorf("path should contain the query; got %s", capturedPath)
+	if capturedQuery != "AI agent framework" {
+		t.Errorf("q param: got %q", capturedQuery)
+	}
+}
+
+func TestSearch_SubpageKeyKeepsSlash(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"pages":[{"key":"Foo/Bar","title":"Foo/Bar","excerpt":"x","description":""}]}`))
+	}))
+	defer srv.Close()
+	c := New(srv.URL)
+	res, err := c.Search(context.Background(), search.Query{Text: "foo"})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if res.Items[0].URL != srv.URL+"/wiki/Foo/Bar" {
+		t.Errorf("subpage slash must survive escaping; got %q", res.Items[0].URL)
 	}
 }
 
@@ -69,7 +88,7 @@ func TestSearch_5xxRetried(t *testing.T) {
 			w.WriteHeader(http.StatusBadGateway)
 			return
 		}
-		_, _ = w.Write([]byte(`{"results":[{"title":"OK","url":"https://x","description":"hit"}]}`))
+		_, _ = w.Write([]byte(`{"pages":[{"key":"OK","title":"OK","excerpt":"hit","description":""}]}`))
 	}))
 	defer srv.Close()
 
@@ -123,18 +142,18 @@ func TestSearch_EmptyQueryIsPermanent(t *testing.T) {
 		t.Errorf("empty-query error should be permanent; got %v", err)
 	}
 	var typed *routing.Error
-	if !errors.As(err, &typed) || typed.Provider != "marginalia" {
-		t.Errorf("expected *routing.Error from marginalia; got %v", err)
+	if !errors.As(err, &typed) || typed.Provider != "wikipedia" {
+		t.Errorf("expected *routing.Error from wikipedia; got %v", err)
 	}
 }
 
 func TestSearch_FreshnessServedBestEffortWithWarning(t *testing.T) {
-	// No time-window parameter upstream, so the query still runs — a hard
-	// decline would break zero-key installs where this driver and
-	// wikipedia are the whole chain — and the dropped window is disclosed
-	// via Results.Warnings for the agent to act on.
+	// The REST endpoint has no time-window parameter, so the query still
+	// runs — a hard decline would break zero-key installs where this
+	// driver and marginalia are the whole chain — and the dropped window
+	// is disclosed via Results.Warnings for the agent to act on.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"results":[{"title":"Go 1.26","url":"https://x","description":"release notes"}]}`))
+		_, _ = w.Write([]byte(`{"pages":[{"key":"Go","title":"Go","excerpt":"language","description":""}]}`))
 	}))
 	defer srv.Close()
 
@@ -162,8 +181,8 @@ func TestSearch_FreshnessServedBestEffortWithWarning(t *testing.T) {
 
 func TestNameAndCost(t *testing.T) {
 	c := New("")
-	if c.Name() != "marginalia" {
-		t.Errorf("Name: got %q want marginalia", c.Name())
+	if c.Name() != "wikipedia" {
+		t.Errorf("Name: got %q want wikipedia", c.Name())
 	}
 	if c.CostPerCall() != 0 {
 		t.Errorf("CostPerCall must be 0; got %v", c.CostPerCall())
@@ -178,8 +197,8 @@ func TestNew_DefaultsBaseURL(t *testing.T) {
 }
 
 func TestNew_TrimsTrailingSlash(t *testing.T) {
-	c := New("https://api.marginalia.nu/")
-	if c.baseURL != "https://api.marginalia.nu" {
+	c := New("https://en.wikipedia.org/")
+	if c.baseURL != "https://en.wikipedia.org" {
 		t.Errorf("baseURL: got %q, want trimmed", c.baseURL)
 	}
 }

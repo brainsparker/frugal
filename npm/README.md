@@ -8,7 +8,7 @@ npx frugal-mcp mcp install
 
 That installs Frugal as an MCP server in any agent client present on this machine — Claude Desktop, Cursor, or Claude Code — and wires it idempotently.
 
-This npm package is a thin Node wrapper. On first run it downloads the matching signed Go binary from the [GitHub release](https://github.com/brainsparker/frugal/releases) (darwin/linux, arm64/amd64) and caches it under `~/.cache/frugal-mcp/<version>/`. Subsequent invocations exec the cached binary directly.
+This npm package is a thin Node wrapper. On first run it downloads the matching Go binary from the [GitHub release](https://github.com/brainsparker/frugal/releases) (darwin/linux, arm64/amd64), verifies its sha256 against the `SHA256SUMS` file fetched over TLS from the same release, and caches it under `~/.cache/frugal-mcp/<version>/`. Subsequent invocations exec the cached binary directly. Release artifacts are also cosign-signed, but this wrapper does not verify signatures — use the [curl installer](https://github.com/brainsparker/frugal#install) if you want that.
 
 ## What ships
 

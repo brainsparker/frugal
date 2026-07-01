@@ -184,18 +184,57 @@ func sortedKeys(env map[string]string) []string {
 // implementation invokes the real claude CLI; tests reassign it.
 var claudeMCPAdder = runClaudeMCPAdd
 
+// runClaudeCommand is the exec seam under runClaudeMCPAdd, swappable so
+// tests can simulate specific claude CLI versions (e.g. one that rejects
+// --scope) without a real binary on PATH.
+var runClaudeCommand = func(args ...string) ([]byte, error) {
+	return exec.Command("claude", args...).CombinedOutput()
+}
+
 // runClaudeMCPAdd registers Frugal with Claude Code via the claude CLI.
 // Removes any prior `frugal` entry first so re-running install is
 // idempotent (the `add` itself would otherwise error on a duplicate).
 // claude's output is suppressed — the installer prints its own status.
 func runClaudeMCPAdd(binPath string) error {
-	// Best-effort remove; missing-entry is not an error we care about.
-	_ = exec.Command("claude", "mcp", "remove", ServerName).Run()
-	cmd := exec.Command("claude", "mcp", "add", ServerName, "--", binPath, "mcp", "serve")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("claude mcp add: %w (%s)", err, bytes.TrimSpace(out))
+	// Best-effort removes; missing-entry is not an error we care about. The
+	// unscoped variant clears local-scoped entries left by installer
+	// versions that predate --scope user.
+	_, _ = runClaudeCommand("mcp", "remove", ServerName)
+	_, _ = runClaudeCommand("mcp", "remove", "--scope", "user", ServerName)
+	out, err := runClaudeCommand("mcp", "add", "--scope", "user", ServerName, "--", binPath, "mcp", "serve")
+	if err == nil {
+		return nil
 	}
-	return nil
+	// Older claude CLIs predate --scope and reject the flag outright —
+	// only THAT failure gets the unscoped retry. Any other failure (config
+	// write conflict, permissions) must surface: retrying it unscoped can
+	// "succeed" at the CLI's default local scope, silently pinning the
+	// registration to whatever directory the installer ran from.
+	if !looksLikeUnknownFlag(string(out) + " " + err.Error()) {
+		return fmt.Errorf("claude mcp add --scope user: %w (%s)", err, bytes.TrimSpace(out))
+	}
+	legacyOut, legacyErr := runClaudeCommand("mcp", "add", ServerName, "--", binPath, "mcp", "serve")
+	if legacyErr == nil {
+		return nil
+	}
+	return fmt.Errorf("claude mcp add: %w (%s); legacy retry without --scope: %v (%s)",
+		err, bytes.TrimSpace(out), legacyErr, bytes.TrimSpace(legacyOut))
+}
+
+// looksLikeUnknownFlag reports whether CLI output/error text reads as a
+// flag-parse rejection of --scope (legacy claude CLI) rather than a real
+// failure like a config write conflict.
+func looksLikeUnknownFlag(s string) bool {
+	s = strings.ToLower(s)
+	if !strings.Contains(s, "scope") && !strings.Contains(s, "flag") && !strings.Contains(s, "option") {
+		return false
+	}
+	for _, marker := range []string{"unknown", "unrecognized", "unexpected", "invalid", "no such"} {
+		if strings.Contains(s, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // FrugalBinary resolves the absolute path of the running frugal binary,
@@ -249,9 +288,11 @@ func cursorConfigPath() string {
 // should run to register Frugal with Claude Code. We print this rather
 // than shelling out because the `claude` CLI's flag surface varies
 // across versions and we'd rather hand the user a correct command than
-// fail at exec.
+// fail at exec. --scope user because the claude CLI defaults to local
+// scope, which would pin the registration to whatever cwd the installer
+// happened to run from.
 func claudeCodeAddCommand(binPath string) string {
-	return fmt.Sprintf("claude mcp add %s -- %s mcp serve", ServerName, binPath)
+	return fmt.Sprintf("claude mcp add --scope user %s -- %s mcp serve", ServerName, binPath)
 }
 
 // mergeJSONConfig reads path (creating empty `{}` if missing), sets

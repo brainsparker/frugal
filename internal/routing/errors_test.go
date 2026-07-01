@@ -72,6 +72,27 @@ func TestIsTransientWithWrappedError(t *testing.T) {
 	}
 }
 
+func TestIsTransientKinds(t *testing.T) {
+	cases := []struct {
+		kind Kind
+		want bool
+	}{
+		{KindUnknown, true}, // documented contract: unknown treated as transient
+		{KindTransient, true},
+		{KindPermanent, false},
+		{KindFatal, false},
+	}
+	for _, c := range cases {
+		err := &Error{Provider: "youcom", Kind: c.kind, Err: errors.New("x")}
+		if got := IsTransient(err); got != c.want {
+			t.Errorf("IsTransient(kind=%v) = %v, want %v", c.kind, got, c.want)
+		}
+		if got := IsPermanent(err); got == c.want {
+			t.Errorf("IsPermanent(kind=%v) = %v, want %v", c.kind, got, !c.want)
+		}
+	}
+}
+
 func TestErrorFormatting(t *testing.T) {
 	e := Transient("youcom", 503, errors.New("upstream blip"))
 	want := "youcom: transient: status 503: upstream blip"

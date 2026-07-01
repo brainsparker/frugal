@@ -72,8 +72,8 @@ func RegisterBrowse(server *sdkmcp.Server, browsers []browse.Browser, metrics *o
 func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics) func(context.Context, *sdkmcp.CallToolRequest, BrowseInput) (*sdkmcp.CallToolResult, BrowseOutput, error) {
 	hook := browse.AttemptHook(nil)
 	if metrics != nil {
-		hook = func(provider string, latency time.Duration, costUSD float64, err error) {
-			metrics.RecordCall(provider, latency, costUSD, err)
+		hook = func(provider string, latency time.Duration, costUSD float64, won bool, err error) {
+			metrics.RecordCall(provider, latency, costUSD, won, err)
 		}
 	}
 

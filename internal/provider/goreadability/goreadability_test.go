@@ -77,6 +77,80 @@ func TestExtract_EmptyContentIsPermanent(t *testing.T) {
 	}
 }
 
+func TestExtract_NonHTMLContentTypeIsPermanent(t *testing.T) {
+	// A 200 PDF/binary body would parse into non-empty garbage text and
+	// "win" the chain. Permanent (not fatal) so the router falls through
+	// to a rendering provider that can handle the format.
+	for _, ct := range []string{"application/pdf", "image/png", "application/json; charset=utf-8"} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", ct)
+			_, _ = w.Write([]byte("%PDF-1.7 binary-ish payload"))
+		}))
+		c := New()
+		_, err := c.Extract(context.Background(), extract.Query{URL: srv.URL})
+		srv.Close()
+		if err == nil {
+			t.Fatalf("expected error for Content-Type %q", ct)
+		}
+		if !routing.IsPermanent(err) {
+			t.Errorf("Content-Type %q must classify as permanent; got %v", ct, err)
+		}
+		if routing.IsFatal(err) {
+			t.Errorf("Content-Type %q must NOT be fatal (a rendering provider may handle it); got %v", ct, err)
+		}
+	}
+}
+
+func TestExtract_MissingContentTypeStillParses(t *testing.T) {
+	// No Content-Type header at all: don't reject — let the parse step
+	// judge. (httptest sniffs a type unless we set one explicitly, so
+	// blank it via the header map before WriteHeader.)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header()["Content-Type"] = nil
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(articleHTML))
+	}))
+	defer srv.Close()
+
+	c := New()
+	res, err := c.Extract(context.Background(), extract.Query{URL: srv.URL})
+	if err != nil {
+		t.Fatalf("Extract without Content-Type: %v", err)
+	}
+	if res.Title != "Test Article" {
+		t.Errorf("Title: got %q want %q", res.Title, "Test Article")
+	}
+}
+
+func TestExtract_RelativeLinksResolveAgainstRedirectTarget(t *testing.T) {
+	// A relative href in the article must resolve against the FINAL URL
+	// after a redirect, not the URL the caller passed in.
+	final := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		page := strings.Replace(articleHTML,
+			"<p>This is the second paragraph.",
+			`<p><a href="/relative/page">relative link</a> This is the second paragraph.`, 1)
+		_, _ = w.Write([]byte(page))
+	}))
+	defer final.Close()
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, final.URL+"/article", http.StatusMovedPermanently)
+	}))
+	defer origin.Close()
+
+	c := New()
+	res, err := c.Extract(context.Background(), extract.Query{URL: origin.URL})
+	if err != nil {
+		t.Fatalf("Extract through redirect: %v", err)
+	}
+	if !strings.Contains(res.HTML, final.URL+"/relative/page") {
+		t.Errorf("relative link should resolve against redirect target %s; HTML:\n%s", final.URL, res.HTML)
+	}
+	if strings.Contains(res.HTML, origin.URL+"/relative/page") {
+		t.Errorf("relative link resolved against pre-redirect host %s", origin.URL)
+	}
+}
+
 func TestExtract_5xxRetried(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

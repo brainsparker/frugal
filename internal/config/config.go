@@ -9,8 +9,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -41,6 +43,19 @@ type SearchProviderConfig struct {
 	BaseURL     string  `yaml:"base_url,omitempty"`
 	BaseURLEnv  string  `yaml:"base_url_env,omitempty"`
 	CostPerCall float64 `yaml:"cost_per_call"`
+	// Enabled, when explicitly false, keeps the entry out of tool
+	// registration. LoadAuto/LoadTrusted overlay providers missing from an
+	// operator's file with the shipped defaults, so deleting an entry no
+	// longer removes it on the next start — `enabled: false` is the
+	// durable way to record "I don't want this provider". Absent (nil) or
+	// true means registered as usual.
+	Enabled *bool `yaml:"enabled,omitempty"`
+}
+
+// Disabled reports whether the operator explicitly opted this provider
+// out with `enabled: false`.
+func (sp SearchProviderConfig) Disabled() bool {
+	return sp.Enabled != nil && !*sp.Enabled
 }
 
 // Load reads the config from the given path. Environment resolution
@@ -67,6 +82,11 @@ func Load(path string) (*Config, error) {
 //
 // A file that exists but fails to parse is an error at every step; a
 // silent fall-through would mask the operator's typo with defaults.
+//
+// Whatever source wins, provider entries it doesn't name are filled in
+// from the embedded default (see overlayDefaults) — installs keep their
+// config file across upgrades, and this is how a newly shipped provider
+// reaches them. `enabled: false` on an entry is the opt-out.
 // Returns the config and a human-readable source description for logs.
 func LoadAuto() (*Config, string, error) {
 	return loadResolved(true)
@@ -83,6 +103,22 @@ func LoadTrusted() (*Config, string, error) {
 }
 
 func loadResolved(trustCwd bool) (*Config, string, error) {
+	cfg, src, err := resolveSource(trustCwd)
+	if err != nil {
+		return cfg, src, err
+	}
+	for _, name := range overlayDefaults(cfg) {
+		// Upgraders keep their ~/.frugal config file, so a provider added
+		// to the shipped models.yaml after they installed shows up only
+		// via this overlay. Say so, and how to opt out.
+		slog.Info("config: provider defaulted in from shipped models.yaml",
+			"provider", name, "source", src,
+			"hint", "add the entry with 'enabled: false' to your config to suppress it")
+	}
+	return cfg, src, nil
+}
+
+func resolveSource(trustCwd bool) (*Config, string, error) {
 	if envPath := strings.TrimSpace(os.Getenv("FRUGAL_CONFIG")); envPath != "" {
 		cfg, err := Load(envPath)
 		return cfg, "$FRUGAL_CONFIG (" + envPath + ")", err
@@ -102,6 +138,51 @@ func loadResolved(trustCwd bool) (*Config, string, error) {
 	}
 	cfg, err := Parse(defaults.DefaultModelsYAML)
 	return cfg, "embedded default", err
+}
+
+// overlayDefaults fills provider entries missing from cfg with entries
+// from the embedded default models.yaml, so upgrades that add a provider
+// to the shipped config reach installs whose config file predates it —
+// but ONLY free, keyless, secret-free providers (no api_key_env, no
+// base_url_env in the default entry: wikipedia, marginalia,
+// goreadability). Keyed providers stay strictly opt-in: silently adding
+// a youcom entry would make `frugal mcp install` harvest YDC_API_KEY
+// from the shell into GUI client configs the operator's file never
+// authorized, and an omitted paid provider is far more likely deliberate
+// than stale. Entry-level only: a provider the operator's file names —
+// customized, or tombstoned with `enabled: false` — is left exactly as
+// written. Returns the scope-qualified names it added, sorted, for the
+// caller to log. On the embedded-default path the overlay is a no-op by
+// construction (nothing is missing from itself).
+func overlayDefaults(cfg *Config) []string {
+	def, err := Parse(defaults.DefaultModelsYAML)
+	if err != nil {
+		// The embedded default is compiled in and covered by tests; if it
+		// doesn't parse that's a build bug, not the operator's problem.
+		// Leave their config untouched rather than failing the load.
+		return nil
+	}
+	var added []string
+	fill := func(scope string, dst *map[string]SearchProviderConfig, src map[string]SearchProviderConfig) {
+		for name, sp := range src {
+			if sp.APIKeyEnv != "" || sp.BaseURLEnv != "" {
+				continue // keyed or operator-instance provider: never defaulted in
+			}
+			if _, ok := (*dst)[name]; ok {
+				continue
+			}
+			if *dst == nil {
+				*dst = make(map[string]SearchProviderConfig, len(src))
+			}
+			(*dst)[name] = sp
+			added = append(added, scope+"."+name)
+		}
+	}
+	fill("search_providers", &cfg.SearchProviders, def.SearchProviders)
+	fill("extract_providers", &cfg.ExtractProviders, def.ExtractProviders)
+	fill("browse_providers", &cfg.BrowseProviders, def.BrowseProviders)
+	sort.Strings(added)
+	return added
 }
 
 // Parse decodes and validates one models.yaml document.
@@ -146,22 +227,29 @@ func validate(cfg *Config) error {
 // validateProviders enforces the shared validity rules across any
 // capability-keyed provider map. Each entry must have a non-negative
 // cost and at least one of api_key_env (hosted) / base_url /
-// base_url_env (self-hosted). The goreadability extractor is the
-// special case: no API key, no base URL — it's a pure-in-process
-// driver. Allow it explicitly so the YAML can list it for visibility
-// without tripping validation.
+// base_url_env (self-hosted). Two exceptions: an entry disabled with
+// `enabled: false` is a pure tombstone — it exists to block the default
+// overlay, never dispatches, and so needs no endpoint — and the
+// goreadability extractor, which has no API key and no base URL because
+// it's a pure-in-process driver. Allow both explicitly so the YAML can
+// list them without tripping validation.
 func validateProviders(scope string, providers map[string]SearchProviderConfig) error {
 	for name, sp := range providers {
 		if sp.CostPerCall < 0 {
 			return fmt.Errorf("%s.%s.cost_per_call must be non-negative", scope, name)
 		}
+		if sp.Disabled() {
+			continue
+		}
 		if sp.APIKeyEnv != "" || sp.BaseURL != "" || sp.BaseURLEnv != "" {
 			continue
 		}
-		// Pure-in-process drivers that don't talk to a network endpoint
-		// don't need either field. Whitelist them.
+		// Drivers that need no endpoint config: goreadability is pure
+		// in-process, and marginalia / wikipedia default their public base
+		// URL in code — so a bare entry (e.g. a tombstone flipped back to
+		// `enabled: true`) is valid for them. Whitelist explicitly.
 		switch name {
-		case "goreadability":
+		case "goreadability", "marginalia", "wikipedia":
 			continue
 		}
 		return fmt.Errorf("%s.%s: set api_key_env (hosted) or base_url / base_url_env (self-hosted)", scope, name)

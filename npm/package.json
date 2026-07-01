@@ -1,7 +1,7 @@
 {
   "name": "frugal-mcp",
   "version": "0.0.0",
-  "description": "Cost-optimized MCP server and proxy router for Claude, Cursor, and any agent. Picks the cheapest model + toolchain per use case.",
+  "description": "Cost-optimized MCP server: routes agent tool calls (search, extract, browse) to the cheapest provider that returns a result. Free-first, BYOK.",
   "keywords": [
     "mcp",
     "mcp-server",

@@ -156,10 +156,11 @@ func ClassifyNetwork(err error) Kind {
 // IsTransient reports whether err (which may wrap an *Error) is in the
 // transient class. Non-*Error errors are treated as transient — safer
 // default for "we didn't classify, try the next provider anyway."
+// KindUnknown counts as transient for the same reason (see its doc).
 func IsTransient(err error) bool {
 	var e *Error
 	if errors.As(err, &e) {
-		return e.Kind == KindTransient
+		return e.Kind == KindTransient || e.Kind == KindUnknown
 	}
 	return err != nil
 }

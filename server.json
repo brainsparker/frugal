@@ -13,6 +13,17 @@
       "registryType": "npm",
       "identifier": "frugal-mcp",
       "version": "0.0.0",
+      "runtimeHint": "npx",
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        },
+        {
+          "type": "positional",
+          "value": "serve"
+        }
+      ],
       "transport": {
         "type": "stdio"
       }

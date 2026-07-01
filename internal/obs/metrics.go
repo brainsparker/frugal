@@ -17,6 +17,7 @@ package obs
 import (
 	"fmt"
 	"io"
+	"math"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -28,6 +29,7 @@ import (
 type Metrics struct {
 	mu        sync.RWMutex
 	providers map[string]*ProviderStats
+	sink      func(tool, provider string, latency time.Duration, costUSD float64, won bool, err error)
 }
 
 // ProviderStats holds the running totals for one provider. Fields are
@@ -81,12 +83,26 @@ func (m *Metrics) EnsureProvider(name, tool string) {
 	m.mu.Unlock()
 }
 
+// SetSink registers a per-call listener invoked after every RecordCall
+// with the provider's capability label attached. One sink per process,
+// set once at startup before serving begins — the usage ledger is the
+// intended consumer. The sink runs synchronously on the request path;
+// keep it cheap and never let it panic.
+func (m *Metrics) SetSink(fn func(tool, provider string, latency time.Duration, costUSD float64, won bool, err error)) {
+	m.mu.Lock()
+	m.sink = fn
+	m.mu.Unlock()
+}
+
 // RecordCall increments the per-provider counters. costUSD is the amount
-// charged for this call (0 for free providers). err non-nil increments
-// Errors; latency is still recorded so error-path latency stays visible.
-func (m *Metrics) RecordCall(provider string, latency time.Duration, costUSD float64, err error) {
+// charged for this call (0 for free providers). won marks the attempt
+// that produced the result the caller returned (passed through to the
+// sink; the counters don't use it). err non-nil increments Errors;
+// latency is still recorded so error-path latency stays visible.
+func (m *Metrics) RecordCall(provider string, latency time.Duration, costUSD float64, won bool, err error) {
 	m.mu.RLock()
 	ps, ok := m.providers[provider]
+	sink := m.sink
 	m.mu.RUnlock()
 	if !ok {
 		// First time we've seen this provider; lazy-create. Cheaper than
@@ -105,9 +121,16 @@ func (m *Metrics) RecordCall(provider string, latency time.Duration, costUSD flo
 	}
 	ps.LatencySum.Add(latency.Milliseconds())
 	if costUSD > 0 {
-		ps.CostMicro.Add(int64(costUSD * 1e6))
+		// Round, don't truncate: 0.005*1e6 is 4999.999… in float64, and
+		// truncation would undercount every such call by a micro-USD.
+		ps.CostMicro.Add(int64(math.Round(costUSD * 1e6)))
 	}
 	ps.bumpMonthly(time.Now().UTC())
+	if sink != nil {
+		// ps.Tool is written once at EnsureProvider (startup) and stable
+		// by the time calls flow; lazy-created providers report "".
+		sink(ps.Tool, provider, latency, costUSD, won, err)
+	}
 }
 
 // bumpMonthly increments MonthlyCalls and rolls the epoch when the

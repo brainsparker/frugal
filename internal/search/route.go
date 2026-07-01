@@ -47,6 +47,18 @@ func OrderByCost(searchers []Searcher) []Searcher {
 // request itself can't succeed anywhere, so the rest of the chain would
 // only rediscover that for money.
 //
+// A zero-hit success from a FREE provider falls through: an empty result
+// set isn't "a result" in the sense the promise means, and free-tier
+// index coverage differs wildly between providers (Marginalia's
+// indie-web index whiffs on mainstream queries Serper nails). A zero-hit
+// success from a PAID provider (CostPerCall() > 0) instead stops the
+// chain and is returned as-is — a major-index paid provider returning
+// nothing is strong evidence the query truly has no hits, and spending
+// 5x more to confirm emptiness again would contradict the product
+// promise. If the whole chain comes up empty, the first zero-hit success
+// is returned as-is — empty-but-succeeded beats surfacing a later
+// provider's error for a query that simply has no hits.
+//
 // Returns the searcher that produced the result, its Results, and nil
 // error on success. When every provider fails, the returned error
 // classifies as the last attempt but its message names every failed
@@ -66,14 +78,45 @@ func CallWithFallback(ctx context.Context, searchers []Searcher, q Query, logger
 	}
 	ordered := OrderByCost(searchers)
 	var errs []error
+	var emptyOK Searcher // first provider that succeeded with zero hits
+	var emptyRes Results
 	for i, s := range ordered {
 		start := time.Now()
 		res, err := s.Search(ctx, q)
 		latency := time.Since(start)
 		if hook != nil {
-			hook(s.Name(), latency, res.CostUSD, err)
+			// won: a non-empty success is the result the caller gets. A
+			// zero-hit success that ends up returned — whether a paid
+			// provider stopped the chain or the whole chain came up
+			// empty — stays won=false: a query with no hits earned no
+			// savings.
+			hook(s.Name(), latency, res.CostUSD, err == nil && len(res.Items) > 0, err)
 		}
 		if err == nil {
+			if len(res.Items) == 0 {
+				if s.CostPerCall() > 0 {
+					// A paid provider's empty answer is evidence, not a
+					// coverage gap: stop here rather than pay a pricier
+					// provider to rediscover emptiness. The hook already
+					// saw this attempt with won=false — no hits, no
+					// savings credit.
+					logger.Debug("search zero hits from paid provider; accepting empty result",
+						"provider", s.Name(),
+						"cost_usd", res.CostUSD,
+						"latency_ms", latency.Milliseconds(),
+						"attempt", i+1)
+					return s, res, nil
+				}
+				if emptyOK == nil {
+					emptyOK, emptyRes = s, res
+				}
+				logger.Warn("search zero hits; falling back",
+					"provider", s.Name(),
+					"latency_ms", latency.Milliseconds(),
+					"attempt", i+1,
+					"remaining", len(ordered)-i-1)
+				continue
+			}
 			logger.Debug("search ok",
 				"provider", s.Name(),
 				"cost_usd", res.CostUSD,
@@ -88,6 +131,9 @@ func CallWithFallback(ctx context.Context, searchers []Searcher, q Query, logger
 				"provider", s.Name(),
 				"latency_ms", latency.Milliseconds(),
 				"err", err)
+			if emptyOK != nil {
+				return emptyOK, emptyRes, nil
+			}
 			return s, Results{}, err
 		}
 		if ctx.Err() != nil {
@@ -95,6 +141,9 @@ func CallWithFallback(ctx context.Context, searchers []Searcher, q Query, logger
 				"provider", s.Name(),
 				"latency_ms", latency.Milliseconds(),
 				"err", err)
+			if emptyOK != nil {
+				return emptyOK, emptyRes, nil
+			}
 			return s, Results{}, routing.JoinAttempts(errs)
 		}
 		logger.Warn("search error; falling back",
@@ -104,6 +153,11 @@ func CallWithFallback(ctx context.Context, searchers []Searcher, q Query, logger
 			"remaining", len(ordered)-i-1,
 			"latency_ms", latency.Milliseconds(),
 			"err", err)
+	}
+	if emptyOK != nil {
+		logger.Debug("search exhausted chain; returning zero-hit success",
+			"provider", emptyOK.Name())
+		return emptyOK, emptyRes, nil
 	}
 	return ordered[len(ordered)-1], Results{}, routing.JoinAttempts(errs)
 }
@@ -124,7 +178,10 @@ func CallPinned(ctx context.Context, searchers []Searcher, name string, q Query,
 	res, err := s.Search(ctx, q)
 	latency := time.Since(start)
 	if hook != nil {
-		hook(s.Name(), latency, res.CostUSD, err)
+		// Pinned calls have no fallback: whatever came back is the result.
+		// won still requires hits — a zero-hit success earns no savings
+		// credit, same as the fallback path.
+		hook(s.Name(), latency, res.CostUSD, err == nil && len(res.Items) > 0, err)
 	}
 	if err != nil {
 		logger.Warn("search pinned error",

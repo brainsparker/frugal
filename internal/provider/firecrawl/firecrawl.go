@@ -25,7 +25,9 @@ const DefaultBaseURL = "https://api.firecrawl.dev"
 
 // maxResponseBodyBytes caps successful API response reads to avoid
 // unbounded memory growth on malformed or malicious upstream responses.
-const maxResponseBodyBytes int64 = 2 << 20 // 2 MiB
+// Scraped pages routinely run multiple MiB once markdown + HTML are both
+// requested, so the cap is generous — truncating a paid scrape wastes it.
+const maxResponseBodyBytes int64 = 20 << 20 // 20 MiB
 
 // Client implements extract.Extractor against Firecrawl.
 type Client struct {
@@ -64,11 +66,7 @@ func (c *Client) Extract(ctx context.Context, q extract.Query) (extract.Result, 
 	if q.URL == "" {
 		return extract.Result{}, routing.Permanent(c.Name(), 0, fmt.Errorf("empty url"))
 	}
-	formats := q.Formats
-	if len(formats) == 0 {
-		formats = []string{"markdown"}
-	}
-	body, err := json.Marshal(firecrawlRequest{URL: q.URL, Formats: formats})
+	body, err := json.Marshal(firecrawlRequest{URL: q.URL, Formats: firecrawlFormats(q.Formats)})
 	if err != nil {
 		return extract.Result{}, routing.Permanent(c.Name(), 0, fmt.Errorf("marshal request: %w", err))
 	}
@@ -112,9 +110,21 @@ func (c *Client) doOnce(ctx context.Context, body []byte) (extract.Result, error
 		}
 	}
 
+	// Read the full body before decoding so failure modes classify
+	// correctly: a read error is the network dying mid-body (connection
+	// reset, unexpected EOF) — transient, the retry loop gets another
+	// shot. Overflowing the cap or failing to parse a fully-read body is
+	// deterministic — retrying just pays for the same scrape again.
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodyBytes+1))
+	if err != nil {
+		return extract.Result{}, routing.Transient(c.Name(), resp.StatusCode, fmt.Errorf("read response: %w", err))
+	}
+	if int64(len(raw)) > maxResponseBodyBytes {
+		return extract.Result{}, routing.Permanent(c.Name(), resp.StatusCode, fmt.Errorf("response exceeds %d MiB cap", maxResponseBodyBytes>>20))
+	}
 	var parsed firecrawlResponse
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBodyBytes)).Decode(&parsed); err != nil {
-		return extract.Result{}, routing.Transient(c.Name(), resp.StatusCode, fmt.Errorf("decode response: %w", err))
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return extract.Result{}, routing.Permanent(c.Name(), resp.StatusCode, fmt.Errorf("decode response: %w", err))
 	}
 
 	return extract.Result{
@@ -126,6 +136,28 @@ func (c *Client) doOnce(ctx context.Context, body []byte) (extract.Result, error
 		Links:    parsed.Data.Links,
 		CostUSD:  c.costPerCall,
 	}, nil
+}
+
+// firecrawlFormats translates Frugal format names into Firecrawl's
+// formats enum. Firecrawl has no "text" format — requesting it 400s the
+// whole scrape — so "text" maps to "markdown" and Result.Text is filled
+// from the markdown body instead. Empty input defaults to markdown.
+func firecrawlFormats(formats []string) []string {
+	if len(formats) == 0 {
+		return []string{"markdown"}
+	}
+	out := make([]string, 0, len(formats))
+	seen := make(map[string]bool, len(formats))
+	for _, f := range formats {
+		if f == "text" {
+			f = "markdown"
+		}
+		if !seen[f] {
+			seen[f] = true
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 type firecrawlRequest struct {

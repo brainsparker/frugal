@@ -23,6 +23,8 @@ func main() {
 		fmt.Println(version())
 	case "mcp":
 		os.Exit(runMCP(os.Args[2:]))
+	case "stats":
+		os.Exit(runStats(os.Args[2:]))
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q. Run 'frugal --help' for usage.\n", os.Args[1])
 		os.Exit(2)
@@ -30,12 +32,13 @@ func main() {
 }
 
 func printHelp() {
-	fmt.Println(`frugal — tool calls are the new tokens
+	fmt.Println(`frugal — the same search costs $0 or $0.005
 Cost-arbitrage MCP server. $0-first routing. Any model. BYOK. Source-available.
 
 Usage:
   frugal mcp install [--client]   Install Frugal as an MCP server in agent clients
-  frugal mcp serve [--http :PORT] Run Frugal as an MCP server (stdio default)
+  frugal mcp serve [--http ADDR]  Run Frugal as an MCP server (stdio default)
+  frugal stats [--all] [--json]   Show this month's tool-call savings receipt
   frugal -v | --version           Print the build version
   frugal -h | --help              Show this help
 

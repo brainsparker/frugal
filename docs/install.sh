@@ -98,30 +98,61 @@ http_download() {
 
 # ---- Version resolution ----
 
+resolve_version_via_redirect() {
+    # Quota-free fallback: github.com/<repo>/releases/latest 302s to
+    # .../releases/tag/<tag>. Follow the redirect and read the final URL.
+    local latest_url="https://github.com/${REPO}/releases/latest" final=""
+    if command -v curl >/dev/null 2>&1; then
+        final="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$latest_url")" || return 1
+    elif command -v wget >/dev/null 2>&1; then
+        # wget -S prints the redirect chain to stderr; the last Location wins.
+        final="$(wget --max-redirect=5 -qO /dev/null -S "$latest_url" 2>&1 \
+            | sed -nE 's/^[[:space:]]*Location: *([^[:space:]]+).*/\1/p' | tail -n1)" || return 1
+    else
+        return 1
+    fi
+    case "$final" in
+        */releases/tag/*) printf '%s\n' "${final##*/releases/tag/}" ;;
+        *) return 1 ;;
+    esac
+}
+
 resolve_version() {
     if [ -n "$PINNED_VERSION" ]; then
         echo "$PINNED_VERSION"
         return
     fi
     local api_url="https://api.github.com/repos/${REPO}/releases/latest"
-    local json tag
+    local json="" tag=""
     # Unauthenticated GitHub API requests are rate-limited to 60/hour per IP.
-    # Shared CI runner pools blow that cap easily. Honour GITHUB_TOKEN when
-    # present (bumps the cap to 5000/hour) — silent no-op for end users.
-    if [ -n "${GITHUB_TOKEN:-}" ] && command -v curl >/dev/null 2>&1; then
-        json="$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$api_url")" \
-            || fail "failed to fetch $api_url" "$EXIT_NETWORK"
+    # Shared CI runner pools and NATed offices blow that cap easily. Honour
+    # GITHUB_TOKEN when present (bumps the cap to 5000/hour) — silent no-op
+    # for end users. API failure is non-fatal here: the redirect fallback
+    # below spends no API quota at all.
+    if command -v curl >/dev/null 2>&1; then
+        if [ -n "${GITHUB_TOKEN:-}" ]; then
+            json="$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$api_url" || true)"
+        else
+            json="$(curl -fsSL "$api_url" || true)"
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        json="$(wget -qO- "$api_url" || true)"
     else
-        json="$(http_get "$api_url")"
+        fail "curl or wget is required" "$EXIT_NETWORK"
     fi
-    if command -v jq >/dev/null 2>&1; then
-        tag="$(printf '%s' "$json" | jq -r '.tag_name // empty')"
-    else
-        # Strict anchored regex; fails loudly if the JSON shape shifts so we
-        # never silently install the wrong version.
-        tag="$(printf '%s' "$json" | sed -nE 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -n1)"
+    if [ -n "$json" ]; then
+        if command -v jq >/dev/null 2>&1; then
+            tag="$(printf '%s' "$json" | jq -r '.tag_name // empty')"
+        else
+            # Strict anchored regex; yields empty if the JSON shape shifts so
+            # we never silently install the wrong version.
+            tag="$(printf '%s' "$json" | sed -nE 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -n1)"
+        fi
     fi
-    [ -n "$tag" ] || fail "could not resolve latest version (API response missing tag_name)" "$EXIT_NETWORK"
+    if [ -z "$tag" ]; then
+        tag="$(resolve_version_via_redirect || true)"
+    fi
+    [ -n "$tag" ] || fail "could not resolve latest version (GitHub API and releases/latest redirect both failed)" "$EXIT_NETWORK"
     echo "$tag"
 }
 
@@ -213,6 +244,29 @@ uninstall() {
             ok "cleaned $rc"
         fi
     done
+
+    # Agent-client configs are left untouched on purpose: this script never
+    # edits files owned by other apps on a destructive path. Any frugal entry
+    # `frugal mcp install` wrote there now points at a deleted binary, so
+    # tell the user exactly what was left and how to remove each one.
+    local desktop_cfg cursor_cfg
+    case "$(uname -s)" in
+        Darwin) desktop_cfg="$HOME/Library/Application Support/Claude/claude_desktop_config.json" ;;
+        *)      desktop_cfg="$HOME/.config/Claude/claude_desktop_config.json" ;;
+    esac
+    cursor_cfg="$HOME/.cursor/mcp.json"
+    if [ -f "$desktop_cfg" ] && grep -q '"frugal"' "$desktop_cfg"; then
+        warn "left in place: Claude Desktop still lists frugal (now pointing at a deleted binary)"
+        echo "    remove the \"frugal\" entry under mcpServers in: $desktop_cfg"
+    fi
+    if [ -f "$cursor_cfg" ] && grep -q '"frugal"' "$cursor_cfg"; then
+        warn "left in place: Cursor still lists frugal (now pointing at a deleted binary)"
+        echo "    remove the \"frugal\" entry under mcpServers in: $cursor_cfg"
+    fi
+    if command -v claude >/dev/null 2>&1; then
+        warn "left in place: Claude Code may still list frugal"
+        echo "    claude mcp remove frugal"
+    fi
 
     echo
     echo "frugal.sh uninstalled."
@@ -365,12 +419,16 @@ main() {
         echo
         printf '  \033[2m─── \033[0m\033[1;36mAdd a provider\033[0m\033[2m ──────────────────────────────────────\033[0m\n'
         echo
+        # The "$0"/"$0.001" below are literal dollar prices, not expansions.
+        # shellcheck disable=SC2016
         printf '  \033[1;32m▸\033[0m  SearXNG    \033[2m($0 — self-hosted instance URL, not a key)\033[0m\n'
         printf '        \033[1m$\033[0m export SEARXNG_URL=https://your-searxng-instance/\n'
         echo
+        # shellcheck disable=SC2016
         printf '  \033[1;32m▸\033[0m  Serper     \033[2m($0.001/call list · 2,500 free credits on signup, no card)\033[0m\n'
         printf '        \033[1m$\033[0m export SERPER_API_KEY=...   \033[2m(serper.dev)\033[0m\n'
         echo
+        # shellcheck disable=SC2016
         printf '  \033[1;32m▸\033[0m  You.com    \033[2m($0.005/call list · $100 free credit on signup ~ 20k calls)\033[0m\n'
         printf '        \033[1m$\033[0m export YDC_API_KEY=...      \033[2m(you.com/platform)\033[0m\n'
         echo
@@ -378,13 +436,18 @@ main() {
         printf '     key required — agents can hit api.you.com/mcp?profile=free directly.\n'
         printf '     Useful path if you want a no-signup You.com option outside Frugal.\033[0m\n'
         echo
+        # Absolute path on purpose: the PATH export landed in the rc file,
+        # not in the shell the user is pasting into — bare `frugal` would
+        # not resolve until they open a new shell.
         printf '  Then wire frugal into your agent:\n'
-        printf '        \033[1m$\033[0m frugal mcp install\n'
+        printf '        \033[1m$\033[0m %s mcp install\n' "$BIN_DIR/frugal"
+        printf '        \033[2m(plain "frugal" works once you open a new shell)\033[0m\n'
     else
         printf '  \033[2m─── \033[0m\033[1;36mWire it in\033[0m\033[2m ──────────────────────────────────────\033[0m\n'
         echo
         printf '  \033[1;32m1.\033[0m  \033[1minstall into your agent stack\033[0m  \033[2m(Claude Desktop / Cursor / Claude Code)\033[0m\n'
-        printf '        \033[1m$\033[0m frugal mcp install\n'
+        printf '        \033[1m$\033[0m %s mcp install\n' "$BIN_DIR/frugal"
+        printf '        \033[2m(plain "frugal" works once you open a new shell)\033[0m\n'
         echo
         printf '  \033[1;32m2.\033[0m  \033[1mrestart your agent\033[0m  \033[2m(the frugal__search tool appears in its tool picker)\033[0m\n'
     fi

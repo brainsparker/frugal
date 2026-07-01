@@ -1,6 +1,6 @@
 # Serve the install script at https://frugal.sh/install. The script lives at
 # docs/install.sh so Pages serves it directly; we rewrite /install to
-# /install.sh so `curl -fsSL https://frugal.sh/install | sh` gets the script
+# /install.sh so `curl -fsSL https://frugal.sh/install | bash` gets the script
 # bytes with a 200 (not a 302 that would surface an uglier URL on slow links).
 #
 # An external-URL rewrite can't substitute here — the repo is private, so

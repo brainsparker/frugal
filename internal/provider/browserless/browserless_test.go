@@ -132,6 +132,43 @@ func TestRender_NetworkErrorIsTransient(t *testing.T) {
 	}
 }
 
+func TestRender_ConnectionRefusedDoesNotLeakToken(t *testing.T) {
+	const token = "bl-super-secret-token"
+	c := New(token, "http://127.0.0.1:1", 0.002)
+	c.httpClient.Timeout = 200 * time.Millisecond
+	_, err := c.Render(context.Background(), browse.Query{URL: "https://x"})
+	if err == nil {
+		t.Fatalf("expected connection-refused error")
+	}
+	if strings.Contains(err.Error(), token) {
+		t.Errorf("token leaked into error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "REDACTED") {
+		t.Errorf("expected redaction marker in transport error; got %v", err)
+	}
+	if !routing.IsTransient(err) {
+		t.Errorf("redaction must not change classification; got %v", err)
+	}
+}
+
+func TestRender_UpstreamBodyEchoingTokenIsRedacted(t *testing.T) {
+	const token = "bl-super-secret-token"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		// Some upstream error pages echo the full request URL back.
+		_, _ = w.Write([]byte("bad request for " + r.URL.String()))
+	}))
+	defer srv.Close()
+	c := New(token, srv.URL, 0.002)
+	_, err := c.Render(context.Background(), browse.Query{URL: "https://x"})
+	if err == nil {
+		t.Fatalf("expected error on 400")
+	}
+	if strings.Contains(err.Error(), token) {
+		t.Errorf("token leaked into error: %v", err)
+	}
+}
+
 func TestRender_EmptyURLIsPermanent(t *testing.T) {
 	c := New("k", "http://example.invalid", 0.002)
 	_, err := c.Render(context.Background(), browse.Query{})

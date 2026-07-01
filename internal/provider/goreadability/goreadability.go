@@ -14,8 +14,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"mime"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	readability "github.com/go-shiori/go-readability"
@@ -112,13 +114,28 @@ func (c *Client) doOnce(ctx context.Context, u *url.URL) (extract.Result, error)
 		}
 	}
 
+	// A 200 with a non-HTML body (PDF, image, JSON) would still parse
+	// into non-empty garbage text and "win" the chain. Classify
+	// Permanent so the router falls through to a rendering provider.
+	if ct := resp.Header.Get("Content-Type"); ct != "" && !isHTMLContentType(ct) {
+		return extract.Result{}, routing.Permanent(c.Name(), resp.StatusCode,
+			fmt.Errorf("non-HTML content %q; needs a rendering provider", ct))
+	}
+
 	// go-readability needs a seekable / re-readable buffer.
 	buf := &bytes.Buffer{}
 	if _, err := buf.ReadFrom(resp.Body); err != nil {
 		return extract.Result{}, routing.Transient(c.Name(), resp.StatusCode, fmt.Errorf("read body: %w", err))
 	}
 
-	article, err := readability.FromReader(buf, u)
+	// Base URL for resolving relative links: the FINAL request URL after
+	// redirects, not the one the caller passed — a cross-host redirect
+	// would otherwise resolve links against the wrong host.
+	base := u
+	if resp.Request != nil && resp.Request.URL != nil {
+		base = resp.Request.URL
+	}
+	article, err := readability.FromReader(buf, base)
 	if err != nil {
 		// Parse failure on a 200 page is uncommon — could be the page is
 		// malformed enough that the parser bails. Treat as Permanent so
@@ -145,4 +162,18 @@ func (c *Client) doOnce(ctx context.Context, u *url.URL) (extract.Result, error)
 		// can parse them from HTML if needed.
 		CostUSD: 0,
 	}, nil
+}
+
+// isHTMLContentType reports whether a Content-Type header names something
+// Readability can meaningfully parse: HTML, XHTML, or any text/* type
+// (text/plain still yields the page's text verbatim). Unparseable header
+// values return true — the parse step downstream is the better judge then.
+func isHTMLContentType(ct string) bool {
+	mediaType, _, err := mime.ParseMediaType(ct)
+	if err != nil {
+		return true
+	}
+	return mediaType == "text/html" ||
+		mediaType == "application/xhtml+xml" ||
+		strings.HasPrefix(mediaType, "text/")
 }

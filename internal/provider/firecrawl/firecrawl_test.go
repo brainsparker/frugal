@@ -155,8 +155,10 @@ func TestExtract_EmptyURLIsPermanent(t *testing.T) {
 	}
 }
 
-func TestExtract_ResponseBodyTooLargeIsError(t *testing.T) {
+func TestExtract_ResponseBodyTooLargeIsPermanent(t *testing.T) {
+	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
 		_, _ = w.Write([]byte(`{"data":{"markdown":"` + strings.Repeat("a", int(maxResponseBodyBytes)+1) + `","metadata":{}}}`))
 	}))
 	defer srv.Close()
@@ -164,10 +166,117 @@ func TestExtract_ResponseBodyTooLargeIsError(t *testing.T) {
 	c := New("k", srv.URL, 0.001)
 	_, err := c.Extract(context.Background(), extract.Query{URL: "https://x"})
 	if err == nil {
-		t.Fatalf("expected decode error for oversized response body")
+		t.Fatalf("expected error for oversized response body")
+	}
+	if !routing.IsPermanent(err) {
+		t.Errorf("oversized response should classify as permanent (retry re-pays); got %v", err)
+	}
+	// The cap overflow must be named as such, not misreported as a
+	// decode failure of the truncated prefix.
+	if !strings.Contains(err.Error(), "MiB cap") {
+		t.Errorf("error should name the size cap; got %v", err)
+	}
+	if calls.Load() != 1 {
+		t.Errorf("permanent cap overflow must not retry; got %d attempts", calls.Load())
+	}
+}
+
+func TestExtract_MidBodyDisconnectIsTransient(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		// Declare more bytes than we send: net/http aborts the connection
+		// on return, so the client's body read fails mid-stream — the
+		// network dying, not a malformed body.
+		w.Header().Set("Content-Length", "1000000")
+		_, _ = w.Write([]byte(`{"data":{"markdown":"partial`))
+	}))
+	defer srv.Close()
+
+	c := New("k", srv.URL, 0.001)
+	_, err := c.Extract(context.Background(), extract.Query{URL: "https://x"})
+	if err == nil {
+		t.Fatalf("expected error for mid-body disconnect")
 	}
 	if !routing.IsTransient(err) {
-		t.Errorf("oversized response should classify as transient; got %v", err)
+		t.Errorf("mid-body disconnect must classify as transient; got %v", err)
+	}
+	if calls.Load() < 2 {
+		t.Errorf("transient read failure should be retried in-driver; got %d attempts", calls.Load())
+	}
+}
+
+func TestExtract_MalformedSuccessBodyIsPermanent(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		_, _ = w.Write([]byte(`{"data":{"markdown":"trunc`))
+	}))
+	defer srv.Close()
+
+	c := New("k", srv.URL, 0.001)
+	_, err := c.Extract(context.Background(), extract.Query{URL: "https://x"})
+	if err == nil {
+		t.Fatalf("expected decode error for malformed 200 body")
+	}
+	if !routing.IsPermanent(err) {
+		t.Errorf("malformed 200 body should classify as permanent; got %v", err)
+	}
+	if calls.Load() != 1 {
+		t.Errorf("permanent decode failure must not retry; got %d attempts", calls.Load())
+	}
+}
+
+func TestExtract_TextFormatTranslatedToMarkdown(t *testing.T) {
+	var captured firecrawlRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &captured)
+		_, _ = w.Write([]byte(`{"data":{"markdown":"plain body","metadata":{}}}`))
+	}))
+	defer srv.Close()
+
+	c := New("k", srv.URL, 0.001)
+	res, err := c.Extract(context.Background(), extract.Query{
+		URL:     "https://x",
+		Formats: []string{"text"},
+	})
+	if err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	// Firecrawl's formats enum has no "text" — the driver must request
+	// markdown instead, not forward "text" (a guaranteed paid 400).
+	if len(captured.Formats) != 1 || captured.Formats[0] != "markdown" {
+		t.Errorf("Formats: got %v want [markdown]", captured.Formats)
+	}
+	if res.Text != "plain body" {
+		t.Errorf("Text: got %q want %q", res.Text, "plain body")
+	}
+}
+
+func TestFirecrawlFormats(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{"empty defaults to markdown", nil, []string{"markdown"}},
+		{"text becomes markdown", []string{"text"}, []string{"markdown"}},
+		{"text dedupes against markdown", []string{"markdown", "text"}, []string{"markdown"}},
+		{"passthrough preserved", []string{"text", "html"}, []string{"markdown", "html"}},
+	}
+	for _, tc := range cases {
+		got := firecrawlFormats(tc.in)
+		if len(got) != len(tc.want) {
+			t.Errorf("%s: got %v want %v", tc.name, got, tc.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tc.want[i] {
+				t.Errorf("%s: got %v want %v", tc.name, got, tc.want)
+				break
+			}
+		}
 	}
 }
 

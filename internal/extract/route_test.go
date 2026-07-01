@@ -148,7 +148,7 @@ func TestCallWithFallback_HookFiresPerAttempt(t *testing.T) {
 		hadErr   bool
 	}
 	var got []rec
-	hook := func(provider string, _ time.Duration, _ float64, err error) {
+	hook := func(provider string, _ time.Duration, _ float64, _ bool, err error) {
 		got = append(got, rec{provider, err != nil})
 	}
 	_, _, err := CallWithFallback(context.Background(), []Extractor{paid, free}, Query{URL: "https://x"}, discardLogger(), hook)

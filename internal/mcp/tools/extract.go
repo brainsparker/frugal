@@ -78,8 +78,8 @@ func RegisterExtract(server *sdkmcp.Server, extractors []extract.Extractor, metr
 func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics) func(context.Context, *sdkmcp.CallToolRequest, ExtractInput) (*sdkmcp.CallToolResult, ExtractOutput, error) {
 	hook := extract.AttemptHook(nil)
 	if metrics != nil {
-		hook = func(provider string, latency time.Duration, costUSD float64, err error) {
-			metrics.RecordCall(provider, latency, costUSD, err)
+		hook = func(provider string, latency time.Duration, costUSD float64, won bool, err error) {
+			metrics.RecordCall(provider, latency, costUSD, won, err)
 		}
 	}
 

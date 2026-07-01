@@ -55,7 +55,8 @@ func CallWithFallback(ctx context.Context, extractors []Extractor, q Query, logg
 		res, err := e.Extract(ctx, q)
 		latency := time.Since(start)
 		if hook != nil {
-			hook(e.Name(), latency, res.CostUSD, err)
+			// won: the first success is what the caller gets back.
+			hook(e.Name(), latency, res.CostUSD, err == nil, err)
 		}
 		if err == nil {
 			logger.Debug("extract ok",
@@ -107,7 +108,8 @@ func CallPinned(ctx context.Context, extractors []Extractor, name string, q Quer
 	res, err := e.Extract(ctx, q)
 	latency := time.Since(start)
 	if hook != nil {
-		hook(e.Name(), latency, res.CostUSD, err)
+		// Pinned calls have no fallback: whatever came back is the result.
+		hook(e.Name(), latency, res.CostUSD, err == nil, err)
 	}
 	if err != nil {
 		logger.Warn("extract pinned error",

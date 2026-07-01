@@ -116,7 +116,7 @@ func TestPlanFor_JSONClient_ShowsEnvNamesNotValues(t *testing.T) {
 func TestPlanFor_CLIClient_PrintsClaudeCommand(t *testing.T) {
 	c := Client{ID: "claude-code", Kind: KindCLI}
 	plan := PlanFor(c, "/usr/local/bin/frugal", nil)
-	if !strings.Contains(plan, "claude mcp add frugal") {
+	if !strings.Contains(plan, "claude mcp add --scope user frugal") {
 		t.Errorf("plan should suggest claude mcp add: %s", plan)
 	}
 	if !strings.Contains(plan, "/usr/local/bin/frugal mcp serve") {
@@ -210,8 +210,130 @@ func TestApply_CLIClient_ExecFailureFallsBackToSuggestion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	if !strings.Contains(suggestion, "claude mcp add frugal") {
+	if !strings.Contains(suggestion, "claude mcp add --scope user frugal") {
 		t.Errorf("exec failed; expected fallback suggestion, got %q", suggestion)
+	}
+}
+
+// fakeClaudeCommand swaps the exec seam under runClaudeMCPAdd, recording
+// every invocation and delegating the verdict to respond. Restores the
+// real seam on cleanup.
+func fakeClaudeCommand(t *testing.T, respond func(args []string) error) *[][]string {
+	t.Helper()
+	prev := runClaudeCommand
+	t.Cleanup(func() { runClaudeCommand = prev })
+	var calls [][]string
+	runClaudeCommand = func(args ...string) ([]byte, error) {
+		calls = append(calls, args)
+		return nil, respond(args)
+	}
+	return &calls
+}
+
+func isAdd(args []string) bool {
+	return len(args) >= 2 && args[0] == "mcp" && args[1] == "add"
+}
+
+func hasScopeFlag(args []string) bool {
+	for _, a := range args {
+		if a == "--scope" {
+			return true
+		}
+	}
+	return false
+}
+
+func TestRunClaudeMCPAdd_ScopedAddSucceeds(t *testing.T) {
+	calls := fakeClaudeCommand(t, func([]string) error { return nil })
+
+	if err := runClaudeMCPAdd("/bin/frugal"); err != nil {
+		t.Fatalf("runClaudeMCPAdd: %v", err)
+	}
+	var adds [][]string
+	for _, c := range *calls {
+		if isAdd(c) {
+			adds = append(adds, c)
+		}
+	}
+	if len(adds) != 1 {
+		t.Fatalf("expected exactly one add attempt, got %d: %#v", len(adds), adds)
+	}
+	if !hasScopeFlag(adds[0]) {
+		t.Errorf("first add attempt should use --scope user: %#v", adds[0])
+	}
+}
+
+func TestRunClaudeMCPAdd_RealScopedFailureDoesNotDowngrade(t *testing.T) {
+	// A genuine failure of the scoped add (permissions, config conflict)
+	// must surface — an unscoped retry could "succeed" at local scope,
+	// silently pinning the registration to the installer's cwd.
+	calls := fakeClaudeCommand(t, func(args []string) error {
+		if isAdd(args) && hasScopeFlag(args) {
+			return fmt.Errorf("simulated: EACCES writing ~/.claude.json")
+		}
+		return nil
+	})
+
+	if err := runClaudeMCPAdd("/bin/frugal"); err == nil {
+		t.Fatalf("real scoped failure must propagate, not downgrade to local scope")
+	}
+	var adds [][]string
+	for _, c := range *calls {
+		if isAdd(c) {
+			adds = append(adds, c)
+		}
+	}
+	if len(adds) != 1 {
+		t.Errorf("no unscoped retry expected on a non-flag failure; adds=%#v", adds)
+	}
+}
+
+func TestRunClaudeMCPAdd_RetriesWithoutScopeOnLegacyCLI(t *testing.T) {
+	// Older claude CLIs reject --scope; the add must fall back to the
+	// unscoped form instead of reporting failure.
+	calls := fakeClaudeCommand(t, func(args []string) error {
+		if isAdd(args) && hasScopeFlag(args) {
+			return fmt.Errorf("simulated: unknown flag --scope")
+		}
+		return nil
+	})
+
+	if err := runClaudeMCPAdd("/bin/frugal"); err != nil {
+		t.Fatalf("legacy fallback should succeed, got: %v", err)
+	}
+	var adds [][]string
+	for _, c := range *calls {
+		if isAdd(c) {
+			adds = append(adds, c)
+		}
+	}
+	if len(adds) != 2 {
+		t.Fatalf("expected scoped attempt then legacy retry, got %d adds: %#v", len(adds), adds)
+	}
+	if !hasScopeFlag(adds[0]) || hasScopeFlag(adds[1]) {
+		t.Errorf("expected [scoped, unscoped] order, got %#v", adds)
+	}
+}
+
+func TestRunClaudeMCPAdd_ErrorsWhenBothAttemptsFail(t *testing.T) {
+	// Legacy CLI rejects --scope AND the unscoped retry also fails: the
+	// error must show both attempts so the user sees the whole story.
+	fakeClaudeCommand(t, func(args []string) error {
+		if isAdd(args) && hasScopeFlag(args) {
+			return fmt.Errorf("simulated: unknown flag --scope")
+		}
+		if isAdd(args) {
+			return fmt.Errorf("simulated exec failure")
+		}
+		return nil
+	})
+
+	err := runClaudeMCPAdd("/bin/frugal")
+	if err == nil {
+		t.Fatal("both add attempts failed; expected an error")
+	}
+	if !strings.Contains(err.Error(), "legacy retry") {
+		t.Errorf("error should mention the legacy retry so users see both attempts: %v", err)
 	}
 }
 

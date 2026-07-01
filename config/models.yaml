@@ -3,6 +3,24 @@
 # registered at startup; the cheapest cost_per_call is the default route
 # when the tool is called without an explicit `provider` argument.
 #
+# Free, keyless providers missing from an operator's copy of this file
+# (wikipedia, marginalia, goreadability — entries with no api_key_env /
+# base_url_env) are filled in from the defaults embedded in the binary at
+# load time, so upgrades that ship a new zero-key provider reach existing
+# installs without a config rewrite. Keyed and self-hosted providers are
+# never defaulted in: an omitted paid provider is treated as deliberate,
+# and `frugal mcp install` must not harvest secrets this file didn't
+# authorize. To opt a keyless provider out for good, don't delete its
+# entry — the overlay would just restore it — set `enabled: false` on it:
+#
+#   wikipedia:
+#     enabled: false
+#
+# A disabled entry is a pure tombstone: it's never registered, earns no
+# rack-rate credit in `frugal stats`, and needs no api_key_env /
+# base_url. Any entry you do keep overrides the shipped default wholesale
+# (the merge is per-provider, not per-field).
+#
 # v1.0 ships only the search-tool layer. Chat-model routing and its
 # pricing tables come back in Phase 2 with the frugal__chat MCP tool.
 search_providers:
@@ -21,6 +39,15 @@ search_providers:
     # the binary, not from this file's ordering.
     marginalia:
         base_url: https://api.marginalia.nu
+        cost_per_call: 0.0
+    # Free / public: Wikimedia REST search. No API key required; the
+    # driver identifies itself via User-Agent per the Wikimedia robot
+    # policy. Covers the mainstream entity / reference queries
+    # Marginalia's indie-web index whiffs on — with zero-hit
+    # fall-through the router visits both $0 providers before spending
+    # a paid call. Sits after Marginalia in the canonical order.
+    wikipedia:
+        base_url: https://en.wikipedia.org
         cost_per_call: 0.0
     # Cheap paid fallback.
     serper:

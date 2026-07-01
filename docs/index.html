@@ -3,20 +3,20 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>frugal — tool calls are the new tokens</title>
-  <meta name="description" content="The tool bill exceeds the model bill. Frugal routes every agent tool call — search, extract, browse, code-exec, embeddings — to the cheapest provider that returns a result. Free / local first. Paid as fallback. BYOK." />
+  <title>frugal — the same search costs $0 or $0.005</title>
+  <meta name="description" content="The same web search costs $0 to $0.005 per call depending on provider. Frugal is an MCP server that routes agent search, extract, and browse calls down the price ladder — free / local first, paid as fallback — and stamps cost_usd on every result. BYOK." />
   <meta name="theme-color" content="#fafafa" />
   <meta name="color-scheme" content="light" />
 
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://frugal.sh/" />
-  <meta property="og:title" content="frugal — tool calls are the new tokens" />
-  <meta property="og:description" content="The tool bill exceeds the model bill. Frugal routes every tool call to the cheapest provider that returns a result. SearXNG / Trafilatura / Playwright free. Serper cheap. You.com / Firecrawl / Browserbase as fallback. Any model. BYOK." />
+  <meta property="og:title" content="frugal — the same search costs $0 or $0.005" />
+  <meta property="og:description" content="One MCP server that routes agent tool calls to the cheapest provider that returns a result. Marginalia / Wikipedia / SearXNG / go-readability free. Serper cheap. You.com / Firecrawl / Browserless paid. cost_usd on every result. Any model. BYOK." />
   <meta property="og:site_name" content="frugal.sh" />
 
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="frugal — tool calls are the new tokens" />
-  <meta name="twitter:description" content="The MCP server that routes every tool call to the cheapest provider. $0-first. Any model. BYOK." />
+  <meta name="twitter:title" content="frugal — the same search costs $0 or $0.005" />
+  <meta name="twitter:description" content="The MCP server that routes every agent tool call free-first and prints the cost on every result. Any model. BYOK." />
 
   <link rel="canonical" href="https://frugal.sh/" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -35,7 +35,7 @@
       </a>
       <nav class="top-nav" aria-label="Primary">
         <a href="#rack-rates">Rack rates</a>
-        <a href="#surfaces">MCP</a>
+        <a href="#receipt">Receipt</a>
         <a href="#install">Install</a>
         <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
       </nav>
@@ -57,13 +57,15 @@
             <p class="eyebrow">source-available · byok · any model</p>
 
             <h1>
-              Tool calls are the
-              <span class="accent">new tokens.</span>
+              Same search.
+              <span class="accent">$0 or $0.005.</span>
             </h1>
             <p class="lede">
-              Routes every tool call to the cheapest provider that
-              returns a result. <strong>Free / local first.</strong>
-              Paid as fallback. Your keys. No account.
+              The same web search costs $0 to $0.005 per call — and agents
+              pick providers by availability, not price. Frugal routes
+              every tool call down the ladder. <strong>Free / local
+              first.</strong> Paid as fallback. Cost printed on every
+              result. Your keys. No account.
             </p>
 
             <div class="pills" role="list">
@@ -79,16 +81,15 @@
           </div>
 
           <aside class="hero-aside reveal" aria-label="Demo">
-            <div class="terminal" aria-label="Wire Frugal into your agent">
-              <div class="terminal-label"><span>wire it into your agent</span><span class="terminal-label-tag">mcp</span></div>
-              <pre class="terminal-body"><code><span class="prompt">$</span> frugal mcp install
-<span class="muted">✓ wired into Claude Desktop, Cursor, Claude Code.</span>
+            <div class="terminal" aria-label="A real zero-key routed search">
+              <div class="terminal-label"><span>live zero-key run, unedited</span><span class="terminal-label-tag">mcp</span></div>
+              <pre class="terminal-body"><code><span class="muted">frugal__search "AI agent framework comparison"</span>
 
-<span class="muted"># &gt; current iPhone prices?
-#   frugal__search → serper · $0.0003
-#   gpt-4.1-nano synthesizes
-# done. total: $0.0008</span></code></pre>
-              <button class="copy" type="button" data-copy="frugal mcp install" aria-label="Copy install example">Copy</button>
+<span class="muted">marginalia   0 hits · $0 · 529ms → falling back</span>
+wikipedia    3 hits · <span class="prompt">$0</span> ✓
+
+<span class="muted">{"provider_used":"wikipedia","cost_usd":0,"latency_ms":954}</span></code></pre>
+              <button class="copy" type="button" data-copy="curl -fsSL https://frugal.sh/install | bash" aria-label="Copy install command">Copy install</button>
             </div>
           </aside>
         </div>
@@ -119,7 +120,7 @@
           <article class="cap-tile t-emerald" data-status="shipping">
             <p class="cap-name">Search <span class="cap-status">shipping</span></p>
             <h3 class="cap-head">Web SERP, routed.</h3>
-            <div class="cap-row"><span class="lbl">Free</span><span class="val free">SearXNG · Marginalia</span></div>
+            <div class="cap-row"><span class="lbl">Free</span><span class="val free">SearXNG · Marginalia · Wikipedia</span></div>
             <div class="cap-row"><span class="lbl">Cheap</span><span class="val">Serper · $0.001</span></div>
             <div class="cap-row"><span class="lbl">Premium</span><span class="val paid">You.com · $0.005</span></div>
           </article>
@@ -184,7 +185,10 @@
           Tool prices haven't fallen the way model prices have. You.com
           is 5× Serper. A Firecrawl scrape costs as much as the
           gpt-4o-mini call that consumes it. SearXNG, on your machine,
-          is free. <strong>Frugal takes the cheapest result.</strong>
+          is free. <strong>Frugal takes the cheapest result</strong> —
+          and when a free provider comes up empty, the chain falls
+          through to the next rung instead of handing your agent an
+          empty array.
         </p>
         <div class="rack-table-wrap">
           <table class="rack-table">
@@ -198,50 +202,50 @@
             </thead>
             <tbody>
               <tr>
-                <th scope="row">Search</th>
-                <td data-label="free / local"><strong>SearXNG</strong> (self-host)</td>
+                <th scope="row">Search <span class="status-tag tag-shipping">shipping</span></th>
+                <td data-label="free / local"><strong>SearXNG</strong> (self-host), <strong>Marginalia</strong>, <strong>Wikipedia</strong></td>
                 <td data-label="cheap paid"><strong>Serper</strong> · $0.001/call</td>
                 <td data-label="premium paid"><strong>You.com</strong> · $0.005/call</td>
               </tr>
               <tr>
-                <th scope="row">Extract</th>
-                <td data-label="free / local"><strong>Trafilatura</strong>, <strong>readability.js</strong>, <strong>Mercury</strong> (self-host)</td>
+                <th scope="row">Extract <span class="status-tag tag-shipping">shipping</span></th>
+                <td data-label="free / local"><strong>go-readability</strong> (local, in-process)</td>
                 <td data-label="cheap paid">—</td>
-                <td data-label="premium paid">Firecrawl $0.001–0.005/page</td>
+                <td data-label="premium paid"><strong>Firecrawl</strong> · $0.001/page</td>
               </tr>
               <tr>
-                <th scope="row">Browse</th>
-                <td data-label="free / local"><strong>Playwright</strong> + Chromium (local)</td>
-                <td data-label="cheap paid">Browserless ~$0.002/unit (30s)</td>
-                <td data-label="premium paid">Browserbase $0.10/hr (~$0.002/min)</td>
+                <th scope="row">Browse <span class="status-tag tag-partial">partial</span></th>
+                <td data-label="free / local">Playwright + Chromium (planned)</td>
+                <td data-label="cheap paid"><strong>Browserless</strong> ~$0.002/unit (30s)</td>
+                <td data-label="premium paid">Browserbase (planned)</td>
               </tr>
               <tr>
-                <th scope="row">Code exec</th>
-                <td data-label="free / local"><strong>local Docker</strong></td>
+                <th scope="row">Code exec <span class="status-tag tag-planned">planned</span></th>
+                <td data-label="free / local">local Docker</td>
                 <td data-label="cheap paid">E2B ~$0.10/hr (2 vCPU)</td>
                 <td data-label="premium paid">Modal ~$0.14/hr (+GPU)</td>
               </tr>
               <tr>
-                <th scope="row">Embeddings</th>
-                <td data-label="free / local"><strong>nomic-embed-text</strong>, <strong>bge-large</strong> (local)</td>
+                <th scope="row">Embeddings <span class="status-tag tag-planned">planned</span></th>
+                <td data-label="free / local">nomic-embed-text, bge-large (local)</td>
                 <td data-label="cheap paid">text-embedding-3-small · $0.02/1M tok</td>
                 <td data-label="premium paid">3-large, Voyage-3, Cohere</td>
               </tr>
               <tr>
-                <th scope="row">Transcription</th>
-                <td data-label="free / local"><strong>whisper.cpp</strong> (local)</td>
+                <th scope="row">Transcription <span class="status-tag tag-planned">planned</span></th>
+                <td data-label="free / local">whisper.cpp (local)</td>
                 <td data-label="cheap paid">Deepgram Nova · $0.0043/min</td>
                 <td data-label="premium paid">OpenAI Whisper $0.006/min, Speechmatics</td>
               </tr>
               <tr>
-                <th scope="row">Chat (small)</th>
-                <td data-label="free / local"><strong>Ollama / LM Studio</strong> (local OSS)</td>
+                <th scope="row">Chat (small) <span class="status-tag tag-planned">planned</span></th>
+                <td data-label="free / local">Ollama / LM Studio (local OSS)</td>
                 <td data-label="cheap paid">gpt-4o-mini, haiku, gemini-flash</td>
                 <td data-label="premium paid">gpt-4o, claude-sonnet</td>
               </tr>
               <tr>
-                <th scope="row">Chat (large)</th>
-                <td data-label="free / local"><strong>Kimi K2</strong>, <strong>Qwen 72B</strong> (serious local HW)</td>
+                <th scope="row">Chat (large) <span class="status-tag tag-planned">planned</span></th>
+                <td data-label="free / local">Kimi K2, Qwen 72B (serious local HW)</td>
                 <td data-label="cheap paid">—</td>
                 <td data-label="premium paid">gpt-4o, claude-opus, gemini-pro</td>
               </tr>
@@ -274,8 +278,45 @@
           <figure>
             <figcaption>run as an MCP server</figcaption>
 <pre><code><span class="prompt">$</span> frugal mcp serve
-<span class="muted">mcp ready on stdio. tools: frugal__search</span></code></pre>
+<span class="muted">frugal__search registered  providers=[marginalia wikipedia]
+frugal__extract registered providers=[goreadability]
+mcp serve · transport=stdio</span></code></pre>
           </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="surfaces" id="receipt" aria-labelledby="receipt-heading">
+      <div class="shell reveal">
+        <p class="section-label">The receipt</p>
+        <h2 id="receipt-heading">See what you kept.</h2>
+        <p class="prose">
+          Every call lands in a local ledger — <code>~/.frugal/usage</code>,
+          plain JSONL, never leaves your machine. <code>frugal stats</code>
+          prints the month. Only the call that actually produced your
+          result earns rack credit; fallback attempts and zero-hit
+          whiffs don't inflate the number.
+        </p>
+        <div class="terminal">
+          <pre class="terminal-body"><code><span class="prompt">$</span> frugal stats
+
+frugal receipt · July 2026 (UTC)
+────────────────────────────────────────────────
+tool      provider            calls         paid
+search    marginalia              1      $0.0000
+search    wikipedia               1      $0.0000
+extract   goreadability           1      $0.0000
+────────────────────────────────────────────────
+total                             3      $0.0000
+
+same calls at premium rack rate*         $0.0060
+you paid                                 $0.0000
+────────────────────────────────────────────────
+<span class="prompt">you saved                      $0.0060   (100%)</span>
+────────────────────────────────────────────────
+<span class="muted">* rack rate = list price of each capability's premium
+  provider, snapshotted at call time.</span></code></pre>
+          <button class="copy" type="button" data-copy="frugal stats" aria-label="Copy stats command">Copy</button>
         </div>
       </div>
     </section>
@@ -285,12 +326,14 @@
         <p class="section-label">Get started</p>
         <h2 id="install-heading">Install</h2>
         <p class="prose">
-          One Go binary, ~10 MB. <strong>No SaaS. No account.</strong>
-          Reads <code>OPENAI_API_KEY</code>,
-          <code>ANTHROPIC_API_KEY</code>,
-          <code>SERPER_API_KEY</code> from your env and forwards calls
-          upstream. Releases are cosign-signed; the installer verifies
-          the checksum before moving the binary into place.
+          One Go binary. <strong>No SaaS. No account. No keys required
+          to start</strong> — Marginalia, Wikipedia, and go-readability
+          work with an empty environment. Add
+          <code>SERPER_API_KEY</code>, <code>YDC_API_KEY</code>,
+          <code>FIRECRAWL_API_KEY</code>, <code>BROWSERLESS_TOKEN</code>,
+          or <code>SEARXNG_URL</code> to unlock the paid and self-hosted
+          rungs. Releases are cosign-signed; the installer verifies the
+          checksum before moving the binary into place.
         </p>
 
         <div class="terminal">
@@ -339,8 +382,9 @@
           <div>
             <h2 id="cta-banner-heading">Cut the tool bill.</h2>
             <p>
-              One Go binary. Three lines to install. Every tool call
-              routed to the cheapest provider that works. BYOK.
+              One Go binary. Two commands to install. Every tool call
+              routed to the cheapest provider that returns a result,
+              with the cost printed on the receipt. BYOK.
             </p>
           </div>
           <div class="cta-banner-actions">

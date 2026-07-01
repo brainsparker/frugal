@@ -75,13 +75,26 @@ func (c *Client) Render(ctx context.Context, q browse.Query) (browse.Result, err
 	return out, err
 }
 
+// redact replaces the operator token in an error's message. Browserless
+// only accepts the token as a ?token= query param, so transport errors
+// (url.Error) embed the secret in the request URL they quote. Anything
+// that escapes doOnce must pass through here before it can reach retry
+// logs or MCP tool output. The result is a flattened copy — classify the
+// original error first; the wrap chain does not survive redaction.
+func (c *Client) redact(err error) error {
+	if err == nil || c.token == "" || !strings.Contains(err.Error(), c.token) {
+		return err
+	}
+	return fmt.Errorf("%s", strings.ReplaceAll(err.Error(), c.token, "REDACTED"))
+}
+
 // doOnce runs one HTTP attempt against Browserless. The retry loop in
 // Render wraps this; the returned error is already a *routing.Error.
 func (c *Client) doOnce(ctx context.Context, body []byte, returnFormat string) (browse.Result, error) {
 	endpoint := c.baseURL + "/content?token=" + c.token
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return browse.Result{}, routing.Permanent(c.Name(), 0, fmt.Errorf("build request: %w", err))
+		return browse.Result{}, routing.Permanent(c.Name(), 0, fmt.Errorf("build request: %w", c.redact(err)))
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/html")
@@ -89,7 +102,7 @@ func (c *Client) doOnce(ctx context.Context, body []byte, returnFormat string) (
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return browse.Result{}, &routing.Error{
-			Provider: c.Name(), Kind: routing.ClassifyNetwork(err), Err: err,
+			Provider: c.Name(), Kind: routing.ClassifyNetwork(err), Err: c.redact(err),
 		}
 	}
 	defer resp.Body.Close()
@@ -100,7 +113,7 @@ func (c *Client) doOnce(ctx context.Context, body []byte, returnFormat string) (
 			Provider: c.Name(),
 			Kind:     routing.ClassifyHTTPStatus(resp.StatusCode),
 			Status:   resp.StatusCode,
-			Err:      fmt.Errorf("%s", bytes.TrimSpace(snippet)),
+			Err:      c.redact(fmt.Errorf("%s", bytes.TrimSpace(snippet))),
 		}
 	}
 

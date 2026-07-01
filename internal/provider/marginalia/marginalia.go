@@ -71,6 +71,14 @@ func (c *Client) CostPerCall() float64 { return 0 }
 // Search runs one Marginalia query. Transient HTTP / network failures
 // are retried inside the driver; the router falls back to another
 // provider if all retries fail.
+//
+// The public API exposes no time-window parameter (only index and
+// count), so a freshness constraint is served best-effort with a warning
+// attached rather than declined: on a zero-key install Marginalia and
+// Wikipedia are the whole chain, and erroring would turn every
+// freshness-scoped search into a hard failure. The warning tells the
+// agent the window was ignored so it can re-query pinned to a provider
+// that honors it (serper, youcom).
 func (c *Client) Search(ctx context.Context, q search.Query) (search.Results, error) {
 	if q.Text == "" {
 		return search.Results{}, routing.Permanent(c.Name(), 0, fmt.Errorf("empty query"))
@@ -81,6 +89,10 @@ func (c *Client) Search(ctx context.Context, q search.Query) (search.Results, er
 		out, attemptErr = c.doOnce(ctx, q)
 		return attemptErr
 	})
+	if err == nil && q.Freshness != "" {
+		out.Warnings = append(out.Warnings,
+			"marginalia: freshness window ignored (provider has no time filter)")
+	}
 	return out, err
 }
 

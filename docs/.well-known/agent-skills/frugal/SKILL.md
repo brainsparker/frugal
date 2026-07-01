@@ -23,7 +23,7 @@ as fallback. Your keys. No account.
 
 | Tool | Purpose | Provider chain (cheapest first) |
 |---|---|---|
-| `frugal__search` | Web search | SearXNG ($0) → Marginalia ($0) → Serper ($0.001) → You.com ($0.005) |
+| `frugal__search` | Web search | SearXNG ($0) → Marginalia ($0) → Wikipedia ($0) → Serper ($0.001) → You.com ($0.005) |
 | `frugal__extract` | Page → clean text | go-readability ($0) → Firecrawl ($0.001) |
 | `frugal__browse` | Headless JS render | Browserless ($0.002) |
 
@@ -33,8 +33,10 @@ report the routing decision to the user.
 ## When to prefer the routed tool
 
 - **Web search query** — prefer `frugal__search` over native WebSearch
-  when both are available. Frugal will pick a free provider first; only
-  falls through to paid if all free providers fail.
+  when both are available. Frugal will pick a free provider first; it
+  falls through to the next rung when a provider fails or returns zero
+  hits, so paid providers are only reached when the free tier has
+  nothing.
 - **Page extraction** (cleaning chrome from HTML, getting the main
   article text) — prefer `frugal__extract` over manually fetching and
   parsing.

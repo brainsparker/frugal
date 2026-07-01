@@ -3,14 +3,13 @@
 Static single-page site for `https://frugal.sh/`. Ships with one HTML file, one
 CSS file, one SVG favicon, a `_redirects` rule that rewrites `/install` to the
 installer script in this repo, and an `_headers` file that sets CSP + cache
-headers. Total payload is under 30 KB.
+headers. Total payload is ~50 KB uncompressed (about 14 KB over the wire
+gzipped); no fonts beyond the Google Fonts preconnect, no analytics, no JS
+frameworks.
 
-> The HTML, `_redirects`, and sitemap all point at
-> `github.com/brainsparker/frugal` — the current repo slug. If you rename the
-> repo to `frugalsh/frugal` (to match `install.sh`'s `REPO="frugalsh/frugal"`
-> and the README's other references), do a find/replace across this directory
-> before the next deploy. `install.sh` itself also needs its `REPO=` line
-> updated so the API call for the latest release targets the right repo.
+> The HTML, `_redirects`, sitemap, and `install.sh`'s `REPO=` line all point
+> at `github.com/brainsparker/frugal` — the current repo slug. If the repo
+> ever moves, find/replace across this directory before the next deploy.
 
 Designed for Cloudflare Pages (primary) and GitHub Pages (fallback).
 

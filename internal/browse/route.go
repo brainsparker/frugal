@@ -44,7 +44,8 @@ func CallWithFallback(ctx context.Context, browsers []Browser, q Query, logger *
 		res, err := b.Render(ctx, q)
 		latency := time.Since(start)
 		if hook != nil {
-			hook(b.Name(), latency, res.CostUSD, err)
+			// won: the first success is what the caller gets back.
+			hook(b.Name(), latency, res.CostUSD, err == nil, err)
 		}
 		if err == nil {
 			logger.Debug("browse ok",
@@ -94,7 +95,8 @@ func CallPinned(ctx context.Context, browsers []Browser, name string, q Query, l
 	res, err := b.Render(ctx, q)
 	latency := time.Since(start)
 	if hook != nil {
-		hook(b.Name(), latency, res.CostUSD, err)
+		// Pinned calls have no fallback: whatever came back is the result.
+		hook(b.Name(), latency, res.CostUSD, err == nil, err)
 	}
 	if err != nil {
 		logger.Warn("browse pinned error",

@@ -3,6 +3,7 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -153,9 +154,12 @@ func TestServeHTTP_RefusesAnonymousWithoutFlag(t *testing.T) {
 
 func TestServeHTTP_RefusesAnonymousNonLocalBind(t *testing.T) {
 	srv := New("frugal", "v", slog.New(slog.NewTextHandler(io.Discard, nil)))
-	err := srv.ServeHTTP(context.Background(), "0.0.0.0:0", HTTPOptions{AllowAnon: true})
-	if err == nil || !strings.Contains(err.Error(), "localhost bind address") {
-		t.Errorf("expected localhost-bind refusal; got %v", err)
+	// A bare port binds all interfaces, so it must be refused too.
+	for _, addr := range []string{"0.0.0.0:0", ":0"} {
+		err := srv.ServeHTTP(context.Background(), addr, HTTPOptions{AllowAnon: true})
+		if err == nil || !strings.Contains(err.Error(), "localhost bind address") {
+			t.Errorf("addr %q: expected localhost-bind refusal; got %v", addr, err)
+		}
 	}
 }
 
@@ -164,11 +168,12 @@ func TestIsLocalhostBind(t *testing.T) {
 		addr string
 		want bool
 	}{
-		{addr: ":8080", want: true},
-		{addr: "localhost:8080", want: true},
-		{addr: "127.0.0.1:8080", want: true},
-		{addr: "[::1]:8080", want: true},
-		{addr: "0.0.0.0:8080", want: false},
+		// Empty host binds ALL interfaces in Go — must not count as local.
+		{addr: ":8765", want: false},
+		{addr: "localhost:8765", want: true},
+		{addr: "127.0.0.1:8765", want: true},
+		{addr: "[::1]:8765", want: true},
+		{addr: "0.0.0.0:8765", want: false},
 		{addr: "192.168.1.10:8080", want: false},
 	}
 	for _, tc := range tests {
@@ -237,22 +242,12 @@ func TestNewHTTPServer_SetsSafeTimeoutDefaults(t *testing.T) {
 
 func TestServeHTTP_MetricsEndpointBypassesAuth(t *testing.T) {
 	m := obs.NewMetrics()
-	m.RecordCall("youcom", 100*time.Millisecond, 0.005, nil)
+	m.RecordCall("youcom", 100*time.Millisecond, 0.005, true, nil)
 
-	// Build the same handler chain ServeHTTP wires up so we can hit it
-	// through httptest without owning a real listener.
-	mux := http.NewServeMux()
-	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			w.Header().Set("Allow", "GET, HEAD")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		_ = m.WritePrometheus(w)
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("mcp")) })
-	h := withBearerAuth(mux, "secret", "/metrics")
+	// Exercise the real handler chain ServeHTTP serves, via httptest so we
+	// don't own a listener.
+	srv := New("frugal", "v", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := srv.httpHandler(HTTPOptions{AuthToken: "secret", Metrics: m})
 	ts := httptest.NewServer(h)
 	defer ts.Close()
 
@@ -292,6 +287,19 @@ func TestServeHTTP_MetricsEndpointBypassesAuth(t *testing.T) {
 	}
 	if allow := resp3.Header.Get("Allow"); allow != "GET, HEAD" {
 		t.Errorf("POST /metrics Allow = %q, want %q", allow, "GET, HEAD")
+	}
+}
+
+func TestServeHTTP_MetricsPathRequiresAuthWhenNotMounted(t *testing.T) {
+	// With no Metrics configured, /metrics is just another path routed to
+	// the MCP handler — it must not get an auth bypass.
+	srv := New("frugal", "v", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := srv.httpHandler(HTTPOptions{AuthToken: "secret"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("/metrics without mounted endpoint: status = %d, want 401", rec.Code)
 	}
 }
 
@@ -340,5 +348,23 @@ func TestWithMaxContentLength_AllowsSmallRequest(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+
+func TestWithMaxContentLength_CapsChunkedBody(t *testing.T) {
+	// Chunked requests declare no Content-Length (-1), so the fast-path
+	// check can't catch them; the body itself must be capped at read time.
+	var readErr error
+	inner := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		_, readErr = io.ReadAll(r.Body)
+	})
+	h := withMaxContentLength(inner, 10)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("0123456789X"))
+	req.ContentLength = -1
+	h.ServeHTTP(rec, req)
+	var mbe *http.MaxBytesError
+	if !errors.As(readErr, &mbe) {
+		t.Fatalf("body read err = %v, want *http.MaxBytesError", readErr)
 	}
 }

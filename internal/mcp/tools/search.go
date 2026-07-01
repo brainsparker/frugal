@@ -34,7 +34,7 @@ type SearchInput struct {
 	// configured provider. Recipe authors use this to override the default
 	// for use cases where the eval shows a more expensive provider has
 	// materially better recall.
-	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: searxng | serper | youcom | auto"`
+	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: searxng | marginalia | wikipedia | serper | youcom | auto"`
 }
 
 // SearchOutput is the structured-content payload returned to the MCP
@@ -46,6 +46,11 @@ type SearchOutput struct {
 	CostUSD      float64       `json:"cost_usd"`
 	ProviderUsed string        `json:"provider_used"`
 	LatencyMS    int64         `json:"latency_ms"`
+	// Warnings carries degraded-service notes from the winning provider —
+	// e.g. "freshness window ignored" from drivers without a time filter —
+	// so the agent can react (re-query pinned to serper/youcom) instead of
+	// mistaking best-effort results for exact ones.
+	Warnings []string `json:"warnings,omitempty" jsonschema:"degraded-service notes, e.g. a provider that ignored the freshness window"`
 }
 
 // RegisterSearch wires frugal__search onto the given MCP server. searchers
@@ -92,8 +97,8 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics) func(c
 	// per call.
 	hook := search.AttemptHook(nil)
 	if metrics != nil {
-		hook = func(provider string, latency time.Duration, costUSD float64, err error) {
-			metrics.RecordCall(provider, latency, costUSD, err)
+		hook = func(provider string, latency time.Duration, costUSD float64, won bool, err error) {
+			metrics.RecordCall(provider, latency, costUSD, won, err)
 		}
 	}
 
@@ -114,9 +119,9 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics) func(c
 
 		start := time.Now()
 		var (
-			used       search.Searcher
-			res        search.Results
-			searchErr  error
+			used      search.Searcher
+			res       search.Results
+			searchErr error
 		)
 		if isAuto(in.Provider) {
 			used, res, searchErr = search.CallWithFallback(ctx, searchers, q, logger, hook)
@@ -133,6 +138,7 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics) func(c
 			CostUSD:      res.CostUSD,
 			ProviderUsed: used.Name(),
 			LatencyMS:    latency,
+			Warnings:     res.Warnings,
 		}
 		return nil, out, nil
 	}

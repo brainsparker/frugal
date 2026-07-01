@@ -136,41 +136,7 @@ func (s *Server) ServeHTTP(ctx context.Context, addr string, opts HTTPOptions) e
 		return errors.New("mcp serve: --allow-anon requires a localhost bind address (use 127.0.0.1, ::1, or localhost)")
 	}
 
-	mcpHandler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
-		return s.Inner
-	}, nil)
-
-	mux := http.NewServeMux()
-	if opts.Metrics != nil {
-		// /metrics bypasses auth so Prometheus scrapers don't need the
-		// bearer token. Keep it on a known path the operator controls.
-		mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet && r.Method != http.MethodHead {
-				w.Header().Set("Allow", "GET, HEAD")
-				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
-			w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-			if err := opts.Metrics.WritePrometheus(w); err != nil {
-				s.Logger.Warn("metrics endpoint write", "err", err)
-			}
-		})
-	}
-	mux.Handle("/", mcpHandler)
-
-	var handler http.Handler = mux
-	handler = withRequestTimeout(handler, opts.RequestTimeout)
-	handler = withMaxContentLength(handler, opts.MaxRequestBytes)
-	if opts.RateLimitPerMinute > 0 {
-		handler = withRateLimit(handler, opts.RateLimitPerMinute)
-	}
-	if opts.AuthToken != "" {
-		// /metrics path stays unauth'd; the auth middleware skips it.
-		handler = withBearerAuth(handler, opts.AuthToken, "/metrics")
-	}
-	handler = withSecurityHeaders(handler)
-
-	srv := newHTTPServer(addr, handler, opts.MaxHeaderBytes)
+	srv := newHTTPServer(addr, s.httpHandler(opts), opts.MaxHeaderBytes)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -201,15 +167,62 @@ func (s *Server) ServeHTTP(ctx context.Context, addr string, opts HTTPOptions) e
 	}
 }
 
+// httpHandler builds the middleware chain ServeHTTP serves: mux (MCP +
+// optional /metrics) wrapped in timeout, size, rate-limit, auth, and
+// security-header layers. Split out so tests exercise the real wiring.
+func (s *Server) httpHandler(opts HTTPOptions) http.Handler {
+	mcpHandler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+		return s.Inner
+	}, nil)
+
+	mux := http.NewServeMux()
+	if opts.Metrics != nil {
+		// /metrics bypasses auth so Prometheus scrapers don't need the
+		// bearer token. Keep it on a known path the operator controls.
+		mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				w.Header().Set("Allow", "GET, HEAD")
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+			if err := opts.Metrics.WritePrometheus(w); err != nil {
+				s.Logger.Warn("metrics endpoint write", "err", err)
+			}
+		})
+	}
+	mux.Handle("/", mcpHandler)
+
+	var handler http.Handler = mux
+	handler = withRequestTimeout(handler, opts.RequestTimeout)
+	handler = withMaxContentLength(handler, opts.MaxRequestBytes)
+	if opts.RateLimitPerMinute > 0 {
+		handler = withRateLimit(handler, opts.RateLimitPerMinute)
+	}
+	if opts.AuthToken != "" {
+		// /metrics stays unauth'd only when the endpoint is actually
+		// mounted; otherwise the path routes to the MCP handler and must
+		// go through auth like everything else.
+		var skipPaths []string
+		if opts.Metrics != nil {
+			skipPaths = append(skipPaths, "/metrics")
+		}
+		handler = withBearerAuth(handler, opts.AuthToken, skipPaths...)
+	}
+	return withSecurityHeaders(handler)
+}
+
 // isLocalhostBind reports whether addr resolves to a loopback bind. Used
-// by ServeHTTP to refuse --allow-anon on non-local interfaces.
+// by ServeHTTP to refuse --allow-anon on non-local interfaces. An empty
+// host (":8765") binds ALL interfaces in Go, so it is NOT localhost —
+// anonymous serving requires an explicit loopback host.
 func isLocalhostBind(addr string) bool {
 	host := addr
 	if h, _, err := net.SplitHostPort(addr); err == nil {
 		host = h
 	}
 	host = strings.TrimSpace(host)
-	if host == "" || host == "localhost" {
+	if host == "localhost" {
 		return true
 	}
 	ip := net.ParseIP(host)
@@ -217,7 +230,9 @@ func isLocalhostBind(addr string) bool {
 }
 
 // withMaxContentLength rejects requests whose declared Content-Length
-// exceeds maxBytes. maxBytes <= 0 disables the guard.
+// exceeds maxBytes. Chunked requests carry no declared length
+// (ContentLength == -1), so the body is also capped at read time via
+// http.MaxBytesReader. maxBytes <= 0 disables the guard.
 func withMaxContentLength(next http.Handler, maxBytes int64) http.Handler {
 	if maxBytes <= 0 {
 		return next
@@ -227,6 +242,7 @@ func withMaxContentLength(next http.Handler, maxBytes int64) http.Handler {
 			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
 			return
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 		next.ServeHTTP(w, r)
 	})
 }

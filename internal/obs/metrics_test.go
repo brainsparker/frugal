@@ -12,10 +12,10 @@ import (
 func TestRecordCall_AggregatesPerProvider(t *testing.T) {
 	m := NewMetrics()
 	m.EnsureProvider("youcom", "search")
-	m.RecordCall("youcom", 120*time.Millisecond, 0.008, nil)
-	m.RecordCall("youcom", 200*time.Millisecond, 0.008, nil)
-	m.RecordCall("youcom", 300*time.Millisecond, 0, errors.New("blip"))
-	m.RecordCall("searxng", 30*time.Millisecond, 0, nil)
+	m.RecordCall("youcom", 120*time.Millisecond, 0.008, true, nil)
+	m.RecordCall("youcom", 200*time.Millisecond, 0.008, true, nil)
+	m.RecordCall("youcom", 300*time.Millisecond, 0, false, errors.New("blip"))
+	m.RecordCall("searxng", 30*time.Millisecond, 0, true, nil)
 
 	snap := m.Snapshot()
 	if len(snap.Providers) != 2 {
@@ -44,13 +44,27 @@ func TestRecordCall_AggregatesPerProvider(t *testing.T) {
 	}
 }
 
+func TestRecordCall_CostRoundsToNearestMicroUSD(t *testing.T) {
+	// 0.005*1e6 is 4999.999… in float64; truncation would record 4999
+	// micro-USD per call and systematically undercount. Rounding must
+	// keep 1000 such calls summing to exactly $5.
+	m := NewMetrics()
+	for i := 0; i < 1000; i++ {
+		m.RecordCall("serper", time.Millisecond, 0.005, true, nil)
+	}
+	snap := m.Snapshot()
+	if got := snap.Providers[0].CostUSD; got != 5.0 {
+		t.Errorf("CostUSD after 1000×$0.005 = %v, want 5.0 (truncation undercounts)", got)
+	}
+}
+
 func TestHasActivity(t *testing.T) {
 	m := NewMetrics()
 	m.EnsureProvider("youcom", "search")
 	if m.HasActivity() {
 		t.Errorf("HasActivity should be false before any call")
 	}
-	m.RecordCall("youcom", time.Millisecond, 0.001, nil)
+	m.RecordCall("youcom", time.Millisecond, 0.001, true, nil)
 	if !m.HasActivity() {
 		t.Errorf("HasActivity should be true after a call")
 	}
@@ -58,9 +72,9 @@ func TestHasActivity(t *testing.T) {
 
 func TestMonthlyCalls_IncrementsAndIsolatesProviders(t *testing.T) {
 	m := NewMetrics()
-	m.RecordCall("youcom", time.Millisecond, 0.008, nil)
-	m.RecordCall("youcom", time.Millisecond, 0.008, nil)
-	m.RecordCall("serper", time.Millisecond, 0.001, nil)
+	m.RecordCall("youcom", time.Millisecond, 0.008, true, nil)
+	m.RecordCall("youcom", time.Millisecond, 0.008, true, nil)
+	m.RecordCall("serper", time.Millisecond, 0.001, true, nil)
 	if got := m.MonthlyCalls("youcom"); got != 2 {
 		t.Errorf("youcom MonthlyCalls = %d, want 2", got)
 	}
@@ -106,7 +120,7 @@ func TestMonthlyCalls_ConcurrentSafe(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < perGoroutine; j++ {
-				m.RecordCall("youcom", time.Microsecond, 0.001, nil)
+				m.RecordCall("youcom", time.Microsecond, 0.001, true, nil)
 			}
 		}()
 	}
@@ -124,10 +138,10 @@ func TestWritePrometheus(t *testing.T) {
 	m.EnsureProvider("youcom", "search")
 	m.EnsureProvider("searxng", "search")
 	m.EnsureProvider("firecrawl", "extract")
-	m.RecordCall("youcom", 100*time.Millisecond, 0.008, nil)
-	m.RecordCall("youcom", 200*time.Millisecond, 0, errors.New("x"))
-	m.RecordCall("searxng", 20*time.Millisecond, 0, nil)
-	m.RecordCall("firecrawl", 400*time.Millisecond, 0.001, nil)
+	m.RecordCall("youcom", 100*time.Millisecond, 0.008, true, nil)
+	m.RecordCall("youcom", 200*time.Millisecond, 0, false, errors.New("x"))
+	m.RecordCall("searxng", 20*time.Millisecond, 0, true, nil)
+	m.RecordCall("firecrawl", 400*time.Millisecond, 0.001, true, nil)
 
 	var buf bytes.Buffer
 	if err := m.WritePrometheus(&buf); err != nil {
@@ -165,7 +179,7 @@ func TestWritePrometheus(t *testing.T) {
 func TestEnsureProvider_TagsTool(t *testing.T) {
 	m := NewMetrics()
 	m.EnsureProvider("foo", "search")
-	m.RecordCall("foo", time.Millisecond, 0, nil)
+	m.RecordCall("foo", time.Millisecond, 0, true, nil)
 	snap := m.Snapshot()
 	if len(snap.Providers) != 1 || snap.Providers[0].Tool != "search" {
 		t.Errorf("expected tool=search; got %+v", snap.Providers)
@@ -181,7 +195,7 @@ func TestEnsureProvider_TagsTool(t *testing.T) {
 func TestRecordCall_UnregisteredProviderHasEmptyTool(t *testing.T) {
 	// Lazy-create path: RecordCall without EnsureProvider. Tool is "".
 	m := NewMetrics()
-	m.RecordCall("orphan", time.Millisecond, 0, nil)
+	m.RecordCall("orphan", time.Millisecond, 0, true, nil)
 	snap := m.Snapshot()
 	if len(snap.Providers) != 1 || snap.Providers[0].Tool != "" {
 		t.Errorf("expected unregistered provider with empty tool; got %+v", snap.Providers)

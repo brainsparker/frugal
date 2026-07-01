@@ -204,11 +204,12 @@ func TestCallWithFallback_HookFiresPerAttempt(t *testing.T) {
 	type record struct {
 		provider string
 		hadErr   bool
+		won      bool
 		cost     float64
 	}
 	var got []record
-	hook := func(provider string, _ time.Duration, cost float64, err error) {
-		got = append(got, record{provider, err != nil, cost})
+	hook := func(provider string, _ time.Duration, cost float64, won bool, err error) {
+		got = append(got, record{provider, err != nil, won, cost})
 	}
 	_, _, err := CallWithFallback(context.Background(), []Searcher{paid, free}, Query{Text: "x"}, discardLogger(), hook)
 	if err != nil {
@@ -217,11 +218,155 @@ func TestCallWithFallback_HookFiresPerAttempt(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("hook fired %d times, want 2", len(got))
 	}
-	if got[0].provider != "free" || !got[0].hadErr {
-		t.Errorf("first attempt should be free with error; got %+v", got[0])
+	if got[0].provider != "free" || !got[0].hadErr || got[0].won {
+		t.Errorf("first attempt should be free with error, not won; got %+v", got[0])
 	}
-	if got[1].provider != "paid" || got[1].hadErr || got[1].cost != 0.001 {
-		t.Errorf("second attempt should be paid success at 0.001; got %+v", got[1])
+	if got[1].provider != "paid" || got[1].hadErr || !got[1].won || got[1].cost != 0.001 {
+		t.Errorf("second attempt should be paid winning success at 0.001; got %+v", got[1])
+	}
+}
+
+func TestCallWithFallback_ZeroHitAttemptIsNotWon(t *testing.T) {
+	// The zero-hit attempt the router walks past must not report won=true
+	// to the hook — it earned no rack credit in the usage ledger.
+	empty := &stubSearcher{name: "empty", cost: 0, res: Results{CostUSD: 0}}
+	paid := &stubSearcher{name: "paid", cost: 0.001,
+		res: Results{Items: []Item{{Title: "via-paid"}}, CostUSD: 0.001}}
+	wins := map[string]bool{}
+	hook := func(provider string, _ time.Duration, _ float64, won bool, _ error) {
+		wins[provider] = won
+	}
+	_, _, err := CallWithFallback(context.Background(), []Searcher{paid, empty}, Query{Text: "x"}, discardLogger(), hook)
+	if err != nil {
+		t.Fatalf("CallWithFallback: %v", err)
+	}
+	if wins["empty"] || !wins["paid"] {
+		t.Errorf("won flags wrong: %+v (want empty=false paid=true)", wins)
+	}
+}
+
+func TestCallWithFallback_ZeroHitsFallsThrough(t *testing.T) {
+	// A provider that succeeds with zero hits isn't "a result" — the
+	// chain must keep walking. Marginalia whiffing on a mainstream query
+	// should hand off to Serper, not end the call empty.
+	empty := &stubSearcher{name: "empty", cost: 0,
+		res: Results{Items: nil, CostUSD: 0}}
+	paid := &stubSearcher{name: "paid", cost: 0.001,
+		res: Results{Items: []Item{{Title: "via-paid"}}, CostUSD: 0.001}}
+	used, res, err := CallWithFallback(context.Background(), []Searcher{paid, empty}, Query{Text: "x"}, discardLogger(), nil)
+	if err != nil {
+		t.Fatalf("CallWithFallback: %v", err)
+	}
+	if empty.calls != 1 {
+		t.Errorf("empty (cheapest) should have been tried first; calls=%d", empty.calls)
+	}
+	if used.Name() != "paid" || len(res.Items) != 1 {
+		t.Errorf("expected fall-through to paid with 1 item; used=%q res=%+v", used.Name(), res)
+	}
+}
+
+func TestCallWithFallback_PaidZeroHitsReturnsThatEmptySuccess(t *testing.T) {
+	// A free provider's whiff falls through, but a PAID provider's empty
+	// answer is evidence the query has no hits: it becomes the return
+	// value, carrying its own real CostUSD — and it still isn't "won"
+	// (no hits, no savings credit).
+	free := &stubSearcher{name: "free", cost: 0, res: Results{CostUSD: 0}}
+	paid := &stubSearcher{name: "paid", cost: 0.001, res: Results{CostUSD: 0.001}}
+	wins := map[string]bool{}
+	hook := func(provider string, _ time.Duration, _ float64, won bool, _ error) {
+		wins[provider] = won
+	}
+	used, res, err := CallWithFallback(context.Background(), []Searcher{paid, free}, Query{Text: "x"}, discardLogger(), hook)
+	if err != nil {
+		t.Fatalf("CallWithFallback: %v", err)
+	}
+	if used.Name() != "paid" {
+		t.Errorf("used = %q, want paid (its empty success ends the chain)", used.Name())
+	}
+	if len(res.Items) != 0 || res.CostUSD != 0.001 {
+		t.Errorf("expected empty results at paid's real cost; got %+v", res)
+	}
+	if free.calls != 1 || paid.calls != 1 {
+		t.Errorf("both providers should have been tried; free=%d paid=%d", free.calls, paid.calls)
+	}
+	if wins["free"] || wins["paid"] {
+		t.Errorf("zero-hit attempts must not be won; wins=%+v", wins)
+	}
+}
+
+func TestCallWithFallback_PaidZeroHitsStopsBeforePricierPaid(t *testing.T) {
+	// Once a paid provider confirms zero hits, a more expensive paid
+	// provider must not be called just to re-discover emptiness.
+	free := &stubSearcher{name: "free", cost: 0, res: Results{CostUSD: 0}}
+	cheapPaid := &stubSearcher{name: "cheap-paid", cost: 0.001, res: Results{CostUSD: 0.001}}
+	priceyPaid := &stubSearcher{name: "pricey-paid", cost: 0.005,
+		res: Results{Items: []Item{{Title: "should-not-be-fetched"}}, CostUSD: 0.005}}
+	used, res, err := CallWithFallback(context.Background(), []Searcher{priceyPaid, cheapPaid, free}, Query{Text: "x"}, discardLogger(), nil)
+	if err != nil {
+		t.Fatalf("CallWithFallback: %v", err)
+	}
+	if priceyPaid.calls != 0 {
+		t.Errorf("pricey-paid must NOT be called after cheap-paid's empty success; calls=%d", priceyPaid.calls)
+	}
+	if used.Name() != "cheap-paid" || len(res.Items) != 0 {
+		t.Errorf("expected cheap-paid's empty success; used=%q res=%+v", used.Name(), res)
+	}
+}
+
+func TestCallWithFallback_AllFreeZeroHitsReturnsFirstEmptySuccess(t *testing.T) {
+	// Free providers' coverage gaps say little, so they all get tried;
+	// when the whole (free) chain comes up empty the query just has no
+	// hits: return the first empty success, not an error.
+	a := &stubSearcher{name: "a", cost: 0, res: Results{CostUSD: 0}}
+	b := &stubSearcher{name: "b", cost: 0, res: Results{CostUSD: 0}}
+	used, res, err := CallWithFallback(context.Background(), []Searcher{a, b}, Query{Text: "x"}, discardLogger(), nil)
+	if err != nil {
+		t.Fatalf("CallWithFallback: %v", err)
+	}
+	if used.Name() != "a" {
+		t.Errorf("used = %q, want a (first empty success)", used.Name())
+	}
+	if len(res.Items) != 0 {
+		t.Errorf("expected empty results, got %+v", res.Items)
+	}
+	if a.calls != 1 || b.calls != 1 {
+		t.Errorf("both providers should have been tried; a=%d b=%d", a.calls, b.calls)
+	}
+}
+
+func TestCallWithFallback_ZeroHitsThenErrorReturnsEmptySuccess(t *testing.T) {
+	// Empty-but-succeeded beats a later provider's failure: the query
+	// was processed fine by someone, it just had no hits there.
+	empty := &stubSearcher{name: "empty", cost: 0, res: Results{CostUSD: 0}}
+	broken := &stubSearcher{name: "broken", cost: 0.001,
+		err: routing.Transient("broken", 503, errors.New("down"))}
+	used, res, err := CallWithFallback(context.Background(), []Searcher{broken, empty}, Query{Text: "x"}, discardLogger(), nil)
+	if err != nil {
+		t.Fatalf("CallWithFallback: %v", err)
+	}
+	if used.Name() != "empty" || len(res.Items) != 0 {
+		t.Errorf("expected zero-hit success from empty; used=%q res=%+v", used.Name(), res)
+	}
+}
+
+func TestCallPinned_ZeroHitSuccessIsNotWon(t *testing.T) {
+	// A pinned provider returning zero items must not earn rack-rate
+	// savings credit — same rule as the fallback path: no hits, no win.
+	empty := &stubSearcher{name: "empty", cost: 0.001, res: Results{CostUSD: 0.001}}
+	full := &stubSearcher{name: "full", cost: 0.001,
+		res: Results{Items: []Item{{Title: "hit"}}, CostUSD: 0.001}}
+	wins := map[string]bool{}
+	hook := func(provider string, _ time.Duration, _ float64, won bool, _ error) {
+		wins[provider] = won
+	}
+	if _, _, err := CallPinned(context.Background(), []Searcher{empty, full}, "empty", Query{Text: "x"}, discardLogger(), hook); err != nil {
+		t.Fatalf("CallPinned(empty): %v", err)
+	}
+	if _, _, err := CallPinned(context.Background(), []Searcher{empty, full}, "full", Query{Text: "x"}, discardLogger(), hook); err != nil {
+		t.Fatalf("CallPinned(full): %v", err)
+	}
+	if wins["empty"] || !wins["full"] {
+		t.Errorf("won flags wrong: %+v (want empty=false full=true)", wins)
 	}
 }
 

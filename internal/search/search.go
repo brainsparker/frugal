@@ -84,9 +84,16 @@ type Query struct {
 // incurred. CostUSD is what the operator will be billed for this single
 // call by the provider (not the published per-call price, which can differ
 // in volume-discount tiers).
+//
+// Warnings surfaces degraded-service notes the agent should see alongside
+// the items — today, a driver that had to ignore the freshness window
+// because its provider has no time filter (Marginalia, Wikipedia). A
+// warning instead of an error keeps the zero-key chain serving results;
+// telling the agent the filter was dropped is what keeps that honest.
 type Results struct {
-	Items   []Item
-	CostUSD float64
+	Items    []Item
+	CostUSD  float64
+	Warnings []string
 }
 
 // Item is one search hit. Fields mirror the union of what the configured

@@ -3,8 +3,11 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	defaults "github.com/frugalsh/frugal/config"
 )
 
 func TestLoad_StarterModelsYAMLLoads(t *testing.T) {
@@ -181,8 +184,186 @@ search_providers:
 	if src != path {
 		t.Errorf("source = %q, want %q", src, path)
 	}
-	if len(cfg.SearchProviders) != 1 {
-		t.Errorf("expected exactly the installer file's provider, got %+v", cfg.SearchProviders)
+	// The installer file's own entry survives as written — entry-level
+	// merge, so the embedded serper's base_url must not leak in.
+	sp, ok := cfg.SearchProviders["serper"]
+	if !ok {
+		t.Fatalf("expected the installer file's serper, got %+v", cfg.SearchProviders)
+	}
+	if sp.BaseURL != "" {
+		t.Errorf("serper.BaseURL = %q, want the installer file's empty value, not the embedded default", sp.BaseURL)
+	}
+}
+
+func TestLoadAuto_OverlaysMissingDefaults(t *testing.T) {
+	// A config written before a provider shipped must gain it on load:
+	// installs keep their file across upgrades, and the overlay is how
+	// the zero-key wikipedia rung reaches them.
+	t.Setenv("FRUGAL_CONFIG", "")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Chdir(t.TempDir())
+
+	dir := filepath.Join(home, ".frugal", "config")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := `
+search_providers:
+  serper:
+    api_key_env: SERPER_API_KEY
+    cost_per_call: 0.001
+`
+	if err := os.WriteFile(filepath.Join(dir, "models.yaml"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, _, err := LoadAuto()
+	if err != nil {
+		t.Fatalf("LoadAuto: %v", err)
+	}
+	if _, ok := cfg.SearchProviders["wikipedia"]; !ok {
+		t.Errorf("wikipedia should be defaulted in from the embedded models.yaml; got %+v", cfg.SearchProviders)
+	}
+	if _, ok := cfg.SearchProviders["marginalia"]; !ok {
+		t.Errorf("marginalia should be defaulted in from the embedded models.yaml; got %+v", cfg.SearchProviders)
+	}
+	// Keyless in-process defaults fill omitted capability maps too.
+	if _, ok := cfg.ExtractProviders["goreadability"]; !ok {
+		t.Errorf("extract_providers should gain the keyless embedded defaults; got %+v", cfg.ExtractProviders)
+	}
+	// Keyed and operator-instance providers stay strictly opt-in: the
+	// overlay must never make `frugal mcp install` harvest a secret the
+	// operator's file didn't authorize, or point traffic at an instance
+	// they didn't name.
+	if _, ok := cfg.SearchProviders["youcom"]; ok {
+		t.Errorf("keyed youcom must NOT be defaulted in; got %+v", cfg.SearchProviders)
+	}
+	if _, ok := cfg.SearchProviders["searxng"]; ok {
+		t.Errorf("operator-instance searxng must NOT be defaulted in; got %+v", cfg.SearchProviders)
+	}
+	if _, ok := cfg.BrowseProviders["browserless"]; ok {
+		t.Errorf("keyed browserless must NOT be defaulted in; got %+v", cfg.BrowseProviders)
+	}
+	if _, ok := cfg.ExtractProviders["firecrawl"]; ok {
+		t.Errorf("keyed firecrawl must NOT be defaulted in; got %+v", cfg.ExtractProviders)
+	}
+}
+
+func TestParse_BareKeylessEntryIsValid(t *testing.T) {
+	// A tombstone flipped back on (`wikipedia: {enabled: true}`) or a bare
+	// `marginalia:` entry has no endpoint fields — the drivers default
+	// their public base URL in code, so the config must load, not brick
+	// the server with a demand for api_key_env.
+	for _, y := range []string{
+		"search_providers:\n    wikipedia:\n        enabled: true\n",
+		"search_providers:\n    marginalia: {}\n",
+	} {
+		if _, err := Parse([]byte(y)); err != nil {
+			t.Errorf("bare keyless entry should validate; got %v (yaml: %q)", err, y)
+		}
+	}
+}
+
+func TestLoadAuto_UserOverrideWins(t *testing.T) {
+	// An entry the operator's file names is theirs entirely; the overlay
+	// only fills absent entries.
+	t.Setenv("FRUGAL_CONFIG", "")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Chdir(t.TempDir())
+
+	dir := filepath.Join(home, ".frugal", "config")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := `
+search_providers:
+  serper:
+    api_key_env: SERPER_API_KEY
+    base_url: https://serper-proxy.internal.example
+    cost_per_call: 0.0005
+`
+	if err := os.WriteFile(filepath.Join(dir, "models.yaml"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, _, err := LoadAuto()
+	if err != nil {
+		t.Fatalf("LoadAuto: %v", err)
+	}
+	sp := cfg.SearchProviders["serper"]
+	if sp.BaseURL != "https://serper-proxy.internal.example" {
+		t.Errorf("serper.BaseURL = %q, want the operator's override", sp.BaseURL)
+	}
+	if sp.CostPerCall != 0.0005 {
+		t.Errorf("serper.CostPerCall = %v, want the operator's override 0.0005", sp.CostPerCall)
+	}
+}
+
+func TestLoadAuto_DisabledTombstoneSurvivesOverlay(t *testing.T) {
+	// `enabled: false` is the durable opt-out: the entry is present, so
+	// the overlay must not replace it with the shipped default, and it
+	// needs no endpoint fields to validate.
+	t.Setenv("FRUGAL_CONFIG", "")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Chdir(t.TempDir())
+
+	dir := filepath.Join(home, ".frugal", "config")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := `
+search_providers:
+  wikipedia:
+    enabled: false
+`
+	if err := os.WriteFile(filepath.Join(dir, "models.yaml"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, _, err := LoadAuto()
+	if err != nil {
+		t.Fatalf("LoadAuto: %v", err)
+	}
+	sp, ok := cfg.SearchProviders["wikipedia"]
+	if !ok {
+		t.Fatalf("tombstone entry must survive the overlay; got %+v", cfg.SearchProviders)
+	}
+	if !sp.Disabled() {
+		t.Errorf("wikipedia should stay disabled, got %+v", sp)
+	}
+	if sp.BaseURL != "" {
+		t.Errorf("overlay must not merge default fields into a named entry; got BaseURL=%q", sp.BaseURL)
+	}
+}
+
+func TestLoadAuto_EmbeddedPathIdenticalToDefaults(t *testing.T) {
+	// On the embedded-default path the overlay is a no-op: the loaded
+	// config must equal a straight parse of the embedded models.yaml.
+	t.Setenv("FRUGAL_CONFIG", "")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Chdir(t.TempDir())
+
+	cfg, src, err := LoadAuto()
+	if err != nil {
+		t.Fatalf("LoadAuto: %v", err)
+	}
+	if src != "embedded default" {
+		t.Fatalf("source = %q, want embedded default", src)
+	}
+	want, err := Parse(defaults.DefaultModelsYAML)
+	if err != nil {
+		t.Fatalf("Parse embedded default: %v", err)
+	}
+	if !reflect.DeepEqual(cfg, want) {
+		t.Errorf("embedded-path config diverged from the embedded default:\n got %+v\nwant %+v", cfg, want)
 	}
 }
 

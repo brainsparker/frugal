@@ -18,6 +18,7 @@ import (
 	"github.com/frugalsh/frugal/internal/config"
 	"github.com/frugalsh/frugal/internal/extract"
 	"github.com/frugalsh/frugal/internal/install"
+	"github.com/frugalsh/frugal/internal/ledger"
 	"github.com/frugalsh/frugal/internal/mcp"
 	"github.com/frugalsh/frugal/internal/mcp/tools"
 	"github.com/frugalsh/frugal/internal/obs"
@@ -27,6 +28,7 @@ import (
 	"github.com/frugalsh/frugal/internal/provider/marginalia"
 	"github.com/frugalsh/frugal/internal/provider/searxng"
 	"github.com/frugalsh/frugal/internal/provider/serper"
+	"github.com/frugalsh/frugal/internal/provider/wikipedia"
 	"github.com/frugalsh/frugal/internal/provider/youcom"
 	"github.com/frugalsh/frugal/internal/search"
 )
@@ -35,7 +37,7 @@ import (
 // process exit code.
 //
 // Subcommands:
-//   - serve:   run Frugal as an MCP server (stdio default; --http :PORT for Streamable HTTP)
+//   - serve:   run Frugal as an MCP server (stdio default; --http ADDR for Streamable HTTP)
 //   - install: write MCP server config into Claude Desktop / Cursor / Claude Code (Phase 1 PR 6)
 //
 // Anything else falls through to a usage error.
@@ -57,14 +59,15 @@ func runMCP(args []string) int {
 
 // runMCPServe runs the MCP server. stdio is the default — what Claude
 // Desktop, Claude Code, and Cursor consume for locally-installed servers.
-// --http :PORT switches to Streamable HTTP for remote deployments and HTTP
-// clients.
+// --http ADDR switches to Streamable HTTP for remote deployments and HTTP
+// clients; --allow-anon binds must be loopback (e.g. 127.0.0.1:8765),
+// anything wider needs FRUGAL_AUTH_TOKEN.
 //
 // Both transports honor SIGINT / SIGTERM with a graceful shutdown.
 func runMCPServe(args []string) int {
 	fs := flag.NewFlagSet("mcp serve", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
-	httpAddr := fs.String("http", "", "if set, serve over Streamable HTTP on this address (e.g. :8765) instead of stdio")
+	httpAddr := fs.String("http", "", "if set, serve over Streamable HTTP on this address instead of stdio (e.g. 127.0.0.1:8765 with --allow-anon; non-local binds require FRUGAL_AUTH_TOKEN)")
 	allowAnon := fs.Bool("allow-anon", false, "permit --http to run without FRUGAL_AUTH_TOKEN (foot-gun: only for localhost or behind a trusted proxy)")
 	rateLimit := fs.Int("rate-limit-rpm", 600, "per-IP request budget per minute when serving --http (0 disables)")
 	reqTimeout := fs.Duration("request-timeout", 30*time.Second, "per-request timeout when serving --http (0 disables)")
@@ -73,9 +76,10 @@ func runMCPServe(args []string) int {
 		fmt.Fprintln(os.Stderr, "Usage: frugal mcp serve [--http ADDR]")
 		fmt.Fprintln(os.Stderr, "Run Frugal as an MCP server. Default transport is stdio")
 		fmt.Fprintln(os.Stderr, "(what Claude Desktop, Claude Code, and Cursor consume).")
-		fmt.Fprintln(os.Stderr, "Pass --http :PORT for Streamable HTTP (remote / HTTP clients).")
-		fmt.Fprintln(os.Stderr, "Set FRUGAL_AUTH_TOKEN to enable bearer-token auth, or pass --allow-anon")
-		fmt.Fprintln(os.Stderr, "to expose the server unauthenticated (localhost / trusted-proxy only).")
+		fmt.Fprintln(os.Stderr, "Pass --http ADDR for Streamable HTTP (remote / HTTP clients).")
+		fmt.Fprintln(os.Stderr, "Set FRUGAL_AUTH_TOKEN to enable bearer-token auth — required for any")
+		fmt.Fprintln(os.Stderr, "non-local bind. Or pass --allow-anon to serve unauthenticated, which")
+		fmt.Fprintln(os.Stderr, "additionally requires a loopback address (e.g. --http 127.0.0.1:8765).")
 		fmt.Fprintln(os.Stderr)
 		fs.PrintDefaults()
 	}
@@ -97,6 +101,18 @@ func runMCPServe(args []string) int {
 	srv := mcp.New("frugal", version(), slog.Default())
 
 	metrics := obs.NewMetrics()
+	if ledger.Enabled() {
+		if dir, lerr := ledger.Dir(); lerr == nil {
+			w := ledger.NewWriter(dir, rackRates(cfg), func(err error) {
+				slog.Warn("usage ledger write failed; frugal stats will undercount", "err", err)
+			})
+			metrics.SetSink(func(tool, provider string, latency time.Duration, costUSD float64, won bool, err error) {
+				w.Record(tool, provider, latency, costUSD, won, err == nil)
+			})
+		} else {
+			slog.Warn("mcp serve: usage ledger disabled — cannot resolve home dir", "err", lerr)
+		}
+	}
 	searchers := buildSearchers(cfg)
 	tools.RegisterSearch(srv.Inner, searchers, metrics)
 	if len(searchers) == 0 {
@@ -287,9 +303,34 @@ func runMCPInstall(args []string) int {
 // registration (and therefore OrderByCost's stable ties) deterministic.
 // Providers not listed here sort last, by name.
 var canonicalProviderOrder = []string{
-	"searxng", "marginalia", "serper", "youcom", // search
+	"searxng", "marginalia", "wikipedia", "serper", "youcom", // search
 	"goreadability", "firecrawl", // extract
 	"browserless", // browse
+}
+
+// rackRates derives each capability's premium rack rate — the max
+// cost_per_call across the capability's configured providers — for the
+// usage ledger's savings counterfactual. LoadAuto returns every YAML
+// entry whether or not its API key is set, so rack rates work on a
+// keyless install too. Entries the operator disabled with
+// `enabled: false` don't count: a savings number benchmarked against a
+// provider the operator explicitly opted out of would be fiction.
+func rackRates(cfg *config.Config) map[string]float64 {
+	out := make(map[string]float64, 3)
+	add := func(tool string, providers map[string]config.SearchProviderConfig) {
+		for _, sp := range providers {
+			if sp.Disabled() {
+				continue
+			}
+			if sp.CostPerCall > out[tool] {
+				out[tool] = sp.CostPerCall
+			}
+		}
+	}
+	add("search", cfg.SearchProviders)
+	add("extract", cfg.ExtractProviders)
+	add("browse", cfg.BrowseProviders)
+	return out
 }
 
 // sortedProviderNames returns the provider map's keys in canonical order.
@@ -342,6 +383,12 @@ func providerEnvVars() map[string]string {
 			cfg.SearchProviders, cfg.ExtractProviders, cfg.BrowseProviders,
 		} {
 			for _, p := range providers {
+				// A provider tombstoned with `enabled: false` can never
+				// register — baking its secret into client configs would
+				// persist a credential for nothing.
+				if p.Disabled() {
+					continue
+				}
 				for _, name := range []string{p.APIKeyEnv, p.BaseURLEnv} {
 					if name == "" {
 						continue
@@ -443,13 +490,18 @@ func logMetricsPeriodically(ctx context.Context, m *obs.Metrics, interval time.D
 // entry whose credentials/endpoint are present at startup. Hosted APIs
 // (You.com, Serper) gate on their api_key_env; self-hosted backends
 // (SearXNG) gate on a non-empty base URL — resolved from base_url_env
-// first, falling back to the static base_url. Unknown provider names log
-// a warning and are skipped — operators can edit ~/.frugal/config/models.yaml
-// to add new providers, but driver wiring lives here in code.
+// first, falling back to the static base_url. Entries marked
+// `enabled: false` are skipped — the operator's opt-out from the
+// config-load default overlay. Unknown provider names log a warning and
+// are skipped — operators can edit ~/.frugal/config/models.yaml to add
+// new providers, but driver wiring lives here in code.
 func buildSearchers(cfg *config.Config) []search.Searcher {
 	var out []search.Searcher
 	for _, name := range sortedProviderNames(cfg.SearchProviders) {
 		sp := cfg.SearchProviders[name]
+		if sp.Disabled() {
+			continue
+		}
 		key := ""
 		if sp.APIKeyEnv != "" {
 			key = os.Getenv(sp.APIKeyEnv)
@@ -481,6 +533,10 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 			// driver defaults to the public endpoint. Always registers
 			// if the YAML entry exists.
 			out = append(out, marginalia.New(base))
+		case "wikipedia":
+			// Public Wikimedia REST search; no API key, no required
+			// URL. Always registers if the YAML entry exists.
+			out = append(out, wikipedia.New(base))
 		default:
 			slog.Warn("mcp serve: unknown search provider in config; ignoring",
 				"name", name, "hint", "add a driver in internal/provider/<name> and a switch case here")
@@ -492,11 +548,15 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 // buildExtractors instantiates one extract.Extractor per extract_providers
 // entry whose credentials/endpoint are present at startup. goreadability
 // is in-process and always available when listed in the YAML; firecrawl
-// gates on FIRECRAWL_API_KEY. Unknown names log a warning and are skipped.
+// gates on FIRECRAWL_API_KEY. Entries marked `enabled: false` are
+// skipped. Unknown names log a warning and are skipped.
 func buildExtractors(cfg *config.Config) []extract.Extractor {
 	var out []extract.Extractor
 	for _, name := range sortedProviderNames(cfg.ExtractProviders) {
 		sp := cfg.ExtractProviders[name]
+		if sp.Disabled() {
+			continue
+		}
 		key := ""
 		if sp.APIKeyEnv != "" {
 			key = os.Getenv(sp.APIKeyEnv)
@@ -525,12 +585,16 @@ func buildExtractors(cfg *config.Config) []extract.Extractor {
 }
 
 // buildBrowsers instantiates one browse.Browser per browse_providers
-// entry whose credentials/endpoint are present at startup. Currently
-// only Browserless is supported; local Playwright is deferred.
+// entry whose credentials/endpoint are present at startup. Entries
+// marked `enabled: false` are skipped. Currently only Browserless is
+// supported; local Playwright is deferred.
 func buildBrowsers(cfg *config.Config) []browse.Browser {
 	var out []browse.Browser
 	for _, name := range sortedProviderNames(cfg.BrowseProviders) {
 		sp := cfg.BrowseProviders[name]
+		if sp.Disabled() {
+			continue
+		}
 		key := ""
 		if sp.APIKeyEnv != "" {
 			key = os.Getenv(sp.APIKeyEnv)
