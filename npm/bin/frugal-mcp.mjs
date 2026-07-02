@@ -13,9 +13,9 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { createWriteStream, existsSync, mkdirSync, chmodSync, renameSync, unlinkSync, readFileSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, chmodSync, renameSync, unlinkSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir, platform, arch } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { get } from "node:https";
 
@@ -137,6 +137,7 @@ async function ensureBinary() {
   const asset = `frugal-${triple}`;
   const base = `https://github.com/${REPO}/releases/download/v${VERSION}`;
   mkdirSync(dirname(binPath), { recursive: true });
+  reapStalePartials(binPath);
   // Download to a process-unique sibling temp path. A sibling temp keeps
   // a partial download from a crashed process out of the cache; the
   // pid+random suffix keeps two clients cold-starting at once (Claude
@@ -168,11 +169,42 @@ async function ensureBinary() {
   return binPath;
 }
 
+// reapStalePartials removes leftover `.partial.*` temp files from
+// crashed or SIGKILLed downloads next to binPath. The pid+random temp
+// names that protect concurrent cold-starts also mean nobody else ever
+// renames or truncates an orphan, so without this a client retry loop on
+// a slow network strands ~15 MB per attempt. Age-gated to an hour so a
+// concurrent in-flight download is never reaped.
+function reapStalePartials(binPath) {
+  const dir = dirname(binPath);
+  const prefix = `${basename(binPath)}.partial.`;
+  let names;
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return;
+  }
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const name of names) {
+    if (!name.startsWith(prefix)) continue;
+    const p = join(dir, name);
+    try {
+      if (statSync(p).mtimeMs < cutoff) unlinkSync(p);
+    } catch {
+      // Already gone or unreadable — either way, not our problem.
+    }
+  }
+}
+
 async function main() {
-  // MCP clients always pass argv (`mcp serve`); a bare invocation or a
-  // help flag is a human exploring, so teach the commands instead of
-  // downloading — help must work offline, not trigger a ~15 MB fetch.
+  // MCP clients always pass argv (`mcp serve`); a bare invocation, help,
+  // or version flag is a human (or script) exploring, so answer locally —
+  // these must work offline, not trigger a ~15 MB fetch.
   const args = process.argv.slice(2);
+  if (args[0] === "--version" || args[0] === "-v" || args[0] === "version") {
+    process.stdout.write(`frugal-mcp v${VERSION} (npm wrapper; the Go binary is fetched on first real command)\n`);
+    process.exit(0);
+  }
   if (args.length === 0 || args[0] === "--help" || args[0] === "-h" || args[0] === "help") {
     const usage =
       "frugal-mcp — npm wrapper that runs the frugal Go binary\n" +

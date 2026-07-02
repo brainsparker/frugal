@@ -257,6 +257,9 @@ func runMCPInstall(args []string) int {
 		suggestion, err := install.Apply(c, binPath, env)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "✗ %s: %v\n", c.Title, err)
+			if suggestion != "" {
+				fmt.Fprintf(os.Stderr, "  run this yourself:\n    %s\n", suggestion)
+			}
 			hadErr = true
 			continue
 		}
@@ -265,12 +268,7 @@ func runMCPInstall(args []string) int {
 			wroteJSON = true
 			fmt.Fprintf(os.Stderr, "✓ %s: wrote %s\n", c.Title, c.ConfigPath)
 		case install.KindCLI:
-			if suggestion == "" {
-				fmt.Fprintf(os.Stderr, "✓ %s: registered via `claude mcp add`\n", c.Title)
-			} else {
-				fmt.Fprintf(os.Stderr, "→ %s: couldn't invoke the `claude` CLI; run this yourself:\n", c.Title)
-				fmt.Fprintf(os.Stderr, "    %s\n", suggestion)
-			}
+			fmt.Fprintf(os.Stderr, "✓ %s: registered via `claude mcp add`\n", c.Title)
 		}
 	}
 	if hadErr {
@@ -308,18 +306,30 @@ var canonicalProviderOrder = []string{
 	"browserless", // browse
 }
 
+// wireableProviders names the providers each buildX switch can actually
+// construct a driver for, per capability. Keep in sync with the switch
+// cases in buildSearchers / buildExtractors / buildBrowsers: rackRates
+// must not benchmark savings against a config entry the binary can never
+// dispatch to.
+var wireableProviders = map[string]map[string]bool{
+	"search":  {"searxng": true, "marginalia": true, "wikipedia": true, "serper": true, "youcom": true},
+	"extract": {"goreadability": true, "firecrawl": true},
+	"browse":  {"browserless": true},
+}
+
 // rackRates derives each capability's premium rack rate — the max
 // cost_per_call across the capability's configured providers — for the
 // usage ledger's savings counterfactual. LoadAuto returns every YAML
 // entry whether or not its API key is set, so rack rates work on a
 // keyless install too. Entries the operator disabled with
-// `enabled: false` don't count: a savings number benchmarked against a
-// provider the operator explicitly opted out of would be fiction.
+// `enabled: false`, and entries naming providers the binary has no
+// driver for, don't count: a savings number benchmarked against a
+// provider that can never serve a call would be fiction.
 func rackRates(cfg *config.Config) map[string]float64 {
 	out := make(map[string]float64, 3)
 	add := func(tool string, providers map[string]config.SearchProviderConfig) {
-		for _, sp := range providers {
-			if sp.Disabled() {
+		for name, sp := range providers {
+			if sp.Disabled() || !wireableProviders[tool][name] {
 				continue
 			}
 			if sp.CostPerCall > out[tool] {

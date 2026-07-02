@@ -42,3 +42,22 @@ func TestBuildExtractors_SkipsDisabledProviders(t *testing.T) {
 		t.Errorf("disabled goreadability must not register; got %d extractors", len(got))
 	}
 }
+
+func TestRackRates_SkipsDisabledAndUnwireable(t *testing.T) {
+	no := false
+	cfg := &config.Config{
+		SearchProviders: map[string]config.SearchProviderConfig{
+			"serper": {APIKeyEnv: "X", CostPerCall: 0.001},
+			// Disabled premium: the operator opted out — must not anchor
+			// the counterfactual.
+			"youcom": {APIKeyEnv: "Y", CostPerCall: 0.005, Enabled: &no},
+			// No driver exists for this name: buildSearchers would skip it,
+			// so the receipt must too.
+			"internal-search": {APIKeyEnv: "Z", CostPerCall: 1.0},
+		},
+	}
+	got := rackRates(cfg)
+	if got["search"] != 0.001 {
+		t.Errorf("search rack rate = %v, want 0.001 (serper; youcom disabled, internal-search unwireable)", got["search"])
+	}
+}

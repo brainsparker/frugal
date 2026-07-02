@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 
@@ -224,32 +225,71 @@ func validate(cfg *Config) error {
 	return nil
 }
 
+// keylessDefaults names the providers whose drivers need no endpoint
+// config, PER capability scope: goreadability is pure in-process, and
+// marginalia / wikipedia default their public base URL in code. The
+// scoping matters — a bare `wikipedia:` under extract_providers is a
+// misplaced entry that would silently do nothing at runtime, so it must
+// fail validation there, not slide through a scope-blind whitelist.
+var keylessDefaults = map[string]map[string]bool{
+	"search_providers":  {"marginalia": true, "wikipedia": true},
+	"extract_providers": {"goreadability": true},
+}
+
+// defaultScopeNames lists the provider names the embedded default
+// models.yaml declares per scope. Decoded lazily and WITHOUT Parse —
+// Parse validates, and validateProviders consulting Parse would recurse.
+var defaultScopeNames = sync.OnceValue(func() map[string]map[string]bool {
+	var cfg Config
+	out := map[string]map[string]bool{}
+	if err := yaml.Unmarshal(defaults.DefaultModelsYAML, &cfg); err != nil {
+		return out // build bug, covered by tests; don't brick validation
+	}
+	for scope, m := range map[string]map[string]SearchProviderConfig{
+		"search_providers":  cfg.SearchProviders,
+		"extract_providers": cfg.ExtractProviders,
+		"browse_providers":  cfg.BrowseProviders,
+	} {
+		names := make(map[string]bool, len(m))
+		for n := range m {
+			names[n] = true
+		}
+		out[scope] = names
+	}
+	return out
+})
+
 // validateProviders enforces the shared validity rules across any
 // capability-keyed provider map. Each entry must have a non-negative
 // cost and at least one of api_key_env (hosted) / base_url /
 // base_url_env (self-hosted). Two exceptions: an entry disabled with
 // `enabled: false` is a pure tombstone — it exists to block the default
-// overlay, never dispatches, and so needs no endpoint — and the
-// goreadability extractor, which has no API key and no base URL because
-// it's a pure-in-process driver. Allow both explicitly so the YAML can
-// list them without tripping validation.
+// overlay, never dispatches, and so needs no endpoint — and this scope's
+// keylessDefaults, whose drivers carry their endpoint in code. Both
+// exceptions are scope-checked: an endpoint-less entry (tombstone or
+// bare) naming a provider this scope doesn't know is a misplaced line
+// that would silently have no effect, and the load fails fast with a
+// wrong-section hint instead.
 func validateProviders(scope string, providers map[string]SearchProviderConfig) error {
 	for name, sp := range providers {
 		if sp.CostPerCall < 0 {
 			return fmt.Errorf("%s.%s.cost_per_call must be non-negative", scope, name)
 		}
+		hasEndpoint := sp.APIKeyEnv != "" || sp.BaseURL != "" || sp.BaseURLEnv != ""
 		if sp.Disabled() {
+			// A bare tombstone is fine for any provider this scope ships
+			// (`youcom: {enabled: false}` under search_providers), but one
+			// naming a provider the scope doesn't know is a misplaced line
+			// that would silently fail to disable anything.
+			if !hasEndpoint && !keylessDefaults[scope][name] && !defaultScopeNames()[scope][name] {
+				return fmt.Errorf("%s.%s: unknown provider for this section — the tombstone would have no effect (wrong section?)", scope, name)
+			}
 			continue
 		}
-		if sp.APIKeyEnv != "" || sp.BaseURL != "" || sp.BaseURLEnv != "" {
+		if hasEndpoint {
 			continue
 		}
-		// Drivers that need no endpoint config: goreadability is pure
-		// in-process, and marginalia / wikipedia default their public base
-		// URL in code — so a bare entry (e.g. a tombstone flipped back to
-		// `enabled: true`) is valid for them. Whitelist explicitly.
-		switch name {
-		case "goreadability", "marginalia", "wikipedia":
+		if keylessDefaults[scope][name] {
 			continue
 		}
 		return fmt.Errorf("%s.%s: set api_key_env (hosted) or base_url / base_url_env (self-hosted)", scope, name)

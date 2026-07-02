@@ -251,6 +251,32 @@ search_providers:
 	}
 }
 
+func TestParse_MisplacedEntriesFailFast(t *testing.T) {
+	// Endpoint-less entries naming a provider the section doesn't know are
+	// misplaced lines that would silently do nothing at runtime — a bare
+	// wikipedia under extract_providers, or a tombstone in the wrong map
+	// that fails to disable anything. Both must fail the load with a hint.
+	for _, y := range []string{
+		"extract_providers:\n    wikipedia: {}\n",
+		"extract_providers:\n    wikipedia:\n        enabled: false\n",
+		"search_providers:\n    goreadability: {}\n",
+	} {
+		if _, err := Parse([]byte(y)); err == nil {
+			t.Errorf("misplaced entry should fail validation (yaml: %q)", y)
+		}
+	}
+}
+
+func TestParse_BareTombstoneOfShippedKeyedProviderIsValid(t *testing.T) {
+	// `youcom: {enabled: false}` without endpoint fields is the exact form
+	// the overlay hint tells users to write; the scope ships youcom, so it
+	// must validate.
+	y := "search_providers:\n    youcom:\n        enabled: false\n"
+	if _, err := Parse([]byte(y)); err != nil {
+		t.Errorf("bare tombstone of a shipped provider should validate; got %v", err)
+	}
+}
+
 func TestParse_BareKeylessEntryIsValid(t *testing.T) {
 	// A tombstone flipped back on (`wikipedia: {enabled: true}`) or a bare
 	// `marginalia:` entry has no endpoint fields — the drivers default

@@ -200,18 +200,42 @@ func TestApply_CLIClient_ExecSuccess(t *testing.T) {
 	}
 }
 
-func TestApply_CLIClient_ExecFailureFallsBackToSuggestion(t *testing.T) {
+func TestApply_CLIClient_ExecFailureReturnsErrorAndSuggestion(t *testing.T) {
+	// Registration did NOT happen, so the error must propagate (the
+	// installer's exit code depends on it) alongside the remediation
+	// command for the user to run by hand.
 	prev := claudeMCPAdder
 	t.Cleanup(func() { claudeMCPAdder = prev })
 	claudeMCPAdder = func(string) error { return fmt.Errorf("simulated exec failure") }
 
 	c := Client{ID: "claude-code", Kind: KindCLI}
 	suggestion, err := Apply(c, "/bin/frugal", nil)
-	if err != nil {
-		t.Fatalf("Apply: %v", err)
+	if err == nil {
+		t.Fatalf("exec failed; Apply must return the error, not swallow it")
 	}
 	if !strings.Contains(suggestion, "claude mcp add --scope user frugal") {
 		t.Errorf("exec failed; expected fallback suggestion, got %q", suggestion)
+	}
+}
+
+func TestLooksLikeUnknownFlag(t *testing.T) {
+	cases := []struct {
+		out  string
+		want bool
+	}{
+		{"error: unknown option '--scope'", true},
+		{"Error: unknown flag: --scope", true},
+		{"unrecognized option '--scope'", true},
+		// A VALUE rejection means the CLI knows --scope; retrying unscoped
+		// would silently downgrade to local scope.
+		{"error: option '--scope <scope>' argument 'user' is invalid. Allowed choices are local, project.", false},
+		{"EACCES: permission denied writing ~/.claude.json", false},
+		{"error: could not acquire config lock", false},
+	}
+	for _, c := range cases {
+		if got := looksLikeUnknownFlag(c.out); got != c.want {
+			t.Errorf("looksLikeUnknownFlag(%q) = %v, want %v", c.out, got, c.want)
+		}
 	}
 }
 

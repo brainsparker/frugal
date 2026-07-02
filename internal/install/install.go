@@ -152,9 +152,9 @@ func PlanFor(c Client, binPath string, env map[string]string) string {
 // a shell and its MCP children inherit that environment live, so baking
 // values would only let them go stale after a key rotation. For CLI
 // clients Apply shells out to `claude mcp` to register Frugal
-// idempotently; if the exec fails it returns the equivalent command
-// string so the caller can print it as a fallback. A non-empty
-// suggestion always means "exec didn't run — show this to the user."
+// idempotently; on failure it returns BOTH the error (registration did
+// not happen — the caller must not exit 0) and the equivalent command
+// string as remediation for the user to run by hand.
 func Apply(c Client, binPath string, env map[string]string) (suggestion string, err error) {
 	switch c.Kind {
 	case KindJSONFile:
@@ -162,7 +162,7 @@ func Apply(c Client, binPath string, env map[string]string) (suggestion string, 
 		return "", mergeJSONConfig(c.ConfigPath, ServerName, entry)
 	case KindCLI:
 		if err := claudeMCPAdder(binPath); err != nil {
-			return claudeCodeAddCommand(binPath), nil
+			return claudeCodeAddCommand(binPath), err
 		}
 		return "", nil
 	}
@@ -222,19 +222,22 @@ func runClaudeMCPAdd(binPath string) error {
 }
 
 // looksLikeUnknownFlag reports whether CLI output/error text reads as a
-// flag-parse rejection of --scope (legacy claude CLI) rather than a real
-// failure like a config write conflict.
+// flag-parse rejection of --scope itself (legacy claude CLI that predates
+// the flag) rather than a real failure. Deliberately narrow: a VALUE
+// rejection like commander's "option '--scope <scope>' argument 'user' is
+// invalid. Allowed choices are ..." means the CLI knows --scope but not
+// our value — retrying unscoped there would silently register at local
+// scope, the exact downgrade this gate exists to prevent. Only "unknown"/
+// "unrecognized" flag-shaped messages qualify.
 func looksLikeUnknownFlag(s string) bool {
 	s = strings.ToLower(s)
+	if strings.Contains(s, "argument") || strings.Contains(s, "allowed choices") {
+		return false
+	}
 	if !strings.Contains(s, "scope") && !strings.Contains(s, "flag") && !strings.Contains(s, "option") {
 		return false
 	}
-	for _, marker := range []string{"unknown", "unrecognized", "unexpected", "invalid", "no such"} {
-		if strings.Contains(s, marker) {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(s, "unknown") || strings.Contains(s, "unrecognized")
 }
 
 // FrugalBinary resolves the absolute path of the running frugal binary,
