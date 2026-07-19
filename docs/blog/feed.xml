@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>frugal blog</title>
+    <link>https://frugal.sh/blog/</link>
+    <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
+    <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
+    <item>
+      <title>Instrumenting an agent: what to log from day one</title>
+      <link>https://frugal.sh/blog/instrumenting-ai-agents-logging/</link>
+      <guid>https://frugal.sh/blog/instrumenting-ai-agents-logging/</guid>
+      <pubDate>Tue, 14 Jul 2026 14:15:00 +0000</pubDate>
+      <description>Six fields, one JSONL file, first deploy. The instrumentation playbook that answers every question you&#39;ll be asked about your agent in month three.</description>
+    </item>
+    <item>
+      <title>Token prices fell 90%. Tool prices didn&#39;t.</title>
+      <link>https://frugal.sh/blog/tool-prices-didnt-fall/</link>
+      <guid>https://frugal.sh/blog/tool-prices-didnt-fall/</guid>
+      <pubDate>Thu, 09 Jul 2026 16:25:00 +0000</pubDate>
+      <description>Inference got an order of magnitude cheaper and everyone noticed. The per-call price of search, scrape, and browse barely moved, and almost nobody did.</description>
+    </item>
+    <item>
+      <title>Inside Frugal&#39;s router: how a search call picks its provider</title>
+      <link>https://frugal.sh/blog/inside-frugals-router/</link>
+      <guid>https://frugal.sh/blog/inside-frugals-router/</guid>
+      <pubDate>Tue, 07 Jul 2026 13:40:00 +0000</pubDate>
+      <description>One captured run, walked rung by rung: 0 hits in 529ms, a fall-through, 3 hits at $0, and exactly what lands in the ledger afterward.</description>
+    </item>
+    <item>
+      <title>Latency, quality, cost: pick the two your product needs</title>
+      <link>https://frugal.sh/blog/latency-quality-cost-tradeoffs/</link>
+      <guid>https://frugal.sh/blog/latency-quality-cost-tradeoffs/</guid>
+      <pubDate>Thu, 02 Jul 2026 15:55:00 +0000</pubDate>
+      <description>Autocomplete, overnight reports, and research tasks live in different corners of the same triangle. Products that pick one corner for everything overpay in all three.</description>
+    </item>
+    <item>
+      <title>5 failure modes every agent tool chain should survive</title>
+      <link>https://frugal.sh/blog/agent-tool-chain-failure-modes/</link>
+      <guid>https://frugal.sh/blog/agent-tool-chain-failure-modes/</guid>
+      <pubDate>Tue, 30 Jun 2026 14:30:00 +0000</pubDate>
+      <description>Your tool chain will break in exactly five ways. Here&#39;s what each one looks like in the logs, and what a chain that survives it does differently.</description>
+    </item>
+    <item>
+      <title>Orchestration patterns for multi-tool agents</title>
+      <link>https://frugal.sh/blog/multi-tool-agent-orchestration/</link>
+      <guid>https://frugal.sh/blog/multi-tool-agent-orchestration/</guid>
+      <pubDate>Thu, 25 Jun 2026 16:15:00 +0000</pubDate>
+      <description>Pipeline, fan-out/fan-in, escalation ladder, verify loop. Each pattern has a signature failure: a place the bill or the latency hides until production.</description>
+    </item>
+    <item>
+      <title>BYOK is a feature, not a compromise</title>
+      <link>https://frugal.sh/blog/byok-agent-tooling/</link>
+      <guid>https://frugal.sh/blog/byok-agent-tooling/</guid>
+      <pubDate>Tue, 23 Jun 2026 13:50:00 +0000</pubDate>
+      <description>Every middleman reselling API calls adds margin and a second data controller. The case for bring-your-own-key as trust architecture, tradeoffs included.</description>
+    </item>
+    <item>
+      <title>Search is most of your agent&#39;s bill</title>
+      <link>https://frugal.sh/blog/deep-research-cost-teardown/</link>
+      <guid>https://frugal.sh/blog/deep-research-cost-teardown/</guid>
+      <pubDate>Thu, 18 Jun 2026 15:25:00 +0000</pubDate>
+      <description>Everyone budgets for tokens. Then a teardown shows search at 54% of task cost. The math behind why research agents multiply search spend.</description>
+    </item>
+    <item>
+      <title>Free-first: why your default provider should cost $0</title>
+      <link>https://frugal.sh/blog/free-first-default-provider/</link>
+      <guid>https://frugal.sh/blog/free-first-default-provider/</guid>
+      <pubDate>Tue, 16 Jun 2026 14:40:00 +0000</pubDate>
+      <description>Paid providers should be the fallback, not the default. The case for making your agent&#39;s first call free, with the failure modes stated honestly.</description>
+    </item>
+    <item>
+      <title>6 questions to ask before switching LLM providers</title>
+      <link>https://frugal.sh/blog/switching-llm-providers-questions/</link>
+      <guid>https://frugal.sh/blog/switching-llm-providers-questions/</guid>
+      <pubDate>Thu, 11 Jun 2026 16:00:00 +0000</pubDate>
+      <description>Most teams discover their switching cost the day a price hike or outage forces the move. Ask these six questions while the answer is still cheap.</description>
+    </item>
+    <item>
+      <title>Zero hits is not an error</title>
+      <link>https://frugal.sh/blog/zero-hits-empty-results/</link>
+      <guid>https://frugal.sh/blog/zero-hits-empty-results/</guid>
+      <pubDate>Tue, 09 Jun 2026 13:20:00 +0000</pubDate>
+      <description>An empty result set arrives as a 200 and gets treated like a 500. The provider didn&#39;t fail — it answered. What you do next should depend on whether that answer cost money.</description>
+    </item>
+    <item>
+      <title>Evals before scale: the cheapest insurance in AI engineering</title>
+      <link>https://frugal.sh/blog/evals-before-scale/</link>
+      <guid>https://frugal.sh/blog/evals-before-scale/</guid>
+      <pubDate>Thu, 04 Jun 2026 15:45:00 +0000</pubDate>
+      <description>Thirty real queries with expected answers will save you more money than any discount negotiation. You can&#39;t swap models, cut costs, or route traffic without a way to score the output.</description>
+    </item>
+    <item>
+      <title>stdio or Streamable HTTP? Choosing an MCP transport</title>
+      <link>https://frugal.sh/blog/mcp-transport-stdio-vs-http/</link>
+      <guid>https://frugal.sh/blog/mcp-transport-stdio-vs-http/</guid>
+      <pubDate>Tue, 02 Jun 2026 14:05:00 +0000</pubDate>
+      <description>One transport is a subprocess and a pipe. The other is a service you now operate. Which MCP transport you pick is really a question about who connects, from where.</description>
+    </item>
+    <item>
+      <title>Cost observability for agents: put cost_usd on every result</title>
+      <link>https://frugal.sh/blog/agent-cost-observability/</link>
+      <guid>https://frugal.sh/blog/agent-cost-observability/</guid>
+      <pubDate>Thu, 28 May 2026 16:10:00 +0000</pubDate>
+      <description>Your invoice knows what you spent by provider and month. It has no idea what one agent run cost. Stamp the cost on the response envelope and the question answers itself.</description>
+    </item>
+    <item>
+      <title>Fallback chains: designing a provider ladder that doesn&#39;t page you</title>
+      <link>https://frugal.sh/blog/provider-fallback-chains/</link>
+      <guid>https://frugal.sh/blog/provider-fallback-chains/</guid>
+      <pubDate>Tue, 26 May 2026 13:35:00 +0000</pubDate>
+      <description>A backup provider you&#39;ve never exercised is a config value, not a plan. The rules I use to order rungs, avoid paying twice, and break flapping providers out of the chain.</description>
+    </item>
+    <item>
+      <title>Small models first: the case for escalation</title>
+      <link>https://frugal.sh/blog/small-models-first/</link>
+      <guid>https://frugal.sh/blog/small-models-first/</guid>
+      <pubDate>Thu, 21 May 2026 15:30:00 +0000</pubDate>
+      <description>Escalation isn&#39;t a cost hack, it&#39;s an architecture: the cheap model handles the bulk, the expensive one earns its rung. The same ladder logic that works for tool calls.</description>
+    </item>
+    <item>
+      <title>Latency budgets for agent tool calls</title>
+      <link>https://frugal.sh/blog/latency-budgets-agent-tool-calls/</link>
+      <guid>https://frugal.sh/blog/latency-budgets-agent-tool-calls/</guid>
+      <pubDate>Tue, 19 May 2026 14:50:00 +0000</pubDate>
+      <description>An agent chains tool calls in sequence, and sequences are where tail latency compounds. How to set a budget, split it per call, and spend it on fallback rungs.</description>
+    </item>
+    <item>
+      <title>Shipping your first AI feature: a checklist for product teams</title>
+      <link>https://frugal.sh/blog/ai-feature-launch-checklist/</link>
+      <guid>https://frugal.sh/blog/ai-feature-launch-checklist/</guid>
+      <pubDate>Thu, 14 May 2026 16:20:00 +0000</pubDate>
+      <description>The demo is the easy 20%. This is the other 80% — seven checks that decide whether your AI feature survives contact with real users and a real invoice.</description>
+    </item>
+    <item>
+      <title>What is an LLM router — and do you actually need one?</title>
+      <link>https://frugal.sh/blog/what-is-an-llm-router/</link>
+      <guid>https://frugal.sh/blog/what-is-an-llm-router/</guid>
+      <pubDate>Tue, 12 May 2026 13:45:00 +0000</pubDate>
+      <description>The term gets used for two different things. Here&#39;s what a router actually contains — policy, health, fallback, accounting — and the honest cases where you should skip one.</description>
+    </item>
+    <item>
+      <title>7 ways to cut your AI agent&#39;s API bill this week</title>
+      <link>https://frugal.sh/blog/cut-ai-agent-api-costs/</link>
+      <guid>https://frugal.sh/blog/cut-ai-agent-api-costs/</guid>
+      <pubDate>Thu, 07 May 2026 15:15:00 +0000</pubDate>
+      <description>No replatforming, no procurement cycle. Seven changes you can ship by Friday that attack the parts of an agent bill nobody is looking at.</description>
+    </item>
+  </channel>
+</rss>

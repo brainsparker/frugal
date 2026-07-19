@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Latency, quality, cost: pick the two your product needs — frugal blog</title>
+  <meta name="description" content="The LLM latency cost tradeoff is per-call, not per-product. How to route each call to the corner of the triangle it actually needs." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/latency-quality-cost-tradeoffs/" />
+  <meta property="og:title" content="Latency, quality, cost: pick the two your product needs — frugal blog" />
+  <meta property="og:description" content="The LLM latency cost tradeoff is per-call, not per-product. How to route each call to the corner of the triangle it actually needs." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-07-02T15:55:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Latency, quality, cost: pick the two your product needs — frugal blog" />
+  <meta name="twitter:description" content="The LLM latency cost tradeoff is per-call, not per-product. How to route each call to the corner of the triangle it actually needs." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/latency-quality-cost-tradeoffs/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-07-02T15:55:00Z","datePublished":"2026-07-02T15:55:00Z","description":"The LLM latency cost tradeoff is per-call, not per-product. How to route each call to the corner of the triangle it actually needs.","headline":"Latency, quality, cost: pick the two your product needs","keywords":"LLM latency cost tradeoff","mainEntityOfPage":"https://frugal.sh/blog/latency-quality-cost-tradeoffs/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/latency-quality-cost-tradeoffs/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Latency, quality, cost: pick the two your product needs","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Latency, quality, cost: pick the two your product needs</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h1>Latency, quality, cost: pick the two your product needs</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-07-02">Jul 2, 2026</time>
+            · 6 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Latency, quality, cost. For any single call, you can optimize two. The mistake almost everyone makes with the LLM latency cost tradeoff is treating it as a product decision — &quot;we're a quality-first product&quot; — when it's a per-call decision. Your product is not one call. It's thousands of calls with wildly different requirements, and picking one corner of the triangle for all of them means overpaying on most.</p>
+<p>I'll make the case, then get concrete about which calls belong in which corner.</p>
+<h2>The triangle is real, and it's priced</h2>
+<p>You can't cheat it. A bigger model gives better answers slower and dearer. A smaller model is fast and cheap and drops the hard cases. Paying for dedicated capacity buys latency at a premium. Every knob you have — model size, provider tier, retries, timeouts, parallel sampling — trades along one edge of this triangle. Parallel sampling, for instance, buys quality with money while holding latency roughly flat: five samples, pick the best, pay five times.</p>
+<p>The same triangle governs tool calls, not just model calls. A free search rung answers in whatever time it answers, at $0, with real coverage gaps. A paid rung is faster and broader at $0.001 to $0.005 a call. Same shape, different market.</p>
+<p>What you can do — the only move that actually beats the triangle — is stop buying the same corner for every call.</p>
+<h2>Per-call, not per-product</h2>
+<p>Take one product: a research assistant. It makes a call to rewrite the user's query, a call to classify which sources look relevant, forty search and extract calls, and one long synthesis call at the end.</p>
+<p>Are these &quot;quality-first&quot; calls? The synthesis is. Getting it wrong wastes everything upstream. But the query rewrite is a plumbing call — a small model does it indistinguishably, in a fifth of the time, at a fraction of the cost. The relevance filter runs forty times, so its latency and cost multiply by forty while its quality bar is &quot;roughly right.&quot; One product, three different corners of the triangle, and if you route all of it to your best model you've paid frontier prices for plumbing. That's the argument I made in <a href="/blog/small-models-first/">small models first</a>, and it falls straight out of the triangle: each call has its own two-of-three, so choose per call.</p>
+<p>The uncomfortable corollary: &quot;which model should we use?&quot; is a malformed question. The well-formed one is &quot;which calls need which corner?&quot;</p>
+<h2>Interactive surfaces pay for latency</h2>
+<p>If a human is watching a spinner, latency is a quality attribute. Users don't experience your answer's brilliance separately from the four seconds it took; they experience one thing, and slow-but-smart usually loses to fast-but-decent in anything conversational. So interactive calls should spend money and, where necessary, quality to buy speed: smaller models, tighter timeouts, the fastest adequate provider even when it's not the cheapest.</p>
+<p>This is where per-rung timeouts earn their keep. In an interactive flow I'll give a free search rung a short leash — if it hasn't answered inside the budget, fall through to a paid rung that will. The paid call costs $0.005; the user waiting an extra two seconds costs more. I've written before about <a href="/blog/latency-budgets-agent-tool-calls/">setting latency budgets for agent tool calls</a>; the budget is what makes &quot;pay for latency&quot; an engineering rule instead of a mood.</p>
+<p>Note what's being sacrificed: cost, deliberately. Interactive traffic is usually a minority of total calls, so paying up here is cheap in absolute terms — <em>if</em> you're not also paying up everywhere else.</p>
+<h2>Batch pipelines shouldn't pay for speed</h2>
+<p>Nobody is watching the overnight job. If your report generates at 3:14am instead of 3:02am, nothing happened. So paying for latency in a batch pipeline is buying the one thing in the triangle that has zero value to you — and it's a purchase most pipelines make by default, because they reuse the interactive path's configuration.</p>
+<p>Batch is where you take the other two corners hard. Quality: use the big model, sample multiple times, let the chain walk every rung. Cost: free providers first with generous timeouts, aggressive caching, no premium tiers. A free search rung that takes three seconds is strictly better than a paid one that takes one second when the deadline is &quot;before morning.&quot; Slow is free. Batch pipelines are the only place in your system where you can have quality <em>and</em> cost, because latency was never in the running.</p>
+<p>The failure mode is leakage: batch workloads quietly running on interactive settings. Worth an audit. In my experience it's the most common single misallocation in agent systems, and fixing it is a config change.</p>
+<h2>Concrete pairings</h2>
+<table>
+<thead>
+<tr>
+<th>Workload</th>
+<th>Pays for</th>
+<th>Sacrifices</th>
+<th>Looks like</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Autocomplete / inline suggest</td>
+<td>Latency + cost</td>
+<td>Quality</td>
+<td>Small model, tight timeout, no fallback chain — miss fast and move on</td>
+</tr>
+<tr>
+<td>Overnight report</td>
+<td>Quality + cost</td>
+<td>Latency</td>
+<td>Big model, multi-sample, free-first tools, generous timeouts</td>
+</tr>
+<tr>
+<td>User-facing research task</td>
+<td>Latency + quality</td>
+<td>Cost</td>
+<td>Capable model, paid rungs early, parallel tool calls</td>
+</tr>
+</tbody>
+</table>
+<p>Autocomplete is the purest case: a suggestion that arrives in 400ms and is pretty good beats one that arrives in 2s and is excellent, because the user already typed past it. And it fires on every keystroke, so cost matters too. Quality is the corner you give up — which is fine, because a mediocre suggestion costs the user nothing to ignore.</p>
+<p>The research task a user is actively waiting on is the opposite: they asked a hard question and they're watching. Spend. Route to the capable model, hit paid search rungs earlier than you would in batch, parallelize the tool calls. Cost is the sacrifice, and it's the right one — this is your product's showcase moment, and it's a small slice of traffic.</p>
+<p>The overnight report takes quality and cost, as above. Three workloads, three different pairs. Any single global configuration is wrong for at least two of them.</p>
+<h2>Routing is how you buy the right corners</h2>
+<p>Once you accept that the triangle is per-call, you need machinery that can send different calls to different corners — a router, in other words, for models and for tools. The decision inputs are the same ones I covered in <a href="/blog/how-to-choose-a-model-for-agents/">choosing a model for agent work</a>: what does this call need, what's the cheapest thing that delivers it, and how do I fall through when it doesn't. There's more in that vein under <a href="/blog/topics/model-selection/">model selection</a>.</p>
+<p>Where to start: label every call site in your agent with the two corners it needs. Not the model it uses — the corners. The list is usually short, ten or fifteen call sites, and the mismatches jump out immediately: plumbing on frontier models, batch traffic on interactive timeouts, autocomplete waiting on a fallback chain. Fix the mismatches and you'll have bought back money and latency without giving up quality anywhere a user would notice. The triangle doesn't bend. But you get to choose where you stand on it, one call at a time.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-05-19">May 19, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/latency-budgets-agent-tool-calls/">Latency budgets for agent tool calls</a></h3>
+          <p class="blog-card-excerpt">An agent chains tool calls in sequence, and sequences are where tail latency compounds. How to set a budget, split it per call, and spend it on fallback rungs.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <time datetime="2026-05-21">May 21, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/small-models-first/">Small models first: the case for escalation</a></h3>
+          <p class="blog-card-excerpt">Escalation isn&#39;t a cost hack, it&#39;s an architecture: the cheap model handles the bulk, the expensive one earns its rung. The same ladder logic that works for tool calls.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <time datetime="2026-04-28">Apr 28, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/how-to-choose-a-model-for-agents/">How to choose a model for your agent workload</a></h3>
+          <p class="blog-card-excerpt">Model selection for agents isn&#39;t a leaderboard question. It&#39;s five workload questions, and most teams skip straight to the logo.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

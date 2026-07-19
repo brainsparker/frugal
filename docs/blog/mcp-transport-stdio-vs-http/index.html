@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>stdio or Streamable HTTP? Choosing an MCP transport — frugal blog</title>
+  <meta name="description" content="stdio or Streamable HTTP? How to choose an MCP transport: local vs shared use, auth, rate limiting, latency, ops burden, and a plain recommendation." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/mcp-transport-stdio-vs-http/" />
+  <meta property="og:title" content="stdio or Streamable HTTP? Choosing an MCP transport — frugal blog" />
+  <meta property="og:description" content="stdio or Streamable HTTP? How to choose an MCP transport: local vs shared use, auth, rate limiting, latency, ops burden, and a plain recommendation." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-06-02T14:05:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="stdio or Streamable HTTP? Choosing an MCP transport — frugal blog" />
+  <meta name="twitter:description" content="stdio or Streamable HTTP? How to choose an MCP transport: local vs shared use, auth, rate limiting, latency, ops burden, and a plain recommendation." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/mcp-transport-stdio-vs-http/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-06-02T14:05:00Z","datePublished":"2026-06-02T14:05:00Z","description":"stdio or Streamable HTTP? How to choose an MCP transport: local vs shared use, auth, rate limiting, latency, ops burden, and a plain recommendation.","headline":"stdio or Streamable HTTP? Choosing an MCP transport","keywords":"MCP transport","mainEntityOfPage":"https://frugal.sh/blog/mcp-transport-stdio-vs-http/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/mcp-transport-stdio-vs-http/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"stdio or Streamable HTTP? Choosing an MCP transport","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">stdio or Streamable HTTP? Choosing an MCP transport</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h1>stdio or Streamable HTTP? Choosing an MCP transport</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-06-02">Jun 2, 2026</time>
+            · 5 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Every MCP server forces one decision before it serves a single tool call: which transport. The spec gives you two — stdio and Streamable HTTP — and the choice looks technical but is really organizational. It comes down to one question: who connects to this server, and from where? Answer that and the MCP transport picks itself. I ship Frugal with both, so I've watched people choose wrong in both directions, and the failure modes are instructive.</p>
+<h2>What the two transports actually are</h2>
+<p>Under either transport, MCP is the same thing: JSON-RPC messages between a client and a server. The transport is just the pipe those messages travel through.</p>
+<p>With stdio, the client launches the server as a subprocess and talks to it over stdin and stdout. There's no port, no URL, no network. The server's lifetime is the session's lifetime — client exits, server dies. Configuration is a command line in your client's config file.</p>
+<p>With Streamable HTTP, the server is a long-running process listening on an HTTP endpoint. Clients POST JSON-RPC messages to it, and the server can stream responses back over SSE when a call produces incremental output. It has an address, which means anything that can reach the address is a potential client — and a potential problem.</p>
+<p>That's the whole difference: a subprocess versus a service. Everything else — auth, latency, ops — follows from it.</p>
+<h2>stdio: the default for a single user on one machine</h2>
+<p>For the common case — you, your agent, your laptop — stdio is correct and it isn't close.</p>
+<p>There's nothing to deploy. No port to choose, no TLS to terminate, no process manager. The client starts the server on demand and reaps it when done. Your API keys sit in the environment of a process running as you, on your machine, reachable by nothing that isn't already running as you. The attack surface is your own user account, which was already the attack surface.</p>
+<p>Latency is a pipe write between two local processes — microseconds, not milliseconds. That never matters next to the tool call itself (a web search runs hundreds of milliseconds), but it's one less line in your <a href="/blog/latency-budgets-agent-tool-calls/">latency budget</a> either way.</p>
+<p>The limitation is exactly the design: one client, one machine. A subprocess can't be shared with a teammate, can't run near a private data source across the network, and can't outlive the session to hold long-lived state.</p>
+<h2>Streamable HTTP: for shared and remote servers</h2>
+<p>The moment a second person, a second machine, or a remote environment enters the picture, you want Streamable HTTP.</p>
+<p>The wins are real. One server, many clients — a team shares a single deployment instead of five laptops running five copies with five sets of keys. Keys live in one place, which makes rotation and spend accounting sane. The server runs where it needs to run: next to a private database, inside a VPC, on a box with the GPU. And a persistent process can hold caches, connection pools, and rate-limit state that a per-session subprocess rebuilds from zero every time.</p>
+<p>The cost is equally real: you now operate a service. Uptime, TLS, restarts, monitoring, logs. None of it is hard, but none of it is optional, and all of it is work stdio never asks of you.</p>
+<h2>Auth is where the choice gets serious</h2>
+<p>Here's the part people skip. stdio needs no auth story because the OS already provides one — if you can talk to the process, you already own the account it runs as. Streamable HTTP has no such inheritance. An HTTP endpoint answers whoever connects, and an MCP server is a particularly bad thing to leave open: it executes tool calls, often with your paid API keys behind them. An unauthenticated MCP endpoint is an open proxy where every request spends your money.</p>
+<p>So the floor for any HTTP deployment, including on a &quot;private&quot; network:</p>
+<ul>
+<li>Bearer-token auth on every request. No token, no tool call.</li>
+<li>Per-IP rate limiting, so one misbehaving client — or one leaked URL — can't drain a key or a budget.</li>
+<li>TLS if the traffic leaves localhost.</li>
+<li>And don't bind to <code>0.0.0.0</code> &quot;temporarily&quot; while you set the rest up. Temporary has a way of shipping.</li>
+</ul>
+<p>This is how Frugal's HTTP transport works: bearer-token auth, per-IP rate limiting, and a Prometheus <code>/metrics</code> endpoint, because a server other people depend on should be observable by the person operating it. Whatever server you run, treat that as the minimum bar — <a href="/blog/mcp-ecosystem-2026/">the MCP ecosystem is still young</a>, and plenty of servers ship HTTP support with none of it.</p>
+<h2>Latency and ops, honestly</h2>
+<p>The latency difference is smaller than the discourse suggests. HTTP adds a network round trip — sub-millisecond on localhost, single-digit milliseconds within a region — on top of tool calls that run hundreds of milliseconds anyway. You will not feel the transport. What you will feel is operational: an stdio server that crashes takes out one session and restarts on the next launch; an HTTP server that crashes takes out everyone until something restarts it. The transport choice is an availability choice wearing a protocol costume.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>stdio</th>
+<th>Streamable HTTP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Clients</td>
+<td>one, local</td>
+<td>many, anywhere</td>
+</tr>
+<tr>
+<td>Auth</td>
+<td>inherited from the OS</td>
+<td>yours to build (bearer tokens, minimum)</td>
+</tr>
+<tr>
+<td>Keys live</td>
+<td>your env</td>
+<td>the server's env</td>
+</tr>
+<tr>
+<td>Ops burden</td>
+<td>none</td>
+<td>a service to run</td>
+</tr>
+<tr>
+<td>Added latency</td>
+<td>microseconds</td>
+<td>a network RTT</td>
+</tr>
+</tbody>
+</table>
+<h2>The plain recommendation</h2>
+<p>Single user, own machine: stdio. Stop deliberating. It's simpler, safer by construction, and every capability you'd get from HTTP is capability you don't need yet. Don't run a local HTTP daemon to be &quot;future-proof&quot; — you're taking on a service's ops burden and auth surface to serve one client through a loopback interface.</p>
+<p>More than one client, or any client not on the server's machine: Streamable HTTP, with bearer tokens and rate limiting from the first request, not retrofitted after an incident.</p>
+<p>And if you're shipping a server rather than running one, ship both and let the deployment decide — the JSON-RPC layer doesn't care, so the transport can be a flag instead of a fork. That's the approach I took, and it's why this whole decision can stay boring: pick the pipe that matches who's connecting, secure it accordingly, and go back to the tools, which are the part that matters. More on the protocol and its surroundings under <a href="/blog/topics/mcp-ecosystem/">MCP ecosystem</a>.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <time datetime="2026-05-05">May 5, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/mcp-ecosystem-2026/">The MCP ecosystem in 2026: what&#39;s actually getting used</a></h3>
+          <p class="blog-card-excerpt">Forget the spec tour. This is what MCP looks like from the inside of a server that runs every day: the parts that stuck and the parts that didn&#39;t.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-05-19">May 19, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/latency-budgets-agent-tool-calls/">Latency budgets for agent tool calls</a></h3>
+          <p class="blog-card-excerpt">An agent chains tool calls in sequence, and sequences are where tail latency compounds. How to set a budget, split it per call, and spend it on fallback rungs.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <time datetime="2026-06-23">Jun 23, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/byok-agent-tooling/">BYOK is a feature, not a compromise</a></h3>
+          <p class="blog-card-excerpt">Every middleman reselling API calls adds margin and a second data controller. The case for bring-your-own-key as trust architecture, tradeoffs included.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Evals before scale: the cheapest insurance in AI engineering — frugal blog</title>
+  <meta name="description" content="LLM evals built from 20–50 real queries are the cheapest insurance in AI engineering. Gate provider swaps, enable routing, catch regressions." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/evals-before-scale/" />
+  <meta property="og:title" content="Evals before scale: the cheapest insurance in AI engineering — frugal blog" />
+  <meta property="og:description" content="LLM evals built from 20–50 real queries are the cheapest insurance in AI engineering. Gate provider swaps, enable routing, catch regressions." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-06-04T15:45:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Evals before scale: the cheapest insurance in AI engineering — frugal blog" />
+  <meta name="twitter:description" content="LLM evals built from 20–50 real queries are the cheapest insurance in AI engineering. Gate provider swaps, enable routing, catch regressions." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/evals-before-scale/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-06-04T15:45:00Z","datePublished":"2026-06-04T15:45:00Z","description":"LLM evals built from 20–50 real queries are the cheapest insurance in AI engineering. Gate provider swaps, enable routing, catch regressions.","headline":"Evals before scale: the cheapest insurance in AI engineering","keywords":"LLM evals","mainEntityOfPage":"https://frugal.sh/blog/evals-before-scale/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/evals-before-scale/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Evals before scale: the cheapest insurance in AI engineering","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Evals before scale: the cheapest insurance in AI engineering</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/building-with-ai/">Building with AI</a>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h1>Evals before scale: the cheapest insurance in AI engineering</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-06-04">Jun 4, 2026</time>
+            · 5 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>The highest-leverage artifact in AI engineering is a file of thirty real queries with expected answers. Not a bigger model, not a clever prompt — a small eval set. LLM evals have a reputation as a research discipline with leaderboards and statistical machinery, and that reputation keeps teams from building the twenty-line version that would actually protect them. You don't need the machinery. You need enough signal to answer one question: did this change make my system worse?</p>
+<p>Because here's the position you're otherwise in. Every cost decision you want to make — a cheaper model, a cheaper provider, a shorter prompt, a free rung before a paid one — is a change that might degrade quality. If you can't measure quality, every one of those changes is a leap of faith, so you don't make them, so you overpay indefinitely. Evals aren't a quality tool that happens to touch cost. They're the thing that makes cost optimization possible at all.</p>
+<h2>Vibes don't survive a model swap</h2>
+<p>The default evaluation method is vibes: run five prompts, squint at the output, ship it. Vibes have two failure modes. They're anchored to the prompts you happen to remember — the easy, representative ones, never the ugly tail. And they're not comparable across time. You can't diff a squint from March against a squint from June.</p>
+<p>This bites hardest exactly when the stakes are highest: swapping models or providers. The pull is always toward cheaper — <a href="/blog/small-models-first/">smaller models first</a> is the right default — but &quot;the small model seemed fine&quot; is not a load-bearing sentence. I've watched teams stay pinned to an expensive model for months, not because it measured better, but because nobody could prove the cheap one wasn't worse. The absence of an eval set has a price, and it compounds monthly.</p>
+<h2>20–50 real queries beat a thousand synthetic ones</h2>
+<p>The counterintuitive part: the eval set should be small and it should be ugly.</p>
+<p>Small, because you'll actually run it. A set of 30 queries runs in a couple of minutes and costs pennies, which means it runs on every change instead of quarterly. A 5,000-case benchmark that requires a scheduled job gets consulted twice a year and trusted never.</p>
+<p>Ugly, because the value is in the tail. Pull the queries from real traffic — your logs, your support threads, your own usage — and deliberately keep the awkward ones: the ambiguous phrasing, the query that returns nothing, the input in the wrong language, the one that broke production in April. Synthetic test cases are written by the same brain that wrote the prompt, so they share its blind spots. Real traffic is generated by people who never read your prompt and don't care about your assumptions. Twenty of those are worth a thousand cases invented to pass.</p>
+<p>For each query, write down what a good answer looks like, at the crudest fidelity that catches real failures: a string the output must contain, a fact it must state, a source it must cite, a JSON schema it must satisfy. Exact checks where you can. A model-as-judge only where you must — judges add cost and their own noise, so they're a last resort, not a default.</p>
+<h2>Gate every swap on a regression run</h2>
+<p>Once the set exists, the process is almost insultingly simple: run it on the current setup, record the score; run it on the proposed setup, diff. If the new score holds within a threshold you chose in advance, the swap proceeds. If it drops, the swap stops, and you now know something specific — which queries broke — instead of something vague.</p>
+<p>The threshold matters more than it looks. Decide before you run what regression you'll accept for what savings — maybe two points of pass rate is fine for a 10× cost cut, maybe it isn't for your product. Deciding after you've seen the numbers is how every regression becomes retroactively acceptable.</p>
+<p>Do the same arithmetic on the insurance itself: a 40-query run against a candidate model costs cents and minutes. An unmeasured regression costs you in the currency you care most about — user trust — and you pay it slowly, invisibly, before anyone connects the complaints to the swap. I gate everything behind this: model changes, provider changes, prompt rewrites, temperature nudges. Anything that touches output goes through the gate. It's the cheapest gate you will ever operate, and it belongs on your <a href="/blog/ai-feature-launch-checklist/">launch checklist</a> before the feature ships, not after the first incident.</p>
+<h2>You can't route what you can't score</h2>
+<p>Here's where evals stop being defensive and start paying rent. Routing — <a href="/blog/what-is-an-llm-router/">sending each request to the cheapest option that's good enough</a> — depends entirely on knowing what &quot;good enough&quot; means. That knowledge is an eval score. No score, no ladder; just guesses about which rung deserves the traffic.</p>
+<p>Run your set against every candidate rung and you get a capability map: the small model passes 90% overall but fails the multi-step cases; the free search rung nails documentation queries and whiffs on news. Now the routing rule writes itself — route the shapes each rung passes, escalate the shapes it fails. The same map answers <a href="/blog/how-to-choose-a-model-for-agents/">which model a new agent should start on</a>, and it's the difference between a price ladder built on evidence and one built on brand reputation. Teams skip routing &quot;because quality,&quot; but quality-as-a-blocker is usually quality-as-unmeasured. Score it and the blocker becomes a config file.</p>
+<h2>A starter recipe</h2>
+<p>The whole thing, this week, in an afternoon:</p>
+<ol>
+<li>Pull 30 queries from the last month of real traffic. Skim for variety; keep the weird ones on purpose.</li>
+<li>For each, write the expected outcome — a must-contain string, a must-be-true fact, or pass/fail criteria a colleague could apply without you in the room. A judge prompt only for the genuinely fuzzy few.</li>
+<li>Write a runner: loop queries through your system, append input, output, and pass/fail to a JSONL file. Print the pass rate. Fifty lines of code, give or take.</li>
+<li>Run it now to get a baseline. Then run it on every change to model, provider, or prompt, and diff before shipping.</li>
+<li>Feed it. Every time production surprises you, that query joins the set. The set becomes the fossil record of everything that ever went wrong — which is exactly what you want standing between you and the next change.</li>
+</ol>
+<p>Start before you scale, because afterward you're doing archaeology on incidents instead of curation on logs. Thirty queries, one afternoon, and every future swap becomes a measurement instead of a bet. There's more in this vein under <a href="/blog/topics/building-with-ai/">building with AI</a>, but nothing there matters more than this file.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <time datetime="2026-04-28">Apr 28, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/how-to-choose-a-model-for-agents/">How to choose a model for your agent workload</a></h3>
+          <p class="blog-card-excerpt">Model selection for agents isn&#39;t a leaderboard question. It&#39;s five workload questions, and most teams skip straight to the logo.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <time datetime="2026-05-21">May 21, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/small-models-first/">Small models first: the case for escalation</a></h3>
+          <p class="blog-card-excerpt">Escalation isn&#39;t a cost hack, it&#39;s an architecture: the cheap model handles the bulk, the expensive one earns its rung. The same ladder logic that works for tool calls.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/building-with-ai/">Building with AI</a>
+            <time datetime="2026-05-14">May 14, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/ai-feature-launch-checklist/">Shipping your first AI feature: a checklist for product teams</a></h3>
+          <p class="blog-card-excerpt">The demo is the easy 20%. This is the other 80% — seven checks that decide whether your AI feature survives contact with real users and a real invoice.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

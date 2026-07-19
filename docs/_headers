@@ -29,6 +29,14 @@
 /styles.css
   Cache-Control: public, max-age=3600, stale-while-revalidate=86400
 
+/blog.css
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+
+# Blog feed — short cache so new posts show up in readers promptly.
+/blog/feed.xml
+  Content-Type: application/rss+xml; charset=utf-8
+  Cache-Control: public, max-age=3600
+
 /favicon.svg
   Cache-Control: public, max-age=604800
 

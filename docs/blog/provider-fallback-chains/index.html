@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fallback chains: designing a provider ladder that doesn&#39;t page you — frugal blog</title>
+  <meta name="description" content="An API fallback strategy only works if errors, timeouts, and zero hits get different handling. How I order, break, and test a provider ladder." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/provider-fallback-chains/" />
+  <meta property="og:title" content="Fallback chains: designing a provider ladder that doesn&#39;t page you — frugal blog" />
+  <meta property="og:description" content="An API fallback strategy only works if errors, timeouts, and zero hits get different handling. How I order, break, and test a provider ladder." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-05-26T13:35:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Fallback chains: designing a provider ladder that doesn&#39;t page you — frugal blog" />
+  <meta name="twitter:description" content="An API fallback strategy only works if errors, timeouts, and zero hits get different handling. How I order, break, and test a provider ladder." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/provider-fallback-chains/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-05-26T13:35:00Z","datePublished":"2026-05-26T13:35:00Z","description":"An API fallback strategy only works if errors, timeouts, and zero hits get different handling. How I order, break, and test a provider ladder.","headline":"Fallback chains: designing a provider ladder that doesn't page you","keywords":"API fallback strategy","mainEntityOfPage":"https://frugal.sh/blog/provider-fallback-chains/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/provider-fallback-chains/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Fallback chains: designing a provider ladder that doesn't page you","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Fallback chains: designing a provider ladder that doesn&#39;t page you</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h1>Fallback chains: designing a provider ladder that doesn&#39;t page you</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-05-26">May 26, 2026</time>
+            · 6 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Most fallback chains get written twice. Once in the design doc, calm and orderly. Again at 2 a.m., after the primary went down and the &quot;backup&quot; turned out to be a config value nobody had exercised since it was added. An API fallback strategy that has never actually run is not a strategy. It's a comfort object.</p>
+<p>I run Frugal, an MCP server whose entire job is walking agent tool calls down a ladder of providers, so I've had to get precise about what makes a chain hold up under real traffic. Not &quot;have a fallback&quot; — everyone has a fallback. The details are where the paging happens: how you order the rungs, how you classify what came back, and whether you ever pay twice for one answer. Here's the design that works for me, and there's more on <a href="/blog/topics/provider-routing/">provider routing</a> if you want the broader argument.</p>
+<h2>Order the rungs: cost first, then quality fit</h2>
+<p>The default ordering is boring and correct: cheapest first. For web search my ladder starts at $0 (Wikipedia, Marginalia, a self-hosted SearXNG), then $0.001/call, then $0.005/call. That's <a href="/blog/rack-rate-gap-web-search-costs/">the same query at a 5× gap between the two paid rungs alone</a>, so ordering by price is not a rounding error. It's most of the money.</p>
+<p>But cost is only the first sort key. The second is quality fit, and it's per-query-shape, not global. Marginalia is genuinely good at essays, documentation, and the indie web — and weak on news and product pages. Wikipedia covers entities and not much else. A ladder that ignores this burns a rung on a query it was never going to answer. The fix isn't to promote the paid rung; it's to know which free rungs are plausible for which shapes and skip the implausible ones. Cheapest-plausible-first, not just cheapest-first. If that sounds like a router, it is — <a href="/blog/provider-routing-for-ai-agents/">that's what a router does</a> once you write the logic down.</p>
+<h2>An error, a timeout, and zero hits are three different signals</h2>
+<p>This is the mistake I see most: one catch block for everything. The provider &quot;failed,&quot; so fall through. But the chain sees three distinct signals, and they deserve three distinct responses.</p>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>What it means</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Error (5xx, auth, malformed)</td>
+<td>The rung is broken</td>
+<td>Fall through now; count it against the rung's health</td>
+</tr>
+<tr>
+<td>Timeout</td>
+<td>The rung might be fine, just slow</td>
+<td>Fall through; log it; don't immediately damn the rung</td>
+</tr>
+<tr>
+<td>Zero hits</td>
+<td>The rung worked and found nothing</td>
+<td>Depends on whether the rung was free or paid</td>
+</tr>
+</tbody>
+</table>
+<p>Errors are the easy case. Fall through immediately and increment a failure counter — you'll want it later.</p>
+<p>Timeouts are subtler because a timeout is a decision you made, not a fact about the provider. A rung that answers in 4 seconds against your 3-second budget isn't down; it's slower than you'll tolerate. Fall through, but keep the accounting separate from hard errors, and be honest that the number came from your latency budget, not theirs.</p>
+<p>Zero hits is the one almost everyone gets wrong, because an empty result set arrives as a 200 and looks like success. It is success — the provider searched and found nothing. Whether you should fall through depends on why it found nothing: coverage gap, or genuinely no results. My rule of thumb: a free rung returning zero hits falls through (it cost nothing to ask, and free rungs have narrow coverage), while a paid rung returning zero hits usually ends the chain. That asymmetry deserves its own post; for now, just don't let empty and error share a code path.</p>
+<h2>Don't pay for the same answer twice</h2>
+<p>Every double-pay bug I've found comes from one of three habits.</p>
+<p>Hedged requests. Racing two providers and taking the fastest is a fine latency trick — across free rungs. Race two paid providers and you buy two answers to use one, every time, by design. Hedge free-vs-free, never paid-vs-paid.</p>
+<p>Retrying slow success. You time out a paid call at 3 seconds, retry, and the retry succeeds — but the original call also succeeded at 4.1 seconds, on their side, on your invoice. Retry paid rungs on transport errors only. A slow paid call falls through to the next rung; it doesn't get a second paid attempt at the same rung.</p>
+<p>Escalating past a paid zero. A paid provider with a serious index searched and found nothing. Paying a pricier provider to confirm the nothing is the purest form of double-pay: two bills, zero results.</p>
+<h2>Circuit-break the flapping rung</h2>
+<p>A rung that's hard down is cheap — it errors fast and you move on. The expensive rung is the flapping one: failing one call in three, or eating your full timeout before dying. Without protection, every request donates a timeout's worth of latency to a provider that mostly can't answer. <a href="/blog/ai-agents-provider-outages/">Provider outages</a> rarely look like a clean flatline; they look like this.</p>
+<p>You don't need a resilience framework. A counter and a timestamp per rung will do: after N consecutive failures (I use 3), skip the rung entirely for a cooldown window, then let one probe request through. Probe succeeds, rung rejoins the ladder; probe fails, cooldown restarts. The point isn't sophistication — it's that a chain which keeps knocking on a dead door isn't a fallback chain, it's a latency tax with extra steps.</p>
+<p>One wrinkle: zero hits never trips the breaker. The rung answered. Coverage is not health.</p>
+<h2>Test the chain before the outage does</h2>
+<p>Chains fail at the seams, and the seams only get exercised when something upstream breaks. So break it yourself, on your schedule:</p>
+<ul>
+<li>Revoke the primary's key in staging and run real traffic. Does rung two actually answer, or does the chain throw?</li>
+<li>Inject a timeout on rung one. Does the total stay inside your latency budget, or do timeouts stack?</li>
+<li>Send a query you know has no results. Does the chain stop where your zero-hit rules say it should?</li>
+<li>Check the receipt. Every response should say which rung answered — a <code>provider_used</code> field, at minimum. If you can't see who answered, you can't see that your fallback fired at all, and plenty of &quot;working&quot; chains have been quietly serving 100% from the expensive rung for months.</li>
+</ul>
+<p>Then put a canary on it: a scheduled synthetic query against each rung directly, so you learn a rung died from a dashboard instead of from a user.</p>
+<p>The place to start is smaller than any of this. Open your config, find your fallback provider, and ask when it last served a real request. If the answer is &quot;never&quot; or &quot;unknown,&quot; you don't have an API fallback strategy yet — you have rung one and a rumor. Kill rung one on purpose this week and watch what happens. Everything above is just what you'll end up building after you see it.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-04-21">Apr 21, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/provider-routing-for-ai-agents/">Provider routing for AI agents: the complete guide</a></h3>
+          <p class="blog-card-excerpt">Agents pick providers by what got wired in, not by price. Here&#39;s how a routing layer walks every tool call down a ladder — free first, paid as fallback.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-04-30">Apr 30, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/ai-agents-provider-outages/">Designing AI agents that survive provider outages</a></h3>
+          <p class="blog-card-excerpt">Your agent is a distributed system with a single point of failure per dependency. The playbook for staying up when a provider doesn&#39;t.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-05-12">May 12, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/what-is-an-llm-router/">What is an LLM router — and do you actually need one?</a></h3>
+          <p class="blog-card-excerpt">The term gets used for two different things. Here&#39;s what a router actually contains — policy, health, fallback, accounting — and the honest cases where you should skip one.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

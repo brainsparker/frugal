@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Provider routing for AI agents | frugal blog</title>
+  <meta name="description" content="Guides and essays on routing AI agent tool calls across providers: fallback chains, price ladders, and picking the cheapest provider that returns a result." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://frugal.sh/blog/topics/provider-routing/" />
+  <meta property="og:title" content="Provider routing for AI agents | frugal blog" />
+  <meta property="og:description" content="Guides and essays on routing AI agent tool calls across providers: fallback chains, price ladders, and picking the cheapest provider that returns a result." />
+  <meta property="og:site_name" content="frugal.sh" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Provider routing for AI agents | frugal blog" />
+  <meta name="twitter:description" content="Guides and essays on routing AI agent tool calls across providers: fallback chains, price ladders, and picking the cheapest provider that returns a result." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/topics/provider-routing/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","description":"Guides and essays on routing AI agent tool calls across providers: fallback chains, price ladders, and picking the cheapest provider that returns a result.","isPartOf":{"@type":"Blog","name":"frugal blog","url":"https://frugal.sh/blog/"},"name":"Provider routing for AI agents","url":"https://frugal.sh/blog/topics/provider-routing/"}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <section class="blog-hero">
+      <div class="shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Provider routing</span>
+        </nav>
+        <h1>Provider routing for AI agents</h1>
+        <div class="post-body topic-intro">
+<p>Agents pick providers by what's wired in, not by what the call costs.
+Provider routing fixes that: every search, extract, or browse call walks
+a ladder — free and local first, cheap paid next, premium only when
+nothing cheaper returns a result.</p>
+<p>These posts cover the mechanics: how routers decide, how fallback chains
+behave when a rung returns zero hits, and why the default provider for
+any capability should cost $0. Start with
+<a href="/blog/provider-routing-for-ai-agents/">the complete guide to provider routing</a>.</p>
+
+        </div>
+      </div>
+    </section>
+
+    <section class="blog-list">
+      <div class="shell">
+        <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-07-07">Jul 7, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/inside-frugals-router/">Inside Frugal&#39;s router: how a search call picks its provider</a></h3>
+          <p class="blog-card-excerpt">One captured run, walked rung by rung: 0 hits in 529ms, a fall-through, 3 hits at $0, and exactly what lands in the ledger afterward.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-06-16">Jun 16, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/free-first-default-provider/">Free-first: why your default provider should cost $0</a></h3>
+          <p class="blog-card-excerpt">Paid providers should be the fallback, not the default. The case for making your agent&#39;s first call free, with the failure modes stated honestly.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-05-26">May 26, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/provider-fallback-chains/">Fallback chains: designing a provider ladder that doesn&#39;t page you</a></h3>
+          <p class="blog-card-excerpt">A backup provider you&#39;ve never exercised is a config value, not a plan. The rules I use to order rungs, avoid paying twice, and break flapping providers out of the chain.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-05-12">May 12, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/what-is-an-llm-router/">What is an LLM router — and do you actually need one?</a></h3>
+          <p class="blog-card-excerpt">The term gets used for two different things. Here&#39;s what a router actually contains — policy, health, fallback, accounting — and the honest cases where you should skip one.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-04-21">Apr 21, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/provider-routing-for-ai-agents/">Provider routing for AI agents: the complete guide</a></h3>
+          <p class="blog-card-excerpt">Agents pick providers by what got wired in, not by price. Here&#39;s how a routing layer walks every tool call down a ladder — free first, paid as fallback.</p>
+        </article>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

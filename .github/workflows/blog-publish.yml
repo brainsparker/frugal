@@ -1,0 +1,40 @@
+# Publishes scheduled blog posts. Posts live in content/blog/posts/ with a
+# `date` in front matter; cmd/bloggen only renders posts whose date has
+# passed. This workflow re-runs the generator daily and commits the diff, so
+# a future-dated post goes live (post page, indexes, sitemap, feed) on the
+# first run after its publish time — no manual step.
+name: Blog publish
+
+on:
+  schedule:
+    - cron: "17 6 * * *" # daily, 06:17 UTC (off the :00 rush)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Regenerate blog
+        run: go run ./cmd/bloggen
+
+      - name: Commit newly published posts
+        run: |
+          if git diff --quiet docs/; then
+            echo "nothing newly published"
+            exit 0
+          fi
+          git config user.name "blog-publish[bot]"
+          git config user.email "blog-publish[bot]@users.noreply.github.com"
+          git add docs/
+          git commit -m "blog: publish scheduled posts ($(date -u +%F))"
+          git push

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>6 questions to ask before switching LLM providers — frugal blog</title>
+  <meta name="description" content="Switching LLM providers should take an afternoon, not a quarter. Six questions that tell you whether you can actually move — before you must." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/switching-llm-providers-questions/" />
+  <meta property="og:title" content="6 questions to ask before switching LLM providers — frugal blog" />
+  <meta property="og:description" content="Switching LLM providers should take an afternoon, not a quarter. Six questions that tell you whether you can actually move — before you must." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-06-11T16:00:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="6 questions to ask before switching LLM providers — frugal blog" />
+  <meta name="twitter:description" content="Switching LLM providers should take an afternoon, not a quarter. Six questions that tell you whether you can actually move — before you must." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/switching-llm-providers-questions/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-06-11T16:00:00Z","datePublished":"2026-06-11T16:00:00Z","description":"Switching LLM providers should take an afternoon, not a quarter. Six questions that tell you whether you can actually move — before you must.","headline":"6 questions to ask before switching LLM providers","keywords":"switching LLM providers","mainEntityOfPage":"https://frugal.sh/blog/switching-llm-providers-questions/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/switching-llm-providers-questions/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"6 questions to ask before switching LLM providers","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">6 questions to ask before switching LLM providers</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <span class="blog-card-kind">List</span>
+          </div>
+          <h1>6 questions to ask before switching LLM providers</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-06-11">Jun 11, 2026</time>
+            · 5 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Switching LLM providers should be an afternoon of work. For most teams it's a quarter-long migration project, and the difference isn't the providers — it's decisions made months earlier, when nobody was thinking about leaving. You find out which kind of team you are on the worst possible day: the price hike, the deprecation notice, the outage that stretches past your patience.</p>
+<p>I think about provider changes the way I think about <a href="/blog/provider-fallback-chains/">fallback chains</a> for tool calls: the ability to move is a property you build, not a task you schedule. Here are the six questions I'd answer before switching — ideally before you need to.</p>
+<h2>1. How portable are your prompts, really?</h2>
+<p>Prompts fossilize around a provider's quirks. The system prompt that took three weeks to tune is tuned <em>for that model</em> — its formatting habits, its tool-calling style, its tolerance for long instructions. Move it verbatim to another provider and you'll get output that's subtly worse in ways that take days to notice.</p>
+<p>The audit is straightforward: grep your prompts for provider-specific scaffolding. XML tags one model family prefers. Stop sequences. &quot;You are&quot;-preambles shaped by one vendor's docs. Response-format hacks that exist because model A ignored your JSON schema and model B won't. None of this blocks a switch. All of it is work you should size before you commit to a date, not after.</p>
+<h2>2. Can you prove the new provider is as good — on your traffic?</h2>
+<p>Benchmark scores don't transfer. The only eval that matters is one built from your own traffic: real inputs, graded outputs, run against both providers before you flip anything. If you followed the advice in <a href="/blog/evals-before-scale/">evals before scale</a>, you already have this harness and switching is a weekend experiment. If you didn't, build the eval first. Fifty representative cases beats zero, and zero is what most teams switch on.</p>
+<p>The trap is grading the new provider on vibes for a week and calling it parity. Vibes detect catastrophes. They don't detect the 4% regression on your hardest category that shows up in support tickets a month later.</p>
+<h2>3. What does its latency look like under <em>your</em> traffic?</h2>
+<p>Published latency numbers are medians from someone else's workload. Your workload has its own shape: your prompt lengths, your output lengths, your concurrency spikes, your timeout budget. A provider that's fast at p50 and ugly at p99 will pass a demo and fail production — I wrote about why the tail is what matters in <a href="/blog/latency-budgets-agent-tool-calls/">latency budgets for agent tool calls</a>.</p>
+<p>Run a shadow test: mirror a slice of real traffic to the candidate for a few days and log <code>latency_ms</code> per call. Compare distributions, not averages. Time-of-day matters too; some providers degrade exactly when your users are awake.</p>
+<h2>4. What are the rate limits, and what happens when you hit them?</h2>
+<p>Rate limits are the least glamorous line on the pricing page and the most common switch-killer. Your current tier was probably negotiated or grown into. The new provider starts you at defaults — requests per minute, tokens per minute, sometimes a daily cap — and those defaults may sit below your Tuesday peak.</p>
+<p>Ask concretely: what tier do you land on day one, how fast can you raise it, and what does the provider return when you exceed it? A clean 429 with a retry-after header is workable. Silent queuing or connection drops are not. If the answer is &quot;contact sales to raise limits,&quot; get that conversation done before migration day, not during it.</p>
+<h2>5. What shape is the pricing — not just the rate?</h2>
+<p>Per-token rates get all the attention, but the <em>shape</em> of pricing decides your bill. Per-token favors short outputs. Per-call pricing punishes chatty agents that make many small requests. Committed-spend discounts look great until they become the reason you can't leave — a discount contingent on volume is a soft lock-in with a nicer name.</p>
+<p>Model the candidate's pricing against a real month of your usage: your actual token mix, your actual call counts, cached versus uncached. The same workload can rank two providers in opposite order depending on whether your traffic is input-heavy or output-heavy. The sticker rate and your effective rate are different numbers, and only the second one is real.</p>
+<h2>6. What will switching cost you <em>next</em> time?</h2>
+<p>The best moment to evaluate exit cost is on the way in. If this migration is painful, the pain will repeat, because you're not choosing a provider forever — models leapfrog each other every few months now. The question isn't &quot;is this the best provider&quot; but &quot;does adopting it make the next switch easier or harder?&quot;</p>
+<p>Concretely: are you coding to the provider's proprietary SDK or to an abstraction you own? Are you adopting features with no equivalent elsewhere? Is your eval harness provider-neutral? Teams that answer these well stop having migration projects at all — provider choice becomes configuration. That's the end state an <a href="/blog/what-is-an-llm-router/">LLM router</a> points at: the provider is a rung on a ladder, not a foundation you pour concrete on.</p>
+<h2>Switching LLM providers should be routine</h2>
+<p>The pattern across all six questions: the cost of switching is mostly self-inflicted, and it's paid in advance. Provider-specific prompts, missing evals, unexamined pricing shapes, proprietary SDK coupling — each one is a small convenience today and a week of migration work later.</p>
+<p>My rule is that anything I'd need on switch day should already exist on a normal day. The eval harness runs weekly whether or not I'm evaluating a candidate. Costs and latency get stamped on every call, so comparing providers is a query against a ledger, not a research project. There's more in this vein on the <a href="/blog/topics/model-selection/">model selection</a> hub, but the short version fits in a sentence: treat every provider as the current answer, not the permanent one, and the day you have to move becomes an afternoon.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <time datetime="2026-04-28">Apr 28, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/how-to-choose-a-model-for-agents/">How to choose a model for your agent workload</a></h3>
+          <p class="blog-card-excerpt">Model selection for agents isn&#39;t a leaderboard question. It&#39;s five workload questions, and most teams skip straight to the logo.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/building-with-ai/">Building with AI</a>
+            <time datetime="2026-06-04">Jun 4, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/evals-before-scale/">Evals before scale: the cheapest insurance in AI engineering</a></h3>
+          <p class="blog-card-excerpt">Thirty real queries with expected answers will save you more money than any discount negotiation. You can&#39;t swap models, cut costs, or route traffic without a way to score the output.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-05-12">May 12, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/what-is-an-llm-router/">What is an LLM router — and do you actually need one?</a></h3>
+          <p class="blog-card-excerpt">The term gets used for two different things. Here&#39;s what a router actually contains — policy, health, fallback, accounting — and the honest cases where you should skip one.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

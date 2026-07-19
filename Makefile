@@ -1,4 +1,4 @@
-.PHONY: build run test clean release
+.PHONY: build run test clean release blog blog-preview
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X main.buildVersion=$(VERSION)"
@@ -11,6 +11,15 @@ run: build
 
 test:
 	go test ./...
+
+# Regenerate the blog into docs/ from content/blog/. Future-dated posts are
+# skipped; the blog-publish workflow re-runs this daily so they go live on
+# schedule. `make blog-preview` renders scheduled posts too (don't commit).
+blog:
+	go run ./cmd/bloggen
+
+blog-preview:
+	go run ./cmd/bloggen -future
 
 clean:
 	rm -rf bin/ dist/

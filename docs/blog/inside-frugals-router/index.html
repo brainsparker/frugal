@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inside Frugal&#39;s router: how a search call picks its provider — frugal blog</title>
+  <meta name="description" content="Search API routing, traced through one real call: Marginalia misses, Wikipedia answers at $0, and the response carries the receipt." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/inside-frugals-router/" />
+  <meta property="og:title" content="Inside Frugal&#39;s router: how a search call picks its provider — frugal blog" />
+  <meta property="og:description" content="Search API routing, traced through one real call: Marginalia misses, Wikipedia answers at $0, and the response carries the receipt." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-07-07T13:40:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Inside Frugal&#39;s router: how a search call picks its provider — frugal blog" />
+  <meta name="twitter:description" content="Search API routing, traced through one real call: Marginalia misses, Wikipedia answers at $0, and the response carries the receipt." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/inside-frugals-router/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-07-07T13:40:00Z","datePublished":"2026-07-07T13:40:00Z","description":"Search API routing, traced through one real call: Marginalia misses, Wikipedia answers at $0, and the response carries the receipt.","headline":"Inside Frugal's router: how a search call picks its provider","keywords":"search API routing","mainEntityOfPage":"https://frugal.sh/blog/inside-frugals-router/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/inside-frugals-router/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Inside Frugal's router: how a search call picks its provider","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Inside Frugal&#39;s router: how a search call picks its provider</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h1>Inside Frugal&#39;s router: how a search call picks its provider</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-07-07">Jul 7, 2026</time>
+            · 5 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>The best way I know to explain search API routing is to trace one real call through it. Not a diagram — an actual captured run from <a href="/">Frugal</a>, my MCP server, with the timings and the prices it logged. An agent asked <code>frugal__search</code> a question. 1.5 seconds later it had three results and a line in a ledger. Here's everything that happened in between, and why each rule exists.</p>
+<h2>The chain the call walks</h2>
+<p>Frugal orders search providers as a ladder, cheapest first. In the configuration this run used, that meant:</p>
+<table>
+<thead>
+<tr>
+<th>Rung</th>
+<th>Provider</th>
+<th>Rack rate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Marginalia</td>
+<td>$0</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Wikipedia</td>
+<td>$0</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Serper</td>
+<td>$0.001/call</td>
+</tr>
+<tr>
+<td>4</td>
+<td>You.com</td>
+<td>$0.005/call</td>
+</tr>
+</tbody>
+</table>
+<p>The ordering rule is price, and nothing else. Not perceived quality, not brand, not which SDK was easiest to wire in. The premise — the whole thesis of <a href="/blog/free-first-default-provider/">free-first defaults</a> — is that a paid rung has to earn each call by the free rungs demonstrably failing first. The two paid rungs alone are 5× apart, so even <em>within</em> paid, order matters.</p>
+<p>This particular chain was running in zero-key mode: no Serper key, no You.com key configured. Frugal is BYOK with no account, so rungs you haven't keyed simply don't exist in the chain. That matters for how this run ends.</p>
+<h2>Rung 1: Marginalia, 0 hits, 529ms</h2>
+<p>The call hits Marginalia first. Marginalia is a small independent index that's genuinely good at essays, documentation, and the indie web — and weak on news and product pages. For this query it came back in 529ms with zero hits.</p>
+<p>Now the interesting decision. Zero hits from a free provider means: fall through. The reasoning is asymmetric and worth spelling out. Asking Marginalia cost $0 and half a second. Its empty answer carries limited information, because a small index missing a query is unremarkable — the query may be fine and the coverage thin. When the price of a second opinion is zero, you take the second opinion.</p>
+<p>Note what did <em>not</em> happen: no retry. Marginalia didn't error; it answered, and the answer was &quot;nothing here.&quot; Retrying a successful empty response is one of the classic confusions I covered in <a href="/blog/zero-hits-empty-results/">zero hits is an answer</a> — an empty result and a failed call are different events and route differently.</p>
+<h2>Rung 2: Wikipedia, 3 hits, $0, 954ms</h2>
+<p>The chain falls through to Wikipedia, which returns 3 hits in 954ms. Hits above zero means the chain ends: the rung answered, the walk stops, nothing below it gets called. Serper and You.com — had they even been keyed — never see the query, and nobody gets paid.</p>
+<p>The response that goes back to the agent carries the receipt inline:</p>
+<pre><code class="language-json">{&quot;provider_used&quot;:&quot;wikipedia&quot;,&quot;cost_usd&quot;:0,&quot;latency_ms&quot;:954}
+</code></pre>
+<p>Those three fields are the contract. Every result says who answered, what it cost, and how long it took — stamped on the response itself, not tucked into a dashboard you'd have to go look at. The agent, or the human reading the transcript, sees the price of every lookup at the moment it happens.</p>
+<p>Total wall-clock for the run: 529ms of miss plus 954ms of answer, call it 1.5 seconds for a free result. That's the fall-through tax, and it's real. If this had been a latency-critical interactive call, the right move would be a tighter per-rung timeout, not a pricier default — the chain mechanics are the same ones I walked through in <a href="/blog/provider-fallback-chains/">provider fallback chains</a>.</p>
+<h2>The other zero-hit rule</h2>
+<p>Suppose Wikipedia had also returned zero hits. With no paid rungs keyed, the chain ends and the agent gets an honest empty result. But suppose Serper <em>was</em> keyed, got the query, spent $0.001, and found nothing. Then Frugal ends the chain — it does not escalate to You.com.</p>
+<p>The rule: a free provider returning zero hits falls through; a paid provider returning zero hits ends the chain. A broad commercial index coming back empty is strong evidence the query has no hits. Paying five times more for a second paid opinion mostly buys you confirmation, at 5× the price, on exactly the queries that were worthless. Free rungs get the benefit of the doubt; paid rungs are believed.</p>
+<h2>What lands in the ledger</h2>
+<p>After the response goes back, the run is appended to a local JSONL ledger at <code>~/.frugal/usage</code>. One line per call: provider used, cost, latency, hit count. It never leaves the machine — there's no control plane to send it to, which is the point.</p>
+<p><code>frugal stats</code> reads that file and prints a monthly receipt. One accounting rule worth knowing: only the call that produced the result earns rack credit. In this run, Wikipedia's line is the one that counts; Marginalia's miss is recorded but doesn't get credited as if it had answered. When you look at the month, you see what each provider actually delivered — not how often it was merely asked. Over time that's the data that justifies (or demotes) each rung's position, which is exactly the per-provider trend you need for the quieter <a href="/blog/agent-tool-chain-failure-modes/">failure modes</a> that never throw errors.</p>
+<h2>What this doesn't get you</h2>
+<p>Honesty section. Zero-key mode — Marginalia plus Wikipedia and nothing else — is real and useful, and it is not a Google-grade SERP. Wikipedia covers entities well. Marginalia covers the thoughtful corners of the web. Neither will find yesterday's news, a product pricing page, or most commercial queries. If your agent's traffic is heavy on those, the free rungs will fall through a lot, and without a paid rung underneath you'll get a lot of honest empties.</p>
+<p>The router doesn't fix coverage. What it fixes is <em>defaults</em>: with the ladder in place, the paid call happens only when the free ones actually missed, and it happens with a price tag attached. For plenty of agent workloads — research over reference material, documentation lookups, entity questions — the free rungs answer a large share of queries, and every one of those is a call nobody billed.</p>
+<h2>The whole trick</h2>
+<p>That's the entire router. Order rungs by price. Fall through on free zero-hits, stop on paid zero-hits, stop on any hit. Stamp every response with provider, cost, and latency. Append everything to a ledger you own.</p>
+<p>None of it is clever, and that's deliberate — the value is in making the cheap path the default path and keeping receipts, not in routing intelligence. If you want the ideas without the tool, they're all in the <a href="/blog/topics/provider-routing/">provider routing</a> archive, and the ladder is buildable in an afternoon with a config file and a for-loop. The captured run above is what it looks like when it works: a question answered in 1.5 seconds, for free, with proof.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-05-26">May 26, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/provider-fallback-chains/">Fallback chains: designing a provider ladder that doesn&#39;t page you</a></h3>
+          <p class="blog-card-excerpt">A backup provider you&#39;ve never exercised is a config value, not a plan. The rules I use to order rungs, avoid paying twice, and break flapping providers out of the chain.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-06-16">Jun 16, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/free-first-default-provider/">Free-first: why your default provider should cost $0</a></h3>
+          <p class="blog-card-excerpt">Paid providers should be the fallback, not the default. The case for making your agent&#39;s first call free, with the failure modes stated honestly.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-06-09">Jun 9, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/zero-hits-empty-results/">Zero hits is not an error</a></h3>
+          <p class="blog-card-excerpt">An empty result set arrives as a 200 and gets treated like a 500. The provider didn&#39;t fail — it answered. What you do next should depend on whether that answer cost money.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
