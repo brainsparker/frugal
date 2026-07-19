@@ -46,13 +46,13 @@ The pattern across all five: routing decisions made by default instead of on pur
 
 **Why it happens.** The timeout was configured where it was easiest to add — around the outermost call — instead of where the decision lives. Chains multiply latency in a way single calls don't, and a global constant can't express "Marginalia gets 2 seconds, the paid rung gets 5, the whole chain gets 8."
 
-**The fix.** Per-rung budgets inside a chain-level budget, with each rung's timeout treated as a fall-through trigger, not a failure. A rung that blows its budget is skipped, the chain continues, and the user-facing deadline holds. Sizing those numbers is a product call, not an infra default — I've argued that [timeouts are product decisions](/blog/timeouts-product-decision/) — because the chain budget is exactly "how long will a user wait for this feature."
+**The fix.** Per-rung budgets inside a chain-level budget, with each rung's timeout treated as a fall-through trigger, not a failure. A rung that blows its budget is skipped, the chain continues, and the user-facing deadline holds. Sizing those numbers is a product call, not an infra default — the chain budget is exactly "how long will a user wait for this feature," and that number belongs to whoever owns the feature, not to a YAML file.
 
 ## 5. Treating every non-200 the same
 
 **The mistake.** One catch-all error branch: anything that isn't a clean success gets the same retry-then-escalate treatment. But a 429, a 500, and a clean-but-empty 200 are three different facts demanding three different moves — and the catch-all picks the wrong move for at least two of them. Retrying into a rate limit makes the rate limit worse. Hammering a provider mid-outage buys you nothing and delays the fallback that would have worked.
 
-**Why it happens.** Error handling gets written last, against the happy path, usually as one `catch`. Distinguishing failure types requires knowing each provider's actual behavior under stress — knowledge nobody has until they've operated through [a real provider outage](/blog/ai-agents-provider-outages/).
+**Why it happens.** Error handling gets written last, against the happy path, usually as one `catch`. Distinguishing failure types requires knowing each provider's actual behavior under stress — knowledge nobody has until they've operated through a real provider outage.
 
 **The fix.** Type your failures and give each a policy. Rate limit → back off *this rung*, fall through now, return later. Server error / timeout → skip the rung immediately, maybe retry once on the next pass. Auth error → page a human; no retry will fix a revoked key. Empty 200 → apply the zero-hit semantics from mistake 2. Four failure types, four policies, maybe fifty lines of code. It's the difference between a router and a switch statement with hope.
 
