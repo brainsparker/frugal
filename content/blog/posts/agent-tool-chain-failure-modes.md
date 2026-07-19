@@ -62,7 +62,7 @@ A loop that has stopped making progress but keeps spending. A task fails in a wa
 
 How it presents: task counts look normal, call counts don't. One task quietly issues 400 tool calls where the median is 12. At $0.005 a search, a single zombie loop can outspend a day of legitimate traffic.
 
-How to detect it: a per-task ledger. Stamp every call with a task ID and a cost, sum per task, and alert on outliers. This takes an afternoon with a JSONL file and it is the single highest-leverage detection on this list — it's item one in [my list of cost cuts](/blog/cut-ai-agent-api-costs/) for a reason.
+How to detect it: a per-task ledger. Stamp every call with a task ID and a cost, sum per task, and alert on outliers. This takes an afternoon with a JSONL file and it is the single highest-payoff detection on this list — it's item one in [my list of cost cuts](/blog/cut-ai-agent-api-costs/) for a reason.
 
 How to survive it: ceilings. A call-count budget per task, a wall-clock timeout, and a progress check that halts the loop when the last N calls produced nothing new. An agent that spends without progressing isn't thorough. It's unmetered.
 
