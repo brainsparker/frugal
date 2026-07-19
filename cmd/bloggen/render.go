@@ -44,7 +44,7 @@ type page struct {
 	Description string
 	Canonical   string // absolute URL
 	OGType      string // website | article
-	JSONLD      []template.HTML
+	JSONLD      []template.JS
 	Published   time.Time // article pages only
 	Updated     time.Time
 
@@ -88,7 +88,7 @@ func render(site *Site, published []*Post, outDir string, now time.Time) error {
 			Related:     relatedPosts(p, published),
 			ClusterOf:   clusterOf,
 		}
-		pg.JSONLD = []template.HTML{postJSONLD(p), breadcrumbJSONLD(p)}
+		pg.JSONLD = []template.JS{postJSONLD(p), breadcrumbJSONLD(p)}
 		if err := writePage(outDir, filepath.Join("blog", p.Slug, "index.html"), "post", pg); err != nil {
 			return err
 		}
@@ -103,7 +103,7 @@ func render(site *Site, published []*Post, outDir string, now time.Time) error {
 		Site:        site,
 		Posts:       published,
 		ClusterOf:   clusterOf,
-		JSONLD:      []template.HTML{blogJSONLD()},
+		JSONLD:      []template.JS{blogJSONLD()},
 	}
 	if err := writePage(outDir, filepath.Join("blog", "index.html"), "index", idx); err != nil {
 		return err
@@ -120,7 +120,7 @@ func render(site *Site, published []*Post, outDir string, now time.Time) error {
 			Cluster:     c,
 			Posts:       c.Posts,
 			ClusterOf:   clusterOf,
-			JSONLD:      []template.HTML{clusterJSONLD(c)},
+			JSONLD:      []template.JS{clusterJSONLD(c)},
 		}
 		if err := writePage(outDir, filepath.Join("blog", "topics", c.Key, "index.html"), "topic", pg); err != nil {
 			return err
@@ -136,7 +136,7 @@ func render(site *Site, published []*Post, outDir string, now time.Time) error {
 		Site:        site,
 		Posts:       published,
 		ClusterOf:   clusterOf,
-		JSONLD:      []template.HTML{authorJSONLD(site.Author)},
+		JSONLD:      []template.JS{authorJSONLD(site.Author)},
 	}
 	if err := writePage(outDir, filepath.Join("author", "brian-sparker", "index.html"), "author", author); err != nil {
 		return err
@@ -195,12 +195,12 @@ func writePage(outDir, rel, name string, pg *page) error {
 
 // --- JSON-LD ----------------------------------------------------------
 
-func jsonld(v any) template.HTML {
+func jsonld(v any) template.JS {
 	b, err := json.Marshal(v)
 	if err != nil {
 		panic(err) // static data; cannot fail at runtime
 	}
-	return template.HTML(b)
+	return template.JS(b)
 }
 
 type m = map[string]any
@@ -225,7 +225,7 @@ func publisherRef() m {
 	}
 }
 
-func postJSONLD(p *Post) template.HTML {
+func postJSONLD(p *Post) template.JS {
 	d := m{
 		"@context":         "https://schema.org",
 		"@type":            "BlogPosting",
@@ -248,7 +248,7 @@ func postJSONLD(p *Post) template.HTML {
 	return jsonld(d)
 }
 
-func breadcrumbJSONLD(p *Post) template.HTML {
+func breadcrumbJSONLD(p *Post) template.JS {
 	return jsonld(m{
 		"@context": "https://schema.org",
 		"@type":    "BreadcrumbList",
@@ -260,7 +260,7 @@ func breadcrumbJSONLD(p *Post) template.HTML {
 	})
 }
 
-func blogJSONLD() template.HTML {
+func blogJSONLD() template.JS {
 	return jsonld(m{
 		"@context":    "https://schema.org",
 		"@type":       "Blog",
@@ -272,7 +272,7 @@ func blogJSONLD() template.HTML {
 	})
 }
 
-func clusterJSONLD(c *Cluster) template.HTML {
+func clusterJSONLD(c *Cluster) template.JS {
 	return jsonld(m{
 		"@context":    "https://schema.org",
 		"@type":       "CollectionPage",
@@ -283,7 +283,7 @@ func clusterJSONLD(c *Cluster) template.HTML {
 	})
 }
 
-func authorJSONLD(a *Author) template.HTML {
+func authorJSONLD(a *Author) template.JS {
 	sameAs := make([]string, 0, len(a.Links))
 	for _, l := range a.Links {
 		sameAs = append(sameAs, l.URL)

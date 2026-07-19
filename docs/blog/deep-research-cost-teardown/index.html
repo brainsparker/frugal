@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Search is most of your agent&#39;s bill — frugal blog</title>
+  <meta name="description" content="An AI agent cost breakdown that surprises everyone: search, not the model, dominates research-agent spend. Why fan-out multiplies it, and what cuts it." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/deep-research-cost-teardown/" />
+  <meta property="og:title" content="Search is most of your agent&#39;s bill — frugal blog" />
+  <meta property="og:description" content="An AI agent cost breakdown that surprises everyone: search, not the model, dominates research-agent spend. Why fan-out multiplies it, and what cuts it." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-06-18T15:25:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Search is most of your agent&#39;s bill — frugal blog" />
+  <meta name="twitter:description" content="An AI agent cost breakdown that surprises everyone: search, not the model, dominates research-agent spend. Why fan-out multiplies it, and what cuts it." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/deep-research-cost-teardown/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-06-18T15:25:00Z","datePublished":"2026-06-18T15:25:00Z","description":"An AI agent cost breakdown that surprises everyone: search, not the model, dominates research-agent spend. Why fan-out multiplies it, and what cuts it.","headline":"Search is most of your agent's bill","keywords":"AI agent cost breakdown","mainEntityOfPage":"https://frugal.sh/blog/deep-research-cost-teardown/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/deep-research-cost-teardown/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Search is most of your agent's bill","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Search is most of your agent&#39;s bill</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h1>Search is most of your agent&#39;s bill</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-06-18">Jun 18, 2026</time>
+            · 5 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Ask a team to guess their AI agent cost breakdown and they'll talk about tokens. Model pricing, context windows, maybe caching. Then someone actually itemizes a research-style agent's spend, and the model turns out to be the minority line. In one deep-research teardown I keep coming back to, search alone was 54% of task cost. Not the model. The searches.</p>
+<p>That number rearranged how I think about agent economics, and I want to walk through why it isn't a fluke — why search <em>structurally</em> dominates the bill for any agent that researches, and why the usual cost-cutting instincts do nothing about it.</p>
+<h2>The fan-out is the whole story</h2>
+<p>A chat completion is one task, one call. A research task is one task, <em>many</em> calls, and each call is billed separately. That's the entire mechanism.</p>
+<p>Watch a deep-research agent work: it takes a question, decomposes it into subtopics, issues a handful of searches per subtopic, reads results, notices gaps, and issues follow-up searches to fill them. A single &quot;compare these three frameworks&quot; task can plausibly issue 40 or 60 search queries. Each one hits a metered API. At $0.005/call, 50 searches is $0.25 of search spend on one task — before extraction, before browsing, before a single output token.</p>
+<p>The model bill doesn't fan out the same way. Synthesis calls are few and batched; the model reads what search retrieved and writes once. So as agents get more agentic — more autonomous, more thorough, more willing to go check — the tool side of the bill grows faster than the model side. Search dominance isn't an accident of pricing. It's the geometry of the workload: one task becomes N queries, and N is large and growing.</p>
+<h2>The multiplication effect nobody budgets for</h2>
+<p>Here's where it compounds. Per-query search pricing looks like a rounding error — a fifth of a cent, half a cent. Nobody escalates a purchase decision over $0.005. But the agent multiplies that rounding error three times over.</p>
+<p>First multiplication: queries per task. The 40–60 fan-out above. Second: tasks per day. A research agent that's actually useful gets used — dozens or hundreds of runs daily. Third: the retry-and-refine loop. Agents re-search when results look thin, rephrase queries that missed, and re-verify claims before writing. Every one of those is another billed call, invisible inside &quot;the agent ran.&quot;</p>
+<p>Multiply through: $0.005 × 50 queries × 200 tasks/day is $50/day — $1,500/month — from a line item priced to look negligible. And because tool calls rarely show up itemized anywhere a team looks, this grows quietly. I made the broader case for stamping every call in <a href="/blog/agent-cost-observability/">agent cost observability</a>; research agents are that argument at its most extreme, because they're the workload where per-call pricing meets the biggest N.</p>
+<p>The <a href="/blog/rack-rate-gap-web-search-costs/">rack-rate gap</a> sharpens it further: that $0.005 query has functional substitutes at $0.001 and at $0. The gap between the top and bottom of the ladder is 5× among the paid rungs alone, and infinite against the free rung. Multiply a 5× unit-price gap by a 50× fan-out and the routing decision on one tool swings the whole agent's economics.</p>
+<h2>What actually cuts the search line</h2>
+<p>Three things move this number. All three attack the multiplication, not the prose.</p>
+<p><strong>Routing.</strong> Send each query down a price ladder — free indexes first, cheap paid next, premium last. Research fan-out is exactly the traffic mix where this shines: a big share of decomposed sub-queries are background lookups (&quot;what is X,&quot; entity facts, documentation) that free rungs answer identically to premium ones. I laid out the full argument in <a href="/blog/free-first-default-provider/">free-first</a>. The queries that genuinely need a premium SERP still get one; they just stop dragging fifty siblings along at the same rate.</p>
+<p><strong>Caching.</strong> Research agents are repetitive by nature. Runs on adjacent topics issue overlapping queries; a single run often re-searches something it already retrieved. A results cache with even a short TTL turns those repeats into $0 hits. Freshness-sensitive queries can bypass it; most of the fan-out isn't freshness-sensitive.</p>
+<p><strong>Dedupe.</strong> The bluntest one. Log your queries per task and read them. Decomposition steps routinely emit near-duplicates — the same question phrased three ways, launched as three billed calls. Normalizing and deduplicating queries before dispatch cuts N directly, and cutting N cuts everything downstream: search spend, extraction spend, the tokens spent reading redundant results.</p>
+<h2>What doesn't cut it</h2>
+<p>Prompt tweaks. The instinct, on seeing a big agent bill, is to compress the system prompt, trim the context, tighten output length. For a chat workload, reasonable. For a research agent, you're optimizing the 46%, and the lever is small even there — token costs per synthesis call are modest to begin with.</p>
+<p>Worse, some prompt work <em>raises</em> the bill: instructions to &quot;be thorough,&quot; &quot;verify claims,&quot; &quot;consider multiple perspectives&quot; all translate directly into more fan-out, more billed queries. The prompt controls quality. The tool layer controls cost. Teams tune the prompt because it's the part they can see, which is exactly the trap — the <a href="/blog/cut-ai-agent-api-costs/">cost-cutting checklist</a> I wrote earlier applies, but for research agents the ordering is stark: nothing on it matters until the search line is handled.</p>
+<h2>Read your own breakdown first</h2>
+<p>The 54% figure is one teardown, not a law. Your number depends on your fan-out, your provider rates, and how chatty your agent's model side is. But that's the point: it's <em>your</em> number, and you can get it. Tag every tool call with its cost, aggregate by category for a week, and see what actually dominates — the <a href="/blog/topics/ai-costs/">ai-costs</a> hub collects the techniques. If your agent researches, I'll make a prediction: search is bigger than you budgeted, the model is smaller, and the fix lives in routing, caching, and dedupe — not in another round of prompt surgery.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-04-23">Apr 23, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/rack-rate-gap-web-search-costs/">The rack-rate gap: why the same web search costs $0 or $0.005</a></h3>
+          <p class="blog-card-excerpt">Five providers, one capability, a price range from free to half a cent. An analysis of what you&#39;re actually paying for when your agent searches the web.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-05-28">May 28, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/agent-cost-observability/">Cost observability for agents: put cost_usd on every result</a></h3>
+          <p class="blog-card-excerpt">Your invoice knows what you spent by provider and month. It has no idea what one agent run cost. Stamp the cost on the response envelope and the question answers itself.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-05-07">May 7, 2026</time>
+            <span class="blog-card-kind">List</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/cut-ai-agent-api-costs/">7 ways to cut your AI agent&#39;s API bill this week</a></h3>
+          <p class="blog-card-excerpt">No replatforming, no procurement cycle. Seven changes you can ship by Friday that attack the parts of an agent bill nobody is looking at.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

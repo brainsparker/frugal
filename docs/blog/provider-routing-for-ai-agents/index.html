@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Provider routing for AI agents: the complete guide — frugal blog</title>
+  <meta name="description" content="Provider routing for AI agents, explained: the free-first price ladder, fallback semantics, cost stamping, and how to start without a rewrite." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/provider-routing-for-ai-agents/" />
+  <meta property="og:title" content="Provider routing for AI agents: the complete guide — frugal blog" />
+  <meta property="og:description" content="Provider routing for AI agents, explained: the free-first price ladder, fallback semantics, cost stamping, and how to start without a rewrite." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-04-21T14:10:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Provider routing for AI agents: the complete guide — frugal blog" />
+  <meta name="twitter:description" content="Provider routing for AI agents, explained: the free-first price ladder, fallback semantics, cost stamping, and how to start without a rewrite." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/provider-routing-for-ai-agents/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-04-21T14:10:00Z","datePublished":"2026-04-21T14:10:00Z","description":"Provider routing for AI agents, explained: the free-first price ladder, fallback semantics, cost stamping, and how to start without a rewrite.","headline":"Provider routing for AI agents: the complete guide","keywords":"provider routing","mainEntityOfPage":"https://frugal.sh/blog/provider-routing-for-ai-agents/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/provider-routing-for-ai-agents/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Provider routing for AI agents: the complete guide","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Provider routing for AI agents: the complete guide</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h1>Provider routing for AI agents: the complete guide</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-04-21">Apr 21, 2026</time>
+            · 6 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Your agent doesn't shop around. When it needs a web search, it calls whatever provider got wired in during the first week of the project, at whatever that provider charges, forever. The same search costs $0 from Wikipedia or Marginalia and $0.005 from a premium API — a gap that provider routing exists to close, and that almost nobody closes.</p>
+<p>This is the guide I wish had existed when I started building agents. It covers what provider routing is, why agents default to the expensive path, and how to fix it without rewriting anything.</p>
+<h2>What provider routing is</h2>
+<p>Provider routing is a layer between your agent and its tool providers. The agent asks for a capability — search the web, extract this page, run this in a browser — and the router decides who actually answers, based on price, availability, and fit.</p>
+<p>The comparison that makes it click: your agent's tool calls today are like an HTTP client hardcoded to one CDN region. It works. It also means you eat that region's price and that region's outages, and you never find out whether a cheaper answer existed.</p>
+<p>A router replaces the hardcoded choice with an ordered list. For search, mine looks like: Wikipedia and Marginalia (free), then SearXNG if you self-host one (free), then Serper ($0.001/call), then You.com ($0.005/call). The agent doesn't know or care. It asked for search results. It got search results. The routing happened underneath.</p>
+<h2>Why agents don't shop around</h2>
+<p>Nobody decides to overpay. It happens structurally.</p>
+<p>An agent framework needs a search tool, so someone grabs the SDK for whichever provider has the best docs, pastes an API key, and ships. The provider was chosen by what was easy to wire in — availability, not price. Then the choice fossilizes. The provider name is in the tool definition, the response shape is assumed downstream, and swapping it means touching code that works.</p>
+<p>There's also no pressure to revisit it, because the costs are invisible. Tool calls don't show up itemized anywhere your team looks. They're a line on a monthly invoice, aggregated past the point of usefulness. In one deep-research teardown I keep coming back to, search alone was 54% of task cost. Most teams running similar agents couldn't tell you their number, because nothing in their stack produces it.</p>
+<p>So the default persists: premium provider, every call, including the thousands of calls a free index would have answered identically.</p>
+<h2>The three-rung price ladder</h2>
+<p>Every routing setup I've built converges on the same shape. Three rungs.</p>
+<p><strong>Rung one: free and local.</strong> Wikipedia's API, Marginalia, a self-hosted SearXNG instance. For extraction, a local readability library instead of a paid scraping API. These cost $0 per call and answer more queries than you'd guess — entity lookups, background facts, documentation, the long tail of &quot;what is X.&quot; They have honest limits: Marginalia is great for essays and the indie web, weak on news and product pages. Wikipedia covers entities, not everything. Free is not Google-grade. It doesn't need to be — it needs to catch the calls that don't need Google-grade.</p>
+<p><strong>Rung two: cheap paid.</strong> Serper at $0.001/call. A real SERP, real freshness, at a fifth the price of the premium rung. This is the workhorse for queries the free rung can't handle.</p>
+<p><strong>Rung three: premium.</strong> You.com at $0.005/call, or whichever full-service API you trust most. This rung earns its place on the queries that genuinely need it. As a default for every call, it's a 5× overpay against rung two and an infinite overpay against rung one.</p>
+<p>The principle: walk the ladder cheapest-first, and make each paid rung justify itself per call. There's more on this way of thinking on the <a href="/blog/topics/provider-routing/">provider routing</a> hub.</p>
+<h2>Fallback semantics: the part everyone gets wrong</h2>
+<p>&quot;Try the cheap one first, fall back if it fails&quot; sounds simple until you define <em>fails</em>. An error is easy. Zero hits is the interesting case, and the rule differs by rung.</p>
+<p>A <strong>free</strong> provider returning zero hits means fall through. Free rungs have partial indexes; an empty result usually means &quot;not in my corner of the web,&quot; not &quot;this doesn't exist.&quot; Falling through costs nothing, so you always do it.</p>
+<p>A <strong>paid</strong> provider returning zero hits means end the chain. A full-index provider came back empty; the query genuinely has no hits. Paying a <em>pricier</em> provider to confirm an empty result is the worst spend in the whole system — you'd be buying nothing, twice.</p>
+<p>Here's a real captured run from my own ledger. Marginalia returned 0 hits in 529ms, the chain fell through, and Wikipedia returned 3 hits at $0 in 954ms:</p>
+<pre><code class="language-json">{&quot;provider_used&quot;:&quot;wikipedia&quot;,&quot;cost_usd&quot;:0,&quot;latency_ms&quot;:954}
+</code></pre>
+<p>Total cost of the fallback: zero dollars and half a second. That half-second matters for some workloads and not others, which is a routing decision too — a latency-critical path can start one rung higher. But it should be a decision, not an accident of which SDK got installed first.</p>
+<h2>Stamp the cost on every result</h2>
+<p>The second half of routing is receipts. Every response that comes back through the router should carry three fields: which provider answered, what it cost, and how long it took. <code>provider_used</code>, <code>cost_usd</code>, <code>latency_ms</code>.</p>
+<p>This sounds like bookkeeping. It's actually the enforcement mechanism. Once every result is stamped, the question &quot;what does this agent cost to run?&quot; has an answer you can grep for, per call, instead of a shrug and an invoice. Aggregate the stamps into a monthly view and you get something like a receipt: which rungs answered, what the same traffic would have cost at rack rate, what you actually paid.</p>
+<p>I built this into Frugal — the MCP server I run my own agents through — as a JSONL ledger that never leaves the machine. But the idea is bigger than any one tool: if a system spends money per call, every call should say what it spent. Dashboards summarize. Receipts prove.</p>
+<h2>When routing matters most</h2>
+<p>Routing pays off in proportion to tool-call volume, and nothing drives volume like search-heavy workloads. A deep-research agent might issue 40 or 60 searches per task. At $0.005 each, that's $0.20–0.30 per task before the model bill; at scale, search quietly becomes a top-line cost. That teardown number — search at 54% of task cost — came from exactly this kind of workload.</p>
+<p>If your agent makes three tool calls a day, skip all of this. If it makes three thousand, the ladder is the difference between a rounding error and a budget line.</p>
+<p>There's a second payoff that has nothing to do with money: a fallback chain is also an availability strategy. When a provider has a bad day, a routed agent degrades to the next rung. A hardcoded agent goes down with it.</p>
+<h2>Where to start</h2>
+<p>Don't rewrite your agent. Do this instead, in order. First, log what you're spending now — even crude counting of tool calls by provider will surprise you. Second, put one free rung in front of your current provider for one tool, with fall-through on errors and on free-rung zero hits. Third, stamp <code>cost_usd</code> on every result so the savings are visible instead of theoretical. That's a routing layer. Everything past that — more rungs, more tools, smarter chain-ending rules — is refinement.</p>
+<p>If you'd rather not build it, <a href="/">Frugal</a> is my version: one Go binary, your keys, no account. But build or borrow, the default should be the same. Free first. Paid rungs earn their place.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-07-07">Jul 7, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/inside-frugals-router/">Inside Frugal&#39;s router: how a search call picks its provider</a></h3>
+          <p class="blog-card-excerpt">One captured run, walked rung by rung: 0 hits in 529ms, a fall-through, 3 hits at $0, and exactly what lands in the ledger afterward.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-06-16">Jun 16, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/free-first-default-provider/">Free-first: why your default provider should cost $0</a></h3>
+          <p class="blog-card-excerpt">Paid providers should be the fallback, not the default. The case for making your agent&#39;s first call free, with the failure modes stated honestly.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-05-26">May 26, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/provider-fallback-chains/">Fallback chains: designing a provider ladder that doesn&#39;t page you</a></h3>
+          <p class="blog-card-excerpt">A backup provider you&#39;ve never exercised is a config value, not a plan. The rules I use to order rungs, avoid paying twice, and break flapping providers out of the chain.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

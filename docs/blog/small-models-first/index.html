@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Small models first: the case for escalation — frugal blog</title>
+  <meta name="description" content="Why small language models should be the default rung, with escalation to big ones on defined signals — and honest answers to the objections." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/small-models-first/" />
+  <meta property="og:title" content="Small models first: the case for escalation — frugal blog" />
+  <meta property="og:description" content="Why small language models should be the default rung, with escalation to big ones on defined signals — and honest answers to the objections." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-05-21T15:30:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Small models first: the case for escalation — frugal blog" />
+  <meta name="twitter:description" content="Why small language models should be the default rung, with escalation to big ones on defined signals — and honest answers to the objections." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/small-models-first/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-05-21T15:30:00Z","datePublished":"2026-05-21T15:30:00Z","description":"Why small language models should be the default rung, with escalation to big ones on defined signals — and honest answers to the objections.","headline":"Small models first: the case for escalation","keywords":"small language models","mainEntityOfPage":"https://frugal.sh/blog/small-models-first/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/small-models-first/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Small models first: the case for escalation","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Small models first: the case for escalation</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h1>Small models first: the case for escalation</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-05-21">May 21, 2026</time>
+            · 6 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>The default architecture for an AI product in 2026 is still: pick the best model you can afford, send it everything. I think that default is backwards. The right default is a small model handling the bulk of calls, with escalation to a bigger one on defined signals — and I'd argue this even if the small rung saved no money at all, though it saves plenty.</p>
+<p>Small language models are good now. Not &quot;good for their size&quot; — good enough that for a large share of the calls in a real system, the frontier model's advantage is unobservable in the output. That fact hasn't propagated into architectures yet, because the industry's mental model is still &quot;the model&quot; (singular) when the reality of any agent loop is a stream of wildly heterogeneous calls, most of them mundane.</p>
+<h2>Most calls are plumbing</h2>
+<p>Watch what an agent actually does per task: rewrite a query, judge whether a search result is relevant, extract fields from a page, decide whether to keep looping, format an answer. Then, occasionally: synthesize twelve sources into a coherent recommendation, or reason through a genuinely ambiguous case.</p>
+<p>These are different jobs. The plumbing calls dominate by count — and the plumbing is exactly where small models match big ones, because the tasks are narrow, the context is short, and success is verifiable. Sending &quot;is this search result relevant, yes or no&quot; to a frontier model is paying for reasoning capacity the task cannot express. The one-model default persists not because it's right but because it's <em>one decision</em>, made once, on day one, when the roadmap was more interesting than the invoice. I made the longer version of this argument in <a href="/blog/how-to-choose-a-model-for-agents/">how to choose a model for agent work</a>: &quot;which model?&quot; is a per-call question wearing a procurement costume.</p>
+<p>Escalation makes that per-call answer systematic. Small model by default; big model when a signal fires. The signals should be written down, not vibes: the small model declines or hedges; its output fails a validation check (schema, citation present, self-consistency); the task class is on an escalation list your evals put there; retry-after-failure. Each escalation is logged with a reason. That last part matters more than it looks — an escalation log is an ongoing measurement of exactly where the small model's ceiling is, on your traffic, updated continuously for free.</p>
+<h2>The same ladder, one layer up</h2>
+<p>If you've read anything I've written about <a href="/blog/provider-routing-for-ai-agents/">routing tool calls down a price ladder</a>, you've seen this shape before. Frugal routes a web search to free providers first — Wikipedia, Marginalia — and only falls through to paid rungs when the free rung returns nothing. The identical search costs $0 or $0.005 depending on who answers it, so the ladder exists to make the expensive rung <em>earn its place, call by call</em>.</p>
+<p>Small-first model selection is the same architecture one layer up. The small model is the free-ish rung. The frontier model is the paid rung. Escalation signals are the fall-through rules. And the same accounting discipline applies: every response should say who answered and what it cost, or the ladder is faith-based. A <a href="/blog/what-is-an-llm-router/">router</a> — whether for models or tools — is just this ladder plus health signals plus receipts.</p>
+<p>The symmetry isn't cosmetic; the same objections and the same answers apply at both layers. One difference is worth respecting, though. A tool call's failure is usually cheap to detect — zero hits is zero hits. A model call's failure can be a confident wrong answer, which is why escalation signals need more care than fall-through rules do. Verifiable plumbing tasks escalate on validation failures, which are mechanical. Open-ended reasoning tasks are harder to gate, and it's legitimate to route them straight to the top rung. Escalation doesn't require that every call start small. It requires that starting big be a decision with a reason, instead of the absence of one.</p>
+<h2>Objection one: quality anxiety</h2>
+<p>&quot;The small model will be wrong sometimes, and we won't catch it.&quot; True. Here's what the objection quietly assumes: that the big model's errors are being caught. They aren't — big models are wrong less often, but with equal confidence, and a team that sends everything to the frontier model has usually stopped checking outputs at all, because the model is &quot;the best we can get.&quot; The relevant comparison was never small-model errors versus zero errors. It's a system <em>designed around the possibility of being wrong</em> — validation checks, escalation paths, eval sets — versus a system that outsourced that worry to a bigger model and moved on.</p>
+<p>The honest concession: escalation gates leak. A validation check catches malformed output, not subtly wrong output, and some fraction of calls that deserved the big model won't get it. If a single bad answer is catastrophic for you — medical, legal, safety-critical — then run the top model on everything and treat the spend as insurance; that's a defensible engineering decision. For the much larger class of products where an occasional mediocre answer costs a retry, quality anxiety is mostly loss aversion with a benchmark chart. Evals on your own traffic, not leaderboard deltas, tell you which class you're in.</p>
+<h2>Objection two: added complexity</h2>
+<p>&quot;Now I have two models, a routing layer, escalation rules, and a new failure mode.&quot; Also true, and I won't pretend the complexity is zero. It's real code with real bugs.</p>
+<p>But compare it to the complexity you already accepted without flinching: retries, caching, rate-limit handling, fallback providers for when your primary has a bad day. Escalation is the same genus of scaffolding — a conditional and a second endpoint — and it's <em>less</em> complex than most of that list because it runs on the happy path where you can see it working. A first version is genuinely small: one validation function, one <code>if</code>, one log line with the escalation reason. You don't need a classifier predicting difficulty; fall-through on failure gets most of the value, exactly as it does for tool routing.</p>
+<p>There's also a complexity credit people miss: an escalation architecture makes model swaps boring. When a better small model ships — and one ships every few months — you swap the bottom rung, run your evals, and watch the escalation rate. The one-model architecture makes every model change a migration; the ladder makes it a config edit. Some complexity buys optionality. This is that kind. And the cost side compounds quietly: in a loop where plumbing calls outnumber reasoning calls, the bottom rung's price sets the bill, which is why small-first shows up in every serious <a href="/blog/cut-ai-agent-api-costs/">cost-cutting list</a> I've seen or written.</p>
+<h2>Defaults are the strategy</h2>
+<p>Strip the details and the argument is one sentence: in any system that consumes a metered resource, the default rung should be the cheapest one that works, and the expensive rung should have to prove it's needed — per call, with receipts. That's free-first for tool calls. It's small-first for model calls. The stack that treats both as routing problems gets cheaper and <em>more</em> measured over time, because every escalation and every fall-through is a data point about where capability actually runs out.</p>
+<p>If you want to try it, start embarrassingly small: pick your single highest-volume plumbing call, point a small model at it, validate the output, escalate on failure, and log the escalation rate for two weeks. That number — not a benchmark, not a hunch — tells you what the next rung down is worth. More in this vein under <a href="/blog/topics/model-selection/">model selection</a>, where most of the interesting questions turn out to be routing questions in disguise.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <time datetime="2026-04-28">Apr 28, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/how-to-choose-a-model-for-agents/">How to choose a model for your agent workload</a></h3>
+          <p class="blog-card-excerpt">Model selection for agents isn&#39;t a leaderboard question. It&#39;s five workload questions, and most teams skip straight to the logo.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-05-12">May 12, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/what-is-an-llm-router/">What is an LLM router — and do you actually need one?</a></h3>
+          <p class="blog-card-excerpt">The term gets used for two different things. Here&#39;s what a router actually contains — policy, health, fallback, accounting — and the honest cases where you should skip one.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-04-21">Apr 21, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/provider-routing-for-ai-agents/">Provider routing for AI agents: the complete guide</a></h3>
+          <p class="blog-card-excerpt">Agents pick providers by what got wired in, not by price. Here&#39;s how a routing layer walks every tool call down a ladder — free first, paid as fallback.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

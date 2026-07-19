@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Instrumenting an agent: what to log from day one — frugal blog</title>
+  <meta name="description" content="AI agent logging that pays off: six fields to capture from the first deploy, why JSONL on disk beats a dashboard, and which question each field answers." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/instrumenting-ai-agents-logging/" />
+  <meta property="og:title" content="Instrumenting an agent: what to log from day one — frugal blog" />
+  <meta property="og:description" content="AI agent logging that pays off: six fields to capture from the first deploy, why JSONL on disk beats a dashboard, and which question each field answers." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-07-14T14:15:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Instrumenting an agent: what to log from day one — frugal blog" />
+  <meta name="twitter:description" content="AI agent logging that pays off: six fields to capture from the first deploy, why JSONL on disk beats a dashboard, and which question each field answers." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/instrumenting-ai-agents-logging/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-07-14T14:15:00Z","datePublished":"2026-07-14T14:15:00Z","description":"AI agent logging that pays off: six fields to capture from the first deploy, why JSONL on disk beats a dashboard, and which question each field answers.","headline":"Instrumenting an agent: what to log from day one","keywords":"AI agent logging","mainEntityOfPage":"https://frugal.sh/blog/instrumenting-ai-agents-logging/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/instrumenting-ai-agents-logging/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Instrumenting an agent: what to log from day one","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Instrumenting an agent: what to log from day one</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/building-with-ai/">Building with AI</a>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h1>Instrumenting an agent: what to log from day one</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-07-14">Jul 14, 2026</time>
+            · 6 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Every question you'll be asked about your agent in month three has to be answered with data you either started logging in week one or didn't. That's the uncomfortable math of AI agent logging: the bill dispute, the &quot;why is it slow&quot; thread, the provider comparison — all of them need history, and history doesn't backfill. The instrumentation itself is trivial. A struct and a file append. The only hard part is knowing which fields matter before you feel the pain, so here is the list I'd give anyone deploying an agent this week.</p>
+<h2>The six fields</h2>
+<p>Log one line per tool call, with at least these:</p>
+<p><strong>provider_used</strong> — who actually answered. Not who you called first; who produced the result. If you run any kind of fallback, &quot;search&quot; is not a provider and logging it as one destroys the data.</p>
+<p><strong>cost_usd</strong> — what this call cost at rack rate, stamped at call time. Not reconstructed later from an invoice. Free calls log <code>0</code>, explicitly — a zero you wrote down is data, a missing field is a shrug.</p>
+<p><strong>latency_ms</strong> — wall-clock for the call. Cheap to capture, impossible to recover, and the first field you'll grep the day someone says the agent feels slow.</p>
+<p><strong>hits</strong> — how many results came back. This is the field almost everyone skips and the one that detects the most failure modes: it's the only way to tell &quot;provider errored&quot; from &quot;provider answered: nothing,&quot; and the only early warning for a provider whose quality is sliding while its status page stays green. I walked through both of those in <a href="/blog/agent-tool-chain-failure-modes/">the five failure modes piece</a> — neither is visible without a hit count.</p>
+<p><strong>fallback_path</strong> — the rungs the call walked before someone answered. Without it you know Wikipedia answered; with it you know Marginalia missed first, and how often, and whether that rung is earning its position.</p>
+<p><strong>task_id</strong> — the identifier that groups calls into the unit your users and your invoice actually care about. Per-call data answers trivia; per-task data answers &quot;what does a research run cost&quot; and &quot;which task burned 400 calls last night.&quot;</p>
+<p>Concretely, a line from my own ledger — this is the real captured run I walked through in <a href="/blog/inside-frugals-router/">the router post</a>, as it lands on disk:</p>
+<pre><code class="language-json">{&quot;ts&quot;:&quot;2026-07-06T09:12:41Z&quot;,&quot;task_id&quot;:&quot;tsk_4f2a&quot;,&quot;tool&quot;:&quot;search&quot;,&quot;provider_used&quot;:&quot;wikipedia&quot;,&quot;fallback_path&quot;:[&quot;marginalia&quot;,&quot;wikipedia&quot;],&quot;hits&quot;:3,&quot;cost_usd&quot;:0,&quot;latency_ms&quot;:954}
+</code></pre>
+<p>One line, six answers. Whoever reads it knows who answered, what it cost, how long it took, how many results came back, which rung missed first, and which task to bill it to.</p>
+<h2>JSONL on disk beats a dashboard — for now</h2>
+<p>The reflex when someone says &quot;observability&quot; is to reach for a SaaS dashboard. At the start, resist it. A JSONL file on local disk is the better tool for roughly your first year, and not because dashboards are bad — because they're premature.</p>
+<p>The early questions are ad hoc, and a dashboard answers predefined questions. You don't yet know what you'll need to ask, so what you want is raw lines and <code>grep</code>, <code>jq</code>, <code>sort</code>, a ten-line script. Every question in the next section is one pipe away from a JSONL file; against a dashboard, each one is either a pre-built chart or a feature request.</p>
+<p>The rest of the case is boring and decisive. Appending a line to a file adds no latency, can't be down, and doesn't put a vendor in your hot path. The data stays on your machine — tool-call logs contain your users' queries, which is exactly the data to think twice about shipping to a third party. And the format is the least committal decision you can make: JSONL imports into anything later. Frugal itself works this way — a local ledger at <code>~/.frugal/usage</code>, one JSON line per call, and a <code>frugal stats</code> command that reads the file and prints a monthly receipt. No control plane. The file is the source of truth, and any dashboard you add later is a view of it, not a replacement for it.</p>
+<p>When you outgrow the file — multiple hosts, retention policies, a team that wants charts — you'll migrate a well-structured dataset into whatever you choose. Migrating <em>into</em> structure is easy. Inventing history isn't.</p>
+<h2>The questions you'll be asked, and which field answers each</h2>
+<p>Instrumentation is only as good as the questions it can answer. These are the ones that actually arrive, usually in this order:</p>
+<table>
+<thead>
+<tr>
+<th>The question</th>
+<th>The fields that answer it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&quot;Why was the bill $X this month?&quot;</td>
+<td><code>cost_usd</code> summed by <code>provider_used</code></td>
+</tr>
+<tr>
+<td>&quot;What does one task cost us?&quot;</td>
+<td><code>cost_usd</code> grouped by <code>task_id</code></td>
+</tr>
+<tr>
+<td>&quot;Why does the agent feel slow?&quot;</td>
+<td><code>latency_ms</code>, plus <code>fallback_path</code> length</td>
+</tr>
+<tr>
+<td>&quot;Is the free rung actually earning its spot?&quot;</td>
+<td><code>provider_used</code> share, <code>hits</code> on fall-throughs</td>
+</tr>
+<tr>
+<td>&quot;Did provider X get worse?&quot;</td>
+<td><code>hits</code> per provider, trended over weeks</td>
+</tr>
+<tr>
+<td>&quot;Which task went runaway last night?&quot;</td>
+<td>call count per <code>task_id</code></td>
+</tr>
+<tr>
+<td>&quot;What would switching providers save?&quot;</td>
+<td><code>provider_used</code> × <code>cost_usd</code>, repriced</td>
+</tr>
+</tbody>
+</table>
+<p>Read the table backwards and it's the field list again — that's the test I'd apply to any proposed schema. If a field doesn't answer a question on this list, it can wait. If a question on this list has no field, that's the gap that will hurt, and every one of these questions gets asked eventually. The cost rows alone justify the whole exercise; I've written a longer argument for that in <a href="/blog/agent-cost-observability/">agent cost observability</a>, where the summary is that a bill you can't decompose is a bill you can't dispute, cut, or defend.</p>
+<p>The provider-quality row deserves a special mention. &quot;Did provider X get worse&quot; is the question nobody plans for, because degradation without errors doesn't feel like a thing until it happens to you. A weekly <code>jq</code> one-liner over <code>hits</code> per provider is the entire detection system. Two fields, trended. That's it.</p>
+<h2>Day one means day one</h2>
+<p>The playbook, compressed: define the six-field struct, append a JSON line per tool call, ship it with the first deploy. An afternoon of work, most of it deciding field names.</p>
+<p>What you get for that afternoon compounds quietly. Week one, it's a curiosity — you'll <code>wc -l</code> the file and watch your agent work. Month one, it's a receipt: real cost per task, real provider mix, numbers instead of vibes in the pricing discussion. Month three, it's leverage — the trend lines that catch a degrading provider, the task-level outliers that expose a runaway loop, the repricing analysis that turns a provider negotiation from a guess into an ultimatum.</p>
+<p>None of that exists if the logging starts in month three. The agents I trust most aren't the ones with the cleverest loops — they're the ones whose operators can answer questions about them. More on building that kind of operational muscle in the <a href="/blog/topics/building-with-ai/">building with AI</a> archive. Start the file today; it's the one part of your agent you cannot add retroactively.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-05-28">May 28, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/agent-cost-observability/">Cost observability for agents: put cost_usd on every result</a></h3>
+          <p class="blog-card-excerpt">Your invoice knows what you spent by provider and month. It has no idea what one agent run cost. Stamp the cost on the response envelope and the question answers itself.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-07-07">Jul 7, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/inside-frugals-router/">Inside Frugal&#39;s router: how a search call picks its provider</a></h3>
+          <p class="blog-card-excerpt">One captured run, walked rung by rung: 0 hits in 529ms, a fall-through, 3 hits at $0, and exactly what lands in the ledger afterward.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-06-30">Jun 30, 2026</time>
+            <span class="blog-card-kind">List</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/agent-tool-chain-failure-modes/">5 failure modes every agent tool chain should survive</a></h3>
+          <p class="blog-card-excerpt">Your tool chain will break in exactly five ways. Here&#39;s what each one looks like in the logs, and what a chain that survives it does differently.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

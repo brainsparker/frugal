@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reliability, latency, and fallbacks for AI systems | frugal blog</title>
+  <meta name="description" content="Keeping agents up when providers aren&#39;t: outage design, latency budgets, rate limits, timeouts, and failure modes worth engineering for." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://frugal.sh/blog/topics/reliability/" />
+  <meta property="og:title" content="Reliability, latency, and fallbacks for AI systems | frugal blog" />
+  <meta property="og:description" content="Keeping agents up when providers aren&#39;t: outage design, latency budgets, rate limits, timeouts, and failure modes worth engineering for." />
+  <meta property="og:site_name" content="frugal.sh" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Reliability, latency, and fallbacks for AI systems | frugal blog" />
+  <meta name="twitter:description" content="Keeping agents up when providers aren&#39;t: outage design, latency budgets, rate limits, timeouts, and failure modes worth engineering for." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/topics/reliability/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","description":"Keeping agents up when providers aren't: outage design, latency budgets, rate limits, timeouts, and failure modes worth engineering for.","isPartOf":{"@type":"Blog","name":"frugal blog","url":"https://frugal.sh/blog/"},"name":"Reliability, latency, and fallbacks for AI systems","url":"https://frugal.sh/blog/topics/reliability/"}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <section class="blog-hero">
+      <div class="shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Reliability &amp; latency</span>
+        </nav>
+        <h1>Reliability, latency, and fallbacks for AI systems</h1>
+        <div class="post-body topic-intro">
+<p>Every provider in your stack will have a bad day. The difference between
+an agent that shrugs and an agent that pages you is whether you designed
+for that day up front.</p>
+<p>These posts cover the operational half of agent infrastructure: latency
+budgets, empty-result handling, retry discipline, and graceful
+degradation when the premium rung is down.</p>
+
+        </div>
+      </div>
+    </section>
+
+    <section class="blog-list">
+      <div class="shell">
+        <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-06-30">Jun 30, 2026</time>
+            <span class="blog-card-kind">List</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/agent-tool-chain-failure-modes/">5 failure modes every agent tool chain should survive</a></h3>
+          <p class="blog-card-excerpt">Your tool chain will break in exactly five ways. Here&#39;s what each one looks like in the logs, and what a chain that survives it does differently.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-06-09">Jun 9, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/zero-hits-empty-results/">Zero hits is not an error</a></h3>
+          <p class="blog-card-excerpt">An empty result set arrives as a 200 and gets treated like a 500. The provider didn&#39;t fail — it answered. What you do next should depend on whether that answer cost money.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-05-19">May 19, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/latency-budgets-agent-tool-calls/">Latency budgets for agent tool calls</a></h3>
+          <p class="blog-card-excerpt">An agent chains tool calls in sequence, and sequences are where tail latency compounds. How to set a budget, split it per call, and spend it on fallback rungs.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-04-30">Apr 30, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/ai-agents-provider-outages/">Designing AI agents that survive provider outages</a></h3>
+          <p class="blog-card-excerpt">Your agent is a distributed system with a single point of failure per dependency. The playbook for staying up when a provider doesn&#39;t.</p>
+        </article>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

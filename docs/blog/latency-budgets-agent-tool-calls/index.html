@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Latency budgets for agent tool calls — frugal blog</title>
+  <meta name="description" content="How to budget AI agent latency: end-to-end targets split per tool call, p50 vs p95, tail math on sequential chains, and per-rung timeouts." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/latency-budgets-agent-tool-calls/" />
+  <meta property="og:title" content="Latency budgets for agent tool calls — frugal blog" />
+  <meta property="og:description" content="How to budget AI agent latency: end-to-end targets split per tool call, p50 vs p95, tail math on sequential chains, and per-rung timeouts." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-05-19T14:50:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Latency budgets for agent tool calls — frugal blog" />
+  <meta name="twitter:description" content="How to budget AI agent latency: end-to-end targets split per tool call, p50 vs p95, tail math on sequential chains, and per-rung timeouts." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/latency-budgets-agent-tool-calls/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-05-19T14:50:00Z","datePublished":"2026-05-19T14:50:00Z","description":"How to budget AI agent latency: end-to-end targets split per tool call, p50 vs p95, tail math on sequential chains, and per-rung timeouts.","headline":"Latency budgets for agent tool calls","keywords":"AI agent latency","mainEntityOfPage":"https://frugal.sh/blog/latency-budgets-agent-tool-calls/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/latency-budgets-agent-tool-calls/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Latency budgets for agent tool calls","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Latency budgets for agent tool calls</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h1>Latency budgets for agent tool calls</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-05-19">May 19, 2026</time>
+            · 5 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Nobody budgets agent latency, for the same reason nobody budgets agent cost: the total is an emergent property of a loop, and loops don't show up in anyone's design doc. A single tool call taking 900ms sounds fine. An agent making fourteen of them in sequence is a 13-second answer, and now your &quot;fine&quot; calls have produced a feature people abandon.</p>
+<p>AI agent latency is budgetable, though. The math is old — services have run on latency budgets for decades — it just needs adapting to the two things agents do differently: they chain calls sequentially, and (if you're routing well) each call may try several providers before it succeeds. Here's how I think about both.</p>
+<h2>Start end-to-end, then divide</h2>
+<p>A latency budget starts as a product number, not an engineering one: how long will a user wait for this interaction? Pick it deliberately — 5 seconds for an interactive answer, 60 for a &quot;we'll notify you&quot; job — and write it down, the same way you'd set the cost ceiling in a <a href="/blog/ai-feature-launch-checklist/">feature launch checklist</a>. Everything downstream is division.</p>
+<p>Divide the end-to-end number across the steps a typical task takes. If a task is roughly two model calls and six tool calls, and the budget is 10 seconds, then after the model calls take their share you might have 4–5 seconds for tools — call it 700ms per tool call, budgeted. Suddenly every provider decision has a criterion. Is this rung fast enough? Compare its latency to the line item, not to your patience during testing.</p>
+<p>The division also exposes infeasible designs early. Fourteen sequential tool calls at 700ms each cannot fit in a 5-second budget, no matter how you tune providers. That's not a latency problem; it's an architecture problem — parallelize the calls, cut the count, or change the product promise. Better to learn that from arithmetic than from churn.</p>
+<h2>Budget the p95, not the p50</h2>
+<p>The p50 is the number providers put on marketing pages. The p95 is the number your users experience, because anyone who triggers more than a few tool calls per session samples the tail regularly.</p>
+<p>Sequential chains make this brutal. Chain six calls and the odds that <em>at least one</em> hits its p95 are roughly 1 − 0.95⁶ ≈ 26%. A quarter of your tasks eat at least one tail latency. Chain fourteen calls and it's a coin flip. The chain doesn't average your latencies; it collects your slowest moments. This is the single most counterintuitive fact about agent latency: per-call percentiles that look excellent produce end-to-end percentiles that look terrible, and the degradation is a pure function of chain length.</p>
+<p>So budget against p95 per call, and measure it yourself — from your machines, on your query mix. Which requires logging <code>latency_ms</code> on every tool call from day one. Frugal stamps it on every response next to <code>cost_usd</code> for exactly this reason: a latency budget without per-call measurements is a wish.</p>
+<h2>Fallback chains spend the budget too</h2>
+<p>If your tool calls walk a provider ladder — free rungs first, paid as fallback, the pattern from <a href="/blog/provider-routing-for-ai-agents/">the provider routing guide</a> — then one logical call can be several physical calls, and each rung spends from the same line item.</p>
+<p>Here's a real captured run from my own ledger. A search hit Marginalia first: 0 hits in 529ms. The chain fell through to Wikipedia: 3 hits, $0, in 954ms. Total wall clock, about 1.5 seconds; the response carried <code>{&quot;provider_used&quot;:&quot;wikipedia&quot;,&quot;cost_usd&quot;:0,&quot;latency_ms&quot;:954}</code>. The user-visible latency wasn't Wikipedia's 954ms — it was Wikipedia's 954ms <em>plus</em> the 529ms spent learning Marginalia had nothing. Fall-through isn't free; it's paid in milliseconds.</p>
+<p>The design consequence: give every rung its own timeout, sized so the whole ladder fits the call's budget. If the line item is 2 seconds and the ladder is three rungs, the first rung cannot be allowed 2 seconds — a hang at rung one would consume the entire budget before your fallbacks get a turn. Cap early rungs tightly (a free rung that hasn't answered in 800ms should yield to the next rung), and leave the last rung the remainder. Per-rung timeouts are the difference between a ladder that degrades gracefully and one where the cheap rung's bad day becomes the whole call's bad day — the same failure shape I described in <a href="/blog/ai-agents-provider-outages/">how agents behave during provider outages</a>, just measured in milliseconds instead of error rates.</p>
+<h2>When a slow free provider is fine — and when it isn't</h2>
+<p>The Marginalia-first ladder above costs ~500ms of added latency on queries it can't answer, in exchange for $0 on the queries it can. Whether that trade is good depends entirely on which budget the call lives in. Same provider, opposite verdicts:</p>
+<table>
+<thead>
+<tr>
+<th>Context</th>
+<th>Budget</th>
+<th>Slow free rung first?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Interactive chat answer</td>
+<td>3–5s end-to-end</td>
+<td>Only with a tight per-rung timeout</td>
+</tr>
+<tr>
+<td>Interactive, streaming partials</td>
+<td>1s to first useful token</td>
+<td>Usually no — go straight to the fastest rung</td>
+</tr>
+<tr>
+<td>Background research job</td>
+<td>Minutes</td>
+<td>Yes, always</td>
+</tr>
+<tr>
+<td>Overnight batch enrichment</td>
+<td>Hours</td>
+<td>Yes — try <em>every</em> free rung first</td>
+</tr>
+</tbody>
+</table>
+<p>Batch work is where free-first routing is unambiguous: nobody is watching, latency is nearly worthless, and every dollar saved is fully realized. Interactive work makes you choose — you can buy latency headroom by skipping to a fast paid rung, or spend headroom to try free rungs first. Both are defensible. What's not defensible is not knowing which one you're doing.</p>
+<p>A practical pattern: run two ladders per capability. A &quot;patient&quot; ladder for batch paths — every free rung, generous timeouts. A &quot;hurried&quot; ladder for interactive paths — at most one fast free rung with a sub-second cap, then paid. Route each call to the ladder matching its budget. It's a few lines of config, and it resolves the false argument between &quot;free-first is too slow&quot; and &quot;paying rack rate for batch jobs is waste.&quot; Both are true; they're about different ladders.</p>
+<h2>Where to start</h2>
+<p>Log <code>latency_ms</code> per tool call this week if you aren't already — nothing else here is possible without it. Then compute your real chain length (tool calls per task, p50 and p95) and multiply. That one multiplication usually tells you where the budget actually goes: not the slow provider you suspected, but the sheer number of sequential calls, or one rung with no timeout quietly holding the whole chain hostage.</p>
+<p>Latency budgets end up being the operational glue of agent design — they connect product promises to provider choices to timeout values, the same way cost ceilings connect invoices to routing. Both are covered in more depth across the <a href="/blog/topics/reliability/">reliability</a> posts. The budget isn't the hard part. Deciding to have one is.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-04-30">Apr 30, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/ai-agents-provider-outages/">Designing AI agents that survive provider outages</a></h3>
+          <p class="blog-card-excerpt">Your agent is a distributed system with a single point of failure per dependency. The playbook for staying up when a provider doesn&#39;t.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-04-21">Apr 21, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/provider-routing-for-ai-agents/">Provider routing for AI agents: the complete guide</a></h3>
+          <p class="blog-card-excerpt">Agents pick providers by what got wired in, not by price. Here&#39;s how a routing layer walks every tool call down a ladder — free first, paid as fallback.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/building-with-ai/">Building with AI</a>
+            <time datetime="2026-05-14">May 14, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/ai-feature-launch-checklist/">Shipping your first AI feature: a checklist for product teams</a></h3>
+          <p class="blog-card-excerpt">The demo is the easy 20%. This is the other 80% — seven checks that decide whether your AI feature survives contact with real users and a real invoice.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

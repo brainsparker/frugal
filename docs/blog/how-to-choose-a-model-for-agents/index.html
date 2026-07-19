@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How to choose a model for your agent workload — frugal blog</title>
+  <meta name="description" content="How to choose an LLM for agent work: five questions — task shape, context, latency, cost per action, escalation — that beat brand loyalty." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/how-to-choose-a-model-for-agents/" />
+  <meta property="og:title" content="How to choose a model for your agent workload — frugal blog" />
+  <meta property="og:description" content="How to choose an LLM for agent work: five questions — task shape, context, latency, cost per action, escalation — that beat brand loyalty." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-04-28T13:55:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="How to choose a model for your agent workload — frugal blog" />
+  <meta name="twitter:description" content="How to choose an LLM for agent work: five questions — task shape, context, latency, cost per action, escalation — that beat brand loyalty." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/how-to-choose-a-model-for-agents/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-04-28T13:55:00Z","datePublished":"2026-04-28T13:55:00Z","description":"How to choose an LLM for agent work: five questions — task shape, context, latency, cost per action, escalation — that beat brand loyalty.","headline":"How to choose a model for your agent workload","keywords":"how to choose an LLM","mainEntityOfPage":"https://frugal.sh/blog/how-to-choose-a-model-for-agents/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/how-to-choose-a-model-for-agents/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"How to choose a model for your agent workload","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">How to choose a model for your agent workload</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h1>How to choose a model for your agent workload</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-04-28">Apr 28, 2026</time>
+            · 5 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Most advice on how to choose an LLM starts with a leaderboard and ends with a brand. That's backwards for agent work. An agent isn't a chat window — it's a loop that plans, calls tools, reads results, and decides what to do next, hundreds of times an hour. The model is a component in that loop, and you should select it the way you'd select any component: by the shape of the work, not the logo on the box.</p>
+<p>I route my agents' tool calls down a price ladder, and the longer I run that setup the more obvious it becomes that model choice is the same problem wearing a different hat. Providers get picked by what was easy to wire in, the choice fossilizes, and nobody re-examines it because the costs and failures are aggregated out of sight. Here's the framework I actually use — five questions, in order.</p>
+<h2>Start with task shape, not model rank</h2>
+<p>Leaderboards measure models on tasks that mostly aren't yours. Before comparing anything, write down what the model does <em>per step</em> in your loop. Not &quot;research assistant&quot; — the actual atomic operations. Classify a query. Pick a tool and fill its arguments. Summarize twelve search results into three bullets. Decide whether the answer is done.</p>
+<p>Then sort those operations into two piles: judgment steps and mechanical steps. Judgment steps — planning a research strategy, resolving contradictory sources, writing the final synthesis — reward reasoning depth. Mechanical steps — extraction, classification, reformatting, argument-filling — reward speed and cost, and a mid-tier or small model usually handles them indistinguishably from a flagship. In every agent I've built, mechanical steps outnumber judgment steps by a wide margin. If you buy a frontier model for the whole loop, you're paying frontier rates for work that's mostly clerical.</p>
+<h2>Context needs: measure, don't assume</h2>
+<p>The second question is how much the model has to hold. Agents are context-hungry in a specific way: tool results pile up. A search step returns snippets, an extract step returns page text, and by turn fifteen the transcript is dominated by material the model needs to <em>reference</em>, not reason deeply about.</p>
+<p>Two failure modes here. Teams either buy the biggest context window on the market and stuff it — paying per token to re-send an ever-growing transcript on every single step — or they buy short context and watch the agent forget its own findings. The fix for both is the same: measure your real accumulation. Log the token count per step for a week of traffic and look at the distribution. Most workloads need far less than the maximum window <em>if</em> you summarize or drop stale tool output as you go, and the discipline of pruning is worth more than the headroom of a giant window. Context is a budget, and like every budget it gets spent to the limit if nobody watches it.</p>
+<h2>Latency budget: the loop multiplies everything</h2>
+<p>A model's latency doesn't matter in isolation. It matters multiplied by your loop depth. A model that responds in a couple of seconds feels fine in a chat box and is unusable in an agent that takes forty sequential steps — that's over a minute of pure model wait before a single tool has run. My tool router stamps <code>latency_ms</code> on every result for exactly this reason: you can't budget what you don't measure, and end-to-end task time is the sum of a lot of small numbers nobody looks at individually.</p>
+<p>So set the budget top-down. Decide what the whole task is allowed to take — a user-facing agent might get ten seconds, an overnight batch job might get an hour — divide by expected steps, and you have your per-step allowance for model time plus tool time. That number, not vibes, tells you whether a slower-but-smarter model fits. Often the answer is mixed: the slow model fits at the two or three judgment steps and nowhere else.</p>
+<h2>Cost per action, not cost per token</h2>
+<p>Per-token pricing is how models are sold; cost per action is how agents spend. The unit that matters is &quot;what does one complete step of my loop cost&quot; — input tokens (including that accumulated context), output tokens, multiplied by steps per task, multiplied by tasks per day.</p>
+<p>Run that arithmetic and two things happen. First, models reorder: a cheap-per-token model that needs three attempts at a structured output can cost more per <em>action</em> than a pricier model that nails it once. Second, the model bill lands next to the tool bill, where it belongs. I've written about how the same web search prices anywhere from $0 to $0.005 in <a href="/blog/rack-rate-gap-web-search-costs/">the rack-rate gap</a>, and in one deep-research teardown I keep coming back to, search alone was 54% of task cost. Model selection that ignores the tool side optimizes a minority of the bill. Whatever you choose, stamp the cost on every call — model and tool alike — so the per-action number is a fact in a ledger, not an estimate in a spreadsheet.</p>
+<h2>Escalation paths: choose a ladder, not a model</h2>
+<p>Here's where brand loyalty fully breaks down. The best answer to &quot;which model&quot; is usually &quot;more than one, ordered.&quot; Run the cheap model by default. Detect when it's out of its depth — a failed validation, low confidence, a judgment-class step — and escalate that step to the stronger model. This is the same cheapest-first ladder I described in the <a href="/blog/provider-routing-for-ai-agents/">provider routing guide</a>, applied to inference: the premium rung earns its place per call instead of being the default for every call.</p>
+<p>Escalation needs a trigger you can implement, not a feeling. The reliable ones are structural: output failed schema validation, tool call errored twice, step is on your hand-labeled judgment list, task flagged high-stakes. Start with those. And define the semantics of &quot;the cheap rung came up empty&quot; deliberately — retry, escalate, or stop — the same way a search chain decides when falling through is worth it.</p>
+<h2>The choice is provisional. Design for that.</h2>
+<p>Whatever you pick will be wrong in six months — a price cut, a new release, a quality regression after a silent update. So the durable decision isn't the model; it's the architecture that makes the model swappable. Keep prompts provider-neutral where you can. Keep the model name in config, not scattered through code. Keep an eval set of your own real tasks — twenty cases beats zero — so &quot;should we switch&quot; is an afternoon's test run instead of a quarter's migration.</p>
+<p>Where to start: write down your loop's steps, label each one judgment or mechanical, and price one full task at your current model's rates. That single exercise usually answers the question better than any leaderboard, and it's the foundation for everything else on the <a href="/blog/topics/model-selection/">model selection</a> hub. Pick per step. The logo can stay out of it.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-04-21">Apr 21, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/provider-routing-for-ai-agents/">Provider routing for AI agents: the complete guide</a></h3>
+          <p class="blog-card-excerpt">Agents pick providers by what got wired in, not by price. Here&#39;s how a routing layer walks every tool call down a ladder — free first, paid as fallback.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-04-23">Apr 23, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/rack-rate-gap-web-search-costs/">The rack-rate gap: why the same web search costs $0 or $0.005</a></h3>
+          <p class="blog-card-excerpt">Five providers, one capability, a price range from free to half a cent. An analysis of what you&#39;re actually paying for when your agent searches the web.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <time datetime="2026-07-02">Jul 2, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/latency-quality-cost-tradeoffs/">Latency, quality, cost: pick the two your product needs</a></h3>
+          <p class="blog-card-excerpt">Autocomplete, overnight reports, and research tasks live in different corners of the same triangle. Products that pick one corner for everything overpay in all three.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

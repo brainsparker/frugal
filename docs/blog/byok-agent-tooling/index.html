@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BYOK is a feature, not a compromise — frugal blog</title>
+  <meta name="description" content="BYOK AI tools get framed as the inconvenient option. Wrong frame: your keys mean your rates, your limits, your data path — and nothing to breach." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/byok-agent-tooling/" />
+  <meta property="og:title" content="BYOK is a feature, not a compromise — frugal blog" />
+  <meta property="og:description" content="BYOK AI tools get framed as the inconvenient option. Wrong frame: your keys mean your rates, your limits, your data path — and nothing to breach." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-06-23T13:50:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="BYOK is a feature, not a compromise — frugal blog" />
+  <meta name="twitter:description" content="BYOK AI tools get framed as the inconvenient option. Wrong frame: your keys mean your rates, your limits, your data path — and nothing to breach." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/byok-agent-tooling/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-06-23T13:50:00Z","datePublished":"2026-06-23T13:50:00Z","description":"BYOK AI tools get framed as the inconvenient option. Wrong frame: your keys mean your rates, your limits, your data path — and nothing to breach.","headline":"BYOK is a feature, not a compromise","keywords":"BYOK AI tools","mainEntityOfPage":"https://frugal.sh/blog/byok-agent-tooling/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/byok-agent-tooling/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"BYOK is a feature, not a compromise","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">BYOK is a feature, not a compromise</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h1>BYOK is a feature, not a compromise</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-06-23">Jun 23, 2026</time>
+            · 5 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Somewhere along the way, &quot;bring your own key&quot; got framed as the budget option — the inconvenient path for people too stubborn to let a platform handle things. I think that framing is exactly backwards. BYOK AI tools are the serious option, and the hosted-key convenience layer is the compromise: you're trading rates, rate limits, and control of your data path for the privilege of not pasting a string into a config file.</p>
+<p>I built Frugal BYOK-only, no account, on purpose. This post is the reasoning, including the part where I tell you what BYOK genuinely costs you.</p>
+<h2>Your keys are your rates</h2>
+<p>When a middleman resells API calls, you pay their price, not the provider's. The markup is sometimes explicit — a per-call fee, a subscription gating &quot;credits&quot; — and sometimes buried in a bundled price you can't decompose. Either way, a margin now sits between you and the rack rate, on every call, forever.</p>
+<p>With your own keys, you pay what the provider charges: Serper's $0.001/call is $0.001/call, You.com's $0.005 is $0.005. When you negotiate volume pricing, <em>you</em> get it. When the provider cuts prices, the cut reaches you instead of widening someone's margin. And your usage accrues to your account — the history that gets you higher tiers builds under your name, not a reseller's.</p>
+<p>There's a subtler version of this too: a middleman with pooled keys has no incentive to route your call cheaply, because the spread is their revenue. The <a href="/blog/rack-rate-gap-web-search-costs/">rack-rate gap in search</a> — $0 to $0.005 for the same query — is margin waiting to be captured. The only party guaranteed to want your per-call cost minimized is you, and you can only act on that with your own keys in hand.</p>
+<h2>Your keys are your rate limits</h2>
+<p>Pooled-key services share one quota across every customer. Their limit is your limit, their noisy neighbor is your throttling, and their peak hour is your queue. You can't buy your way out, because the quota isn't yours to raise.</p>
+<p>With your own keys, the rate limit is a relationship between you and the provider. You know your tier, you can see your headroom, and when you need more you ask for more. For an agent workload with bursty fan-out — a research agent issuing 50 searches in a minute — knowing exactly whose quota you're spending is the difference between capacity planning and hoping.</p>
+<h2>Your keys are your data path</h2>
+<p>This is the argument I'd keep if I had to drop the others. Every query your agent makes says something — what your product does, what your users ask, what your team is investigating. Route those calls through an intermediary and you've added a second data controller: their logs, their retention policy, their subprocessors, their breach surface, their subpoena scope. Your vendor-review spreadsheet just grew a row, and so did your actual risk.</p>
+<p>BYOK collapses the path back to two parties: your machine, the provider you already chose to trust. Nothing in the middle to log, retain, or leak. In MCP terms — and this is where the <a href="/blog/mcp-ecosystem-2026/">MCP ecosystem</a> makes the distinction unusually crisp — the question to ask of any server is whether it's <em>software you run</em> or <em>a service you call</em>. The protocol permits both. Only one of them adds a tenant between your agent and the web.</p>
+<h2>No control plane, nothing to breach</h2>
+<p>The strongest version of BYOK isn't just &quot;you hold the keys&quot; — it's that there's no central place your keys go at all. Frugal is one Go binary. No account, no signup, no control plane. Keys live in your environment; the usage ledger is a JSONL file at <code>~/.frugal/usage</code> that never leaves the machine. Cost tracking happens where the costs happen — the receipts argument from <a href="/blog/agent-cost-observability/">agent cost observability</a> works <em>better</em> locally, because the ledger is yours to grep, not a dashboard someone else hosts.</p>
+<p>The security property is structural, not promised. A hosted key vault can be operated impeccably and still be a vault: one place where thousands of customers' provider keys concentrate, one target worth the effort. An architecture with no vault has nothing to harden and nothing to disclose. &quot;We can't lose your keys&quot; beats &quot;we protect your keys&quot; — the first is a fact about the design, the second is a claim about execution.</p>
+<p>That's why I'd call BYOK trust architecture rather than a checkbox. It doesn't reduce the trust you must place in vendors; it removes a vendor from the set entirely.</p>
+<h2>The tradeoff, stated honestly</h2>
+<p>BYOK hands you jobs a platform would have done. You sign up with each provider yourself. You store keys properly — environment variables or a secrets manager, not a committed <code>.env</code>. You rotate them when someone leaves. You watch spend across several dashboards instead of one bill (a local ledger helps, but it's <em>your</em> ledger to read). If you expose a BYOK server over the network, securing it is on you too — bearer tokens and per-IP rate limiting exist for this, and I covered the transport side in <a href="/blog/mcp-transport-stdio-vs-http/">stdio vs HTTP for MCP</a>.</p>
+<p>For a solo builder that's an hour of setup and a mild ongoing tax. For a larger team it's real operational surface, and there are contexts — procurement rules that demand one throat to choke, teams with zero ops appetite — where a managed layer is the right call, margin and all. The mistake isn't choosing managed. The mistake is not noticing you're paying twice for it: once in markup, once in a data path you no longer control.</p>
+<h2>The test I apply</h2>
+<p>When I evaluate anything in the agent-tooling stack now — MCP servers especially, and there's more on evaluating them across the <a href="/blog/topics/mcp-ecosystem/">mcp-ecosystem</a> hub — I ask one question early: <em>whose keys, whose path?</em> If the answer is &quot;ours, trust us,&quot; the product has to be dramatically better than the BYOK alternative to justify the margin and the extra controller. Occasionally it is. Usually it's the same upstream APIs, resold with a login screen.</p>
+<p>Your keys, your rates, your limits, your data path, your receipts. That's not the stubborn option. That's the default the convenience layer should have to argue you out of.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <time datetime="2026-05-05">May 5, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/mcp-ecosystem-2026/">The MCP ecosystem in 2026: what&#39;s actually getting used</a></h3>
+          <p class="blog-card-excerpt">Forget the spec tour. This is what MCP looks like from the inside of a server that runs every day: the parts that stuck and the parts that didn&#39;t.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <time datetime="2026-06-02">Jun 2, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/mcp-transport-stdio-vs-http/">stdio or Streamable HTTP? Choosing an MCP transport</a></h3>
+          <p class="blog-card-excerpt">One transport is a subprocess and a pipe. The other is a service you now operate. Which MCP transport you pick is really a question about who connects, from where.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-05-28">May 28, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/agent-cost-observability/">Cost observability for agents: put cost_usd on every result</a></h3>
+          <p class="blog-card-excerpt">Your invoice knows what you spent by provider and month. It has no idea what one agent run cost. Stamp the cost on the response envelope and the question answers itself.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

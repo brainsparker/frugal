@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI tool-call costs and unit economics | frugal blog</title>
+  <meta name="description" content="What agent tool calls actually cost, why tool prices haven&#39;t fallen like token prices, and how to measure and cut the bill without cutting quality." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://frugal.sh/blog/topics/ai-costs/" />
+  <meta property="og:title" content="AI tool-call costs and unit economics | frugal blog" />
+  <meta property="og:description" content="What agent tool calls actually cost, why tool prices haven&#39;t fallen like token prices, and how to measure and cut the bill without cutting quality." />
+  <meta property="og:site_name" content="frugal.sh" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="AI tool-call costs and unit economics | frugal blog" />
+  <meta name="twitter:description" content="What agent tool calls actually cost, why tool prices haven&#39;t fallen like token prices, and how to measure and cut the bill without cutting quality." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/topics/ai-costs/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","description":"What agent tool calls actually cost, why tool prices haven't fallen like token prices, and how to measure and cut the bill without cutting quality.","isPartOf":{"@type":"Blog","name":"frugal blog","url":"https://frugal.sh/blog/"},"name":"AI tool-call costs and unit economics","url":"https://frugal.sh/blog/topics/ai-costs/"}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <section class="blog-hero">
+      <div class="shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">AI tool costs</span>
+        </nav>
+        <h1>AI tool-call costs and unit economics</h1>
+        <div class="post-body topic-intro">
+<p>Model prices dropped an order of magnitude. Tool prices didn't. The same
+web search still costs anywhere from $0 to $0.005 per call depending on
+who answers it, and for search-heavy agents that spread is most of the
+bill.</p>
+<p>These posts put numbers on the problem: rack-rate comparisons, cost
+observability, retry overhead, and the unit economics of shipping a
+product where every user action fans out into tool calls.</p>
+
+        </div>
+      </div>
+    </section>
+
+    <section class="blog-list">
+      <div class="shell">
+        <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-07-09">Jul 9, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/tool-prices-didnt-fall/">Token prices fell 90%. Tool prices didn&#39;t.</a></h3>
+          <p class="blog-card-excerpt">Inference got an order of magnitude cheaper and everyone noticed. The per-call price of search, scrape, and browse barely moved, and almost nobody did.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-06-18">Jun 18, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/deep-research-cost-teardown/">Search is most of your agent&#39;s bill</a></h3>
+          <p class="blog-card-excerpt">Everyone budgets for tokens. Then a teardown shows search at 54% of task cost. The math behind why research agents multiply search spend.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-05-28">May 28, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/agent-cost-observability/">Cost observability for agents: put cost_usd on every result</a></h3>
+          <p class="blog-card-excerpt">Your invoice knows what you spent by provider and month. It has no idea what one agent run cost. Stamp the cost on the response envelope and the question answers itself.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-05-07">May 7, 2026</time>
+            <span class="blog-card-kind">List</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/cut-ai-agent-api-costs/">7 ways to cut your AI agent&#39;s API bill this week</a></h3>
+          <p class="blog-card-excerpt">No replatforming, no procurement cycle. Seven changes you can ship by Friday that attack the parts of an agent bill nobody is looking at.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-04-23">Apr 23, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/rack-rate-gap-web-search-costs/">The rack-rate gap: why the same web search costs $0 or $0.005</a></h3>
+          <p class="blog-card-excerpt">Five providers, one capability, a price range from free to half a cent. An analysis of what you&#39;re actually paying for when your agent searches the web.</p>
+        </article>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
