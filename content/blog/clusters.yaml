@@ -1,0 +1,83 @@
+# Topic clusters for the frugal.sh blog. Each cluster renders a hub page at
+# /blog/topics/<key>/ that acts as the pillar landing page for its keyword
+# space; every post in the cluster links back to it.
+- key: provider-routing
+  name: Provider routing
+  title: "Provider routing for AI agents"
+  description: "Guides and essays on routing AI agent tool calls across providers: fallback chains, price ladders, and picking the cheapest provider that returns a result."
+  intro: |
+    Agents pick providers by what's wired in, not by what the call costs.
+    Provider routing fixes that: every search, extract, or browse call walks
+    a ladder — free and local first, cheap paid next, premium only when
+    nothing cheaper returns a result.
+
+    These posts cover the mechanics: how routers decide, how fallback chains
+    behave when a rung returns zero hits, and why the default provider for
+    any capability should cost $0. Start with
+    [the complete guide to provider routing](/blog/provider-routing-for-ai-agents/).
+
+- key: ai-costs
+  name: AI tool costs
+  title: "AI tool-call costs and unit economics"
+  description: "What agent tool calls actually cost, why tool prices haven't fallen like token prices, and how to measure and cut the bill without cutting quality."
+  intro: |
+    Model prices dropped an order of magnitude. Tool prices didn't. The same
+    web search still costs anywhere from $0 to $0.005 per call depending on
+    who answers it, and for search-heavy agents that spread is most of the
+    bill.
+
+    These posts put numbers on the problem: rack-rate comparisons, cost
+    observability, retry overhead, and the unit economics of shipping a
+    product where every user action fans out into tool calls.
+
+- key: model-selection
+  name: Model selection
+  title: "Choosing models and providers"
+  description: "Frameworks for picking the right model for the job: escalation strategies, latency and cost tradeoffs, local models, and evaluating on your own traffic."
+  intro: |
+    "Which model should we use?" is the wrong question. The right one is
+    "which model should handle *this* call?" — and the answer changes with
+    the workload, the latency budget, and what you're willing to pay to be
+    wrong less often.
+
+    These posts are about making that call deliberately: small-first
+    escalation, benchmark skepticism, and treating model choice as a routing
+    decision instead of a one-time procurement.
+
+- key: reliability
+  name: Reliability & latency
+  title: "Reliability, latency, and fallbacks for AI systems"
+  description: "Keeping agents up when providers aren't: outage design, latency budgets, rate limits, timeouts, and failure modes worth engineering for."
+  intro: |
+    Every provider in your stack will have a bad day. The difference between
+    an agent that shrugs and an agent that pages you is whether you designed
+    for that day up front.
+
+    These posts cover the operational half of agent infrastructure: latency
+    budgets, empty-result handling, retry discipline, and graceful
+    degradation when the premium rung is down.
+
+- key: mcp-ecosystem
+  name: MCP & agent tooling
+  title: "The MCP and agent tooling ecosystem"
+  description: "How the Model Context Protocol ecosystem is developing: transports, server design, security, BYOK, and what agent-facing tooling looks like in practice."
+  intro: |
+    MCP turned agent tooling into a protocol problem, and the ecosystem
+    around it is developing fast — servers, transports, discovery surfaces,
+    and a lot of unsettled convention.
+
+    These posts are field notes from building and operating an MCP server:
+    transport choices, security hardening, tool design, and where the
+    ecosystem seems to be heading.
+
+- key: building-with-ai
+  name: Building with AI
+  title: "Building AI products and teams"
+  description: "Practical guidance for teams shipping on AI APIs: evals, orchestration, instrumentation, build-vs-buy calls, and the unglamorous work that makes AI features stick."
+  intro: |
+    Most of the work in an AI product isn't the model call. It's the evals,
+    the logging, the orchestration, the budget math, and the decisions about
+    what to build versus what to buy.
+
+    These posts are for the teams doing that work — especially small ones
+    without a platform team to hand it to.
