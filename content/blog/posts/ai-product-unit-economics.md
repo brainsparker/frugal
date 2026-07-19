@@ -1,0 +1,80 @@
+---
+title: "Unit economics for tool calls: budgeting an AI product"
+slug: ai-product-unit-economics
+date: 2026-08-04T15:35
+description: "AI unit economics start with cost per user action, not the monthly invoice. How to compute fan-out, set a per-action ceiling, and price to it."
+excerpt: "One click becomes forty API calls before anyone looks up. The budgeting discipline that survives that fan-out, worked through with real search rates."
+cluster: ai-costs
+type: educational
+keyword: "AI unit economics"
+related:
+  - deep-research-cost-teardown
+  - agent-cost-observability
+  - rack-rate-gap-web-search-costs
+---
+Your monthly invoice cannot tell you whether your AI product makes money. It aggregates ten thousand user actions into one number, and by the time the number lands in accounting, the question that matters — what did *one* action cost, and what did it earn — is unanswerable. AI unit economics have to start smaller than the invoice. They start at the user action: one click, one query, one "research this company" button, costed end to end, tool calls included.
+
+Not cost per token. Not cost per API call. Cost per thing a user actually did. Everything else is an input to that number, and optimizing an input without knowing the output is how teams cut their model bill 30% while the product stays unprofitable.
+
+## The invoice is the wrong denominator
+
+Traditional SaaS cost accounting was easy because marginal cost was roughly zero. A user clicking around your app cost you nothing you could measure; you priced on value and moved on. AI products broke that. Every meaningful action now has a real, metered marginal cost — and worse, that cost is *variable per action*, because an agent decides at runtime how many calls to make.
+
+So when the invoice doubles, you can't tell whether that's growth (good), a heavier query mix (neutral), or a retry loop that shipped on Tuesday (bad). The invoice has no denominator. Cost per action does: divide, track the distribution, and a shipped bug shows up as a moved percentile instead of a mystery at month-end. I've written before about [getting per-call cost attribution in place](/blog/agent-cost-observability/) — that instrumentation is the prerequisite for everything below.
+
+## One action fans out into N model calls and M tool calls
+
+Here's the arithmetic most budgets skip. A user action is not one API call. A "company brief" feature — user types a name, gets a one-page summary — might fan out like this:
+
+| Step | Calls |
+|---|---|
+| Plan the research | 1 model call |
+| Web searches | 10 tool calls |
+| Page extractions | 5 tool calls |
+| Per-page summaries | 5 model calls |
+| Final synthesis | 1 model call |
+
+One click. Twenty-two calls. And fan-out is where budgets die, because every component was costed individually ("search is only half a cent") and nobody multiplied. Half a cent times ten searches times three hundred actions per user per month is a real number, and it's not on any pricing spreadsheet I've seen.
+
+The model calls get all the attention because model pricing is what everyone argues about. But in one deep-research teardown I keep coming back to, search alone was 54% of task cost — I [took that number apart in detail](/blog/deep-research-cost-teardown/) — so the tool half of the fan-out is not a rounding error. It's frequently the majority.
+
+## A worked example at rack rate
+
+Take the fan-out above and price the tool calls at real rates. Web search runs $0 (Wikipedia, Marginalia, a self-hosted SearXNG), $0.001/call (Serper), or $0.005/call (You.com). Extraction is free with local go-readability or ~$0.001/page through Firecrawl. That's [a 5× gap between the two paid search rungs alone](/blog/rack-rate-gap-web-search-costs/), before the free rungs enter the picture.
+
+**Premium-default wiring** — every search to the $0.005 provider, every extraction through the paid API:
+
+```
+10 searches  × $0.005  = $0.050
+ 5 extracts  × $0.001  = $0.005
+tool cost per action     $0.055 + model cost
+```
+
+**Routed wiring** — suppose the free rungs answer 6 of the 10 searches (entity lookups, background facts), 3 fall through to Serper, 1 genuinely needs the premium rung, and 4 of 5 pages parse fine locally:
+
+```
+ 6 searches  × $0      = $0
+ 3 searches  × $0.001  = $0.003
+ 1 search    × $0.005  = $0.005
+ 4 extracts  × $0      = $0
+ 1 extract   × $0.001  = $0.001
+tool cost per action     $0.009 + model cost
+```
+
+Same action, same output, roughly 6× apart on the tool side. The mix is hypothetical — yours depends on your queries — but the rates are rack rates, and the shape of the result holds: identical capability, wildly different unit cost, decided entirely by who answers each call.
+
+## Set a ceiling per action, then route to stay under it
+
+Once you know cost per action, invert it. Don't ask "what did this cost?" after the fact — decide what an action is *allowed* to cost, and make the system respect the number. A ceiling turns cost from an outcome into a constraint, and constraints are things you can engineer against.
+
+Three mechanisms enforce a ceiling. Order providers as a ladder, cheapest first, so the default path is the cheap path. Give each action a call budget — retries included — so fan-out is bounded. And end chains intelligently: when a paid provider returns zero hits, stop, because paying a pricier provider to confirm an empty result burns budget for nothing. This is the routing discipline I run my own agents through with [Frugal](/), but the ceiling logic works with any stack that lets you order providers and count calls. There's more of this thinking on the [AI costs](/blog/topics/ai-costs/) hub.
+
+The ceiling also forces an honest conversation about quality. If an action can't be done well under the ceiling, you've learned something real: either the price is wrong or the feature is. Better to learn it from a constraint than from a quarter of negative margin.
+
+## What this means for your price
+
+Now run the arithmetic backwards. Say you charge $20/month and a heavy user performs 300 actions. That's a $0.066 allowance per action — before model calls, before infrastructure, before margin, before the users who file support tickets. Against the premium-default wiring above, tool calls alone eat 83% of the allowance. Against the routed wiring, 14%.
+
+Same product, same price, and the difference between a business and a subsidy is which column you're in. This is also why free tiers on AI products so often bleed: an unrouted free tier serves every trial user at premium rack rate. A routed one can serve most free-tier actions at literal zero and let the paid rungs earn their place on paying traffic.
+
+Where to start: log cost per action for a week — crude JSONL is fine — and plot the distribution, not the average, because the p95 action is where your margin actually goes. Then pick a ceiling your price can support and work the ladder until the p95 fits under it. Pricing an AI product without knowing cost per action isn't pricing. It's guessing with a decimal point.
