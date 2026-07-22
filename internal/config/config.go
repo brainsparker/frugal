@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -272,6 +273,9 @@ var defaultScopeNames = sync.OnceValue(func() map[string]map[string]bool {
 // wrong-section hint instead.
 func validateProviders(scope string, providers map[string]SearchProviderConfig) error {
 	for name, sp := range providers {
+		if math.IsNaN(sp.CostPerCall) || math.IsInf(sp.CostPerCall, 0) {
+			return fmt.Errorf("%s.%s.cost_per_call must be finite", scope, name)
+		}
 		if sp.CostPerCall < 0 {
 			return fmt.Errorf("%s.%s.cost_per_call must be non-negative", scope, name)
 		}
