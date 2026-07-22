@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>Hardening an MCP server&#39;s HTTP transport</title>
+      <link>https://frugal.sh/blog/hardening-mcp-http-transport/</link>
+      <guid>https://frugal.sh/blog/hardening-mcp-http-transport/</guid>
+      <pubDate>Tue, 21 Jul 2026 14:30:00 +0000</pubDate>
+      <description>The moment an MCP server leaves stdio for HTTP, it becomes a network service with everything that implies. The hardening playbook I actually run.</description>
+    </item>
+    <item>
       <title>Instrumenting an agent: what to log from day one</title>
       <link>https://frugal.sh/blog/instrumenting-ai-agents-logging/</link>
       <guid>https://frugal.sh/blog/instrumenting-ai-agents-logging/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/what-is-an-llm-router/</guid>
       <pubDate>Tue, 12 May 2026 13:45:00 +0000</pubDate>
       <description>The term gets used for two different things. Here&#39;s what a router actually contains — policy, health, fallback, accounting — and the honest cases where you should skip one.</description>
-    </item>
-    <item>
-      <title>7 ways to cut your AI agent&#39;s API bill this week</title>
-      <link>https://frugal.sh/blog/cut-ai-agent-api-costs/</link>
-      <guid>https://frugal.sh/blog/cut-ai-agent-api-costs/</guid>
-      <pubDate>Thu, 07 May 2026 15:15:00 +0000</pubDate>
-      <description>No replatforming, no procurement cycle. Seven changes you can ship by Friday that attack the parts of an agent bill nobody is looking at.</description>
     </item>
   </channel>
 </rss>

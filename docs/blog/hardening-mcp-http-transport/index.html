@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hardening an MCP server&#39;s HTTP transport — frugal blog</title>
+  <meta name="description" content="MCP server security over HTTP, from operating one: bearer tokens, per-IP rate limits, bind-address discipline, and what /metrics leaks." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/hardening-mcp-http-transport/" />
+  <meta property="og:title" content="Hardening an MCP server&#39;s HTTP transport — frugal blog" />
+  <meta property="og:description" content="MCP server security over HTTP, from operating one: bearer tokens, per-IP rate limits, bind-address discipline, and what /metrics leaks." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-07-21T14:30:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Hardening an MCP server&#39;s HTTP transport — frugal blog" />
+  <meta name="twitter:description" content="MCP server security over HTTP, from operating one: bearer tokens, per-IP rate limits, bind-address discipline, and what /metrics leaks." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/hardening-mcp-http-transport/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-07-21T14:30:00Z","datePublished":"2026-07-21T14:30:00Z","description":"MCP server security over HTTP, from operating one: bearer tokens, per-IP rate limits, bind-address discipline, and what /metrics leaks.","headline":"Hardening an MCP server's HTTP transport","keywords":"MCP server security","mainEntityOfPage":"https://frugal.sh/blog/hardening-mcp-http-transport/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/hardening-mcp-http-transport/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Hardening an MCP server's HTTP transport","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Hardening an MCP server&#39;s HTTP transport</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h1>Hardening an MCP server&#39;s HTTP transport</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-07-21">Jul 21, 2026</time>
+            · 5 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>The moment your MCP server leaves stdio for HTTP, it stops being a subprocess and becomes a network service. Everything that implies — authentication, rate limiting, exposure surface — arrives at once, whether you planned for it or not. Most of the writing about MCP server security is abstract. This is the concrete version: what I actually do to run Frugal's Streamable HTTP transport without lying awake about it.</p>
+<p>Some context for why this matters more than it looks. An MCP server holding tool credentials is a credential proxy. Frugal is <a href="/blog/byok-agent-tooling/">BYOK</a> — your Serper key, your You.com key, your Browserless key all live in its config. Anyone who can reach the HTTP endpoint and speak MCP can spend your money and exfiltrate whatever your tools can reach. That's the threat model. It's not exotic. It's &quot;someone found your port.&quot;</p>
+<h2>stdio sidesteps almost all of this</h2>
+<p>Worth saying first: the cheapest hardening is not exposing a listener at all. Over stdio, the MCP server is a child process of the client. The transport is a pipe. There is no port, no auth handshake to get wrong, no scanner traffic. The OS process boundary is the security boundary, and it's a good one.</p>
+<p>If your agent and your MCP server run on the same machine — which describes most single-developer setups — use stdio and skip the rest of this post. I wrote up the full <a href="/blog/mcp-transport-stdio-vs-http/">stdio vs HTTP tradeoff</a> separately; the short version is that HTTP earns its complexity when multiple clients or multiple machines need one server. That's a real need. It's just not the default need.</p>
+<p>Everything below assumes you've decided HTTP is worth it.</p>
+<h2>Bind address is the first decision, not the last</h2>
+<p>The classic failure: a server binds <code>0.0.0.0</code> because that's what the example config said, and now it's answering the whole network. On a laptop behind NAT that's sloppy. On a cloud VM with a public IP it's an incident with a delay timer.</p>
+<p>Bind to <code>127.0.0.1</code> unless you have a specific reason not to. If other machines need access, prefer binding to a private interface — a VPC address, a WireGuard or Tailscale IP — over binding wide and filtering later. Firewalls drift. Security groups get edited under deadline. A listener that never accepts the packet beats a rule that's supposed to drop it.</p>
+<p>The test is one line:</p>
+<pre><code>$ ss -tlnp | grep &lt;port&gt;
+LISTEN 0 4096 127.0.0.1:8080 ...
+</code></pre>
+<p>If the third column says <code>0.0.0.0</code> or <code>[::]</code> and you didn't choose that deliberately, stop and fix it before reading further.</p>
+<h2>Bearer tokens: boring, sufficient, non-optional</h2>
+<p>Frugal's HTTP transport supports bearer-token auth, and I treat it as mandatory the moment the bind address is anything but loopback. A static bearer token is not sophisticated. It's also exactly the right amount of machinery for a server with one operator: no identity provider, no OAuth dance, no token refresh bugs. One secret, checked on every request, rotated when you feel like it.</p>
+<p>Three rules make it actually work. Generate the token, don't invent it — 32 bytes from <code>/dev/urandom</code>, not a word you can remember. Deliver it out of band — environment variable or secrets manager, never in the client config you commit. And treat any unauthenticated request as a signal, not just a 401 — if something is probing your MCP port with bad tokens, you want to know.</p>
+<p>The objection I hear is &quot;it's on a private network, why bother.&quot; Because private networks stop being private in boring ways: a misconfigured proxy, a compromised dependency on a neighboring box, a too-broad VPN. Auth on the server means the network is a layer, not the layer.</p>
+<h2>Per-IP rate limiting is about spend, not just abuse</h2>
+<p>Rate limiting an MCP server looks like standard DoS hygiene, but there's a second reason specific to tool servers: every request can cost money. A misbehaving client — a retry loop, an agent stuck re-searching the same query, a colleague's script gone quadratic — can burn through paid-rung calls at whatever rate the transport accepts them. At $0.005 per premium search, a tight loop doesn't need to be malicious to be expensive.</p>
+<p>Frugal ships per-IP rate limiting on the HTTP transport for exactly this. The limit isn't tuned to stop attackers; it's tuned to cap the blast radius of a bug. Think about what one legitimate client plausibly needs per minute, multiply by a small safety factor, and set that. When the limiter trips, you've converted a surprise invoice into a log line — the same philosophy as the <a href="/blog/agent-cost-observability/">cost observability</a> argument: make spend visible and bounded before it makes itself visible.</p>
+<h2>/metrics is a leak you configured on purpose</h2>
+<p>Prometheus metrics are genuinely useful — Frugal exposes <code>/metrics</code> on the HTTP transport and I watch it. But a metrics endpoint is a map of your system offered to anyone who can GET it: request rates, provider names, error counts, latency histograms. None of it is a credential. All of it is reconnaissance. An attacker who can read your per-provider call rates knows which paid APIs you hold keys for and how hard you use them.</p>
+<p>So <code>/metrics</code> gets the same discipline as the main endpoint, with one extra twist: scrapers usually can't do custom auth headers as easily as MCP clients can, which tempts people into exempting the path. Don't. Either your Prometheus can send the bearer token (it can — <code>authorization</code> in the scrape config), or you put the metrics listener on a separate loopback-only port and let a local agent relay it. What you never do is leave the one unauthenticated path on an otherwise authenticated server.</p>
+<h2>The checklist</h2>
+<p>Run this against any MCP server you expose over HTTP — mine or anyone's. There's more on evaluating servers generally on the <a href="/blog/topics/mcp-ecosystem/">MCP ecosystem hub</a>.</p>
+<ul>
+<li>Could this be stdio instead? If yes, make it stdio and stop.</li>
+<li>Bind address: loopback or a private interface, chosen deliberately. Verify with <code>ss -tlnp</code>.</li>
+<li>Bearer-token auth on, token generated not invented, delivered out of band.</li>
+<li>Per-IP rate limit set from expected legitimate traffic, not left at default-off.</li>
+<li><code>/metrics</code> behind the same auth or on a separate loopback listener — never the one open path.</li>
+<li>TLS if traffic crosses anything you don't control; a reverse proxy in front is the standard, unexciting answer.</li>
+<li>Unauthenticated and rate-limited requests logged and actually looked at.</li>
+</ul>
+<p>None of this is novel. That's the point. An MCP server over HTTP is a network service, and forty years of network-service hygiene apply unmodified. The failure mode isn't that the hardening is hard — it's that the transport upgrade happens in an afternoon and the hardening gets scheduled for later. Do them in the same afternoon. The checklist takes less time than reading about the incident would.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <time datetime="2026-06-02">Jun 2, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/mcp-transport-stdio-vs-http/">stdio or Streamable HTTP? Choosing an MCP transport</a></h3>
+          <p class="blog-card-excerpt">One transport is a subprocess and a pipe. The other is a service you now operate. Which MCP transport you pick is really a question about who connects, from where.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <time datetime="2026-06-23">Jun 23, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/byok-agent-tooling/">BYOK is a feature, not a compromise</a></h3>
+          <p class="blog-card-excerpt">Every middleman reselling API calls adds margin and a second data controller. The case for bring-your-own-key as trust architecture, tradeoffs included.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <time datetime="2026-05-05">May 5, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/mcp-ecosystem-2026/">The MCP ecosystem in 2026: what&#39;s actually getting used</a></h3>
+          <p class="blog-card-excerpt">Forget the spec tour. This is what MCP looks like from the inside of a server that runs every day: the parts that stuck and the parts that didn&#39;t.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>Route your tool calls down the price ladder.</h2>
+            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
