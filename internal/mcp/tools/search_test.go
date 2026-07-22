@@ -193,6 +193,58 @@ func TestCallTool_ExplicitProviderOverridesAuto(t *testing.T) {
 	}
 }
 
+func TestCallTool_NormalizesProviderAndAutoValue(t *testing.T) {
+	expensive := &fakeSearcher{name: "expensive", cost: 0.01, results: []search.Item{{Title: "EXPENSIVE"}}}
+	cheap := &fakeSearcher{name: "cheap", cost: 0.001, results: []search.Item{{Title: "CHEAP"}}}
+	srv := newServer()
+	RegisterSearch(srv, []search.Searcher{expensive, cheap}, nil)
+
+	client, cleanup := dialClient(t, srv)
+	defer cleanup()
+
+	res, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "frugal__search",
+		Arguments: map[string]any{
+			"query":    "x",
+			"provider": "  ExPenSive  ",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool transport: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("unexpected tool error: %+v", res)
+	}
+	out, err := decodeSearchOutput(res.StructuredContent)
+	if err != nil {
+		t.Fatalf("decode structured content: %v", err)
+	}
+	if out.ProviderUsed != "expensive" {
+		t.Fatalf("provider normalization failed: got %q want expensive", out.ProviderUsed)
+	}
+
+	res, err = client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "frugal__search",
+		Arguments: map[string]any{
+			"query":    "x",
+			"provider": "  AuTo  ",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool transport: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("unexpected tool error: %+v", res)
+	}
+	out, err = decodeSearchOutput(res.StructuredContent)
+	if err != nil {
+		t.Fatalf("decode structured content: %v", err)
+	}
+	if out.ProviderUsed != "cheap" {
+		t.Fatalf("auto normalization failed: got %q want cheap", out.ProviderUsed)
+	}
+}
+
 func TestCallTool_NormalizesFreshnessValue(t *testing.T) {
 	cheap := &fakeSearcher{name: "cheap", cost: 0.001, results: []search.Item{{Title: "ok"}}}
 	srv := newServer()
