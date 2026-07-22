@@ -275,7 +275,7 @@ func validateProviders(scope string, providers map[string]SearchProviderConfig) 
 		if sp.CostPerCall < 0 {
 			return fmt.Errorf("%s.%s.cost_per_call must be non-negative", scope, name)
 		}
-		hasEndpoint := sp.APIKeyEnv != "" || sp.BaseURL != "" || sp.BaseURLEnv != ""
+		hasEndpoint := strings.TrimSpace(sp.APIKeyEnv) != "" || strings.TrimSpace(sp.BaseURL) != "" || strings.TrimSpace(sp.BaseURLEnv) != ""
 		if sp.Disabled() {
 			// A bare tombstone is fine for any provider this scope ships
 			// (`youcom: {enabled: false}` under search_providers), but one
