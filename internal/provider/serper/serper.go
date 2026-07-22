@@ -24,6 +24,8 @@ import (
 // DefaultBaseURL is the Serper production endpoint.
 const DefaultBaseURL = "https://google.serper.dev"
 
+const maxResponseBodyBytes = 1 << 20 // 1 MiB
+
 // Client implements search.Searcher against Serper.
 type Client struct {
 	apiKey      string
@@ -127,8 +129,16 @@ func (c *Client) doOnce(ctx context.Context, buf []byte) (search.Results, error)
 		}
 	}
 
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodyBytes+1))
+	if err != nil {
+		return search.Results{}, routing.Transient(c.Name(), resp.StatusCode, fmt.Errorf("read response: %w", err))
+	}
+	if len(body) > maxResponseBodyBytes {
+		return search.Results{}, routing.Transient(c.Name(), resp.StatusCode, fmt.Errorf("response exceeds %d bytes", maxResponseBodyBytes))
+	}
+
 	var parsed serperResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	if err := json.Unmarshal(body, &parsed); err != nil {
 		return search.Results{}, routing.Transient(c.Name(), resp.StatusCode, fmt.Errorf("decode response: %w", err))
 	}
 
