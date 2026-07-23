@@ -29,6 +29,12 @@
 /styles.css
   Cache-Control: public, max-age=3600, stale-while-revalidate=86400
 
+/home.css
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+
+/term-player.js
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+
 /blog.css
   Cache-Control: public, max-age=3600, stale-while-revalidate=86400
 

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>frugal — the open routing layer for AI tools</title>
   <meta name="description" content="Frugal is the open routing layer for AI tools: an MCP server that routes agent tool calls across providers per policy — cost, latency, pinning, deny lists — with automatic failover and the routing decision on every result. One Go binary, BYOK, no account. Source-available." />
-  <meta name="theme-color" content="#fafafa" />
+  <meta name="theme-color" content="#ffffff" />
   <meta name="color-scheme" content="light" />
 
   <meta property="og:type" content="website" />
@@ -20,532 +20,247 @@
 
   <link rel="canonical" href="https://frugal.sh/" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/home.css" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
 
-  <header class="top">
-    <div class="top-inner">
-      <a class="brand" href="/" aria-label="frugal home">
-        <span class="brand-mark" aria-hidden="true">🎺</span>
-        <span class="brand-name">frugal</span>
-      </a>
-      <nav class="top-nav" aria-label="Primary">
-        <a href="#policies">Policies</a>
-        <a href="#routing">Routing</a>
-        <a href="#install">Install</a>
-        <a href="#cloud">Cloud</a>
-        <a href="/blog/">Blog</a>
-        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
-      </nav>
+  <div class="above-fold">
+    <nav class="top" aria-label="Primary">
+      <div class="nav-left">
+        <a class="brand" href="/"><span class="mark" aria-hidden="true">🎺</span>frugal</a>
+        <a class="nav-link" href="#policies">policies</a>
+        <a class="nav-link" href="#routing">routing</a>
+        <a class="nav-link" href="#cloud">cloud</a>
+        <a class="nav-link" href="/blog/">blog</a>
+      </div>
+      <div class="nav-right">
+        <a class="nav-link" href="https://github.com/brainsparker/frugal" rel="noopener">github →</a>
+      </div>
+    </nav>
+
+    <main id="main">
+      <section class="hero">
+        <div>
+          <h1 class="hero-title">curl -fsSL frugal.sh/install | bash</h1>
+          <p class="hero-tagline">The open routing layer for AI tools.</p>
+          <p class="hero-sub">source-available · byok · any model · no account</p>
+        </div>
+
+        <div id="term-player" aria-label="Real captured CLI sessions"></div>
+        <script type="application/json" id="term-recordings">
+[
+  {
+    "title": "install",
+    "events": [
+      {"t":"cmd","s":"curl -fsSL frugal.sh/install | bash"},
+      {"t":"wait","ms":350},
+      {"t":"out","s":"==> installing frugal.sh — the open routing layer for AI tools","c":"m"},
+      {"t":"out","s":"==> tool calls routed per policy, decision on every result. any model. BYOK.","c":"m"},
+      {"t":"out","s":" ✓  detected platform: darwin-arm64","c":"g"},
+      {"t":"out","s":"==> resolving version...","c":"m"},
+      {"t":"wait","ms":300},
+      {"t":"out","s":" ✓  target version: v0.0.3","c":"g"},
+      {"t":"out","s":"==> downloading frugal-darwin-arm64...","c":"m"},
+      {"t":"wait","ms":500},
+      {"t":"out","s":" ✓  checksum verified","c":"g"},
+      {"t":"out","s":" ✓  installed frugal v0.0.3 to ~/.frugal/bin/frugal","c":"g"},
+      {"t":"out","s":" ✓  default config saved to ~/.frugal/config/models.yaml","c":"g"},
+      {"t":"out","s":" ✓  shell config updated: ~/.zshrc","c":"g"},
+      {"t":"out","s":" ✓  smoke test: frugal --version OK","c":"g"},
+      {"t":"out","s":"==> detecting search-provider config...","c":"m"},
+      {"t":"out","s":" ✓  Marginalia (free, public — always on)","c":"g"},
+      {"t":"wait","ms":400},
+      {"t":"out","s":""},
+      {"t":"out","s":"  ✓  frugal.sh installed  ·  v0.0.3  ·  darwin-arm64","c":"g"}
+    ]
+  },
+  {
+    "title": "wire in",
+    "events": [
+      {"t":"cmd","s":"frugal mcp install"},
+      {"t":"wait","ms":300},
+      {"t":"out","s":"detected agent clients:"},
+      {"t":"out","s":"  ✓ Claude Desktop  config dir present at ~/Library/Application Support/Claude","c":"g"},
+      {"t":"out","s":"  ✓ Cursor          config dir present at ~/.cursor","c":"g"},
+      {"t":"wait","ms":450},
+      {"t":"out","s":""},
+      {"t":"out","s":"✓ Claude Desktop: wrote ~/Library/Application Support/Claude/claude_desktop_config.json","c":"g"},
+      {"t":"out","s":"✓ Cursor: wrote ~/.cursor/mcp.json","c":"g"},
+      {"t":"wait","ms":400},
+      {"t":"out","s":""},
+      {"t":"out","s":"next steps:","c":"m"},
+      {"t":"out","s":"  2. restart the agent client to pick up the new MCP server","c":"m"},
+      {"t":"out","s":"  3. look for the 'frugal__search' tool in the agent's tool picker","c":"m"}
+    ]
+  },
+  {
+    "title": "route a call",
+    "events": [
+      {"t":"call","s":"frugal__execute \"search for MCP server security best practices\""},
+      {"t":"wait","ms":400},
+      {"t":"out","s":""},
+      {"t":"out","s":"marginalia   0 hits · $0 · 273ms → falling back","c":"m"},
+      {"t":"wait","ms":350},
+      {"t":"out","s":"wikipedia    5 hits · $0 ✓ · 650ms","c":"g"},
+      {"t":"wait","ms":450},
+      {"t":"out","s":""},
+      {"t":"out","s":"reason: \"routed to a web search; policy=cheap: effective","c":"m"},
+      {"t":"out","s":"  cost ascending; provider=wikipedia won on attempt 2\"","c":"m"}
+    ]
+  },
+  {
+    "title": "receipt",
+    "events": [
+      {"t":"cmd","s":"frugal stats"},
+      {"t":"wait","ms":350},
+      {"t":"out","s":""},
+      {"t":"out","s":"frugal receipt · July 2026 (UTC)"},
+      {"t":"out","s":"────────────────────────────────────────────────","c":"m"},
+      {"t":"out","s":"tool      provider            calls         paid"},
+      {"t":"out","s":"search    marginalia              1      $0.0000"},
+      {"t":"out","s":"search    wikipedia               1      $0.0000"},
+      {"t":"out","s":"extract   goreadability           1      $0.0000"},
+      {"t":"out","s":"────────────────────────────────────────────────","c":"m"},
+      {"t":"out","s":"total                             3      $0.0000"},
+      {"t":"out","s":""},
+      {"t":"out","s":"same calls at premium rack rate*         $0.0060"},
+      {"t":"out","s":"you paid                                 $0.0000"},
+      {"t":"wait","ms":400},
+      {"t":"out","s":"you saved                      $0.0060   (100%)","c":"g"}
+    ]
+  }
+]
+        </script>
+        <p class="tp-note">every session above is a real captured run, unedited except path shortening</p>
+      </section>
+    </main>
+  </div>
+
+  <section class="block" id="policies" aria-labelledby="policies-h">
+    <h2 id="policies-h">It's just a router.</h2>
+    <p>
+      One Go binary between your agent and its tool providers — search,
+      extract, browse today. Your agent makes the call; Frugal picks the
+      provider per policy, fails over when a provider errors or comes up
+      empty, and stamps the decision — <code>provider_used</code>,
+      <code>cost_usd</code>, and a one-line <code>reason</code> — on every
+      result.
+    </p>
+    <ul class="policy-list">
+      <li><b>cheap</b> (default) — cheapest capable provider, quota-aware, automatic failover up the ladder.</li>
+      <li><b>fast</b> — ordered by your machine's own observed latency (local ledger, successful calls only).</li>
+      <li><b>premium</b> — prefers your premium-priced providers, for the requests that matter.</li>
+      <li><b>order</b> — your explicit preference list; unlisted providers still serve as fallback.</li>
+      <li><b>deny</b> — never called, not even when pinned. Deny every paid rung and nothing leaves your free/local providers.</li>
+    </ul>
+    <pre><code>routing:
+  search:
+    strategy: fast            <span class="cmt"># cheap (default) | fast | premium</span>
+    deny: [youcom]            <span class="cmt"># never called — not even pinned</span>
+  extract:
+    order: [firecrawl, goreadability]</code></pre>
+    <p>
+      Or describe the job and let Frugal classify it —
+      <code>frugal__execute {"intent": "…", "priority": "cheap | balanced | premium"}</code>.
+      Classification is deterministic URL/keyword cues, no model call, and
+      the <code>reason</code> field always says what was decided.
+    </p>
+  </section>
+
+  <section class="block" id="routing" aria-labelledby="routing-h">
+    <h2 id="routing-h">Cost is the flagship policy.</h2>
+    <p>
+      Tool prices haven't fallen the way model prices have. You.com is 5×
+      Serper; SearXNG on your own machine is free. Under the
+      <code>cheap</code> policy Frugal walks each row left to right and
+      you keep the gap. Cost is one policy among several — it's the one
+      with a receipt.
+    </p>
+    <div class="table-wrap">
+      <table class="routes">
+        <thead>
+          <tr><th>capability</th><th>free / local</th><th>cheap paid</th><th>premium paid</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr><td>search</td><td>SearXNG · Marginalia · Wikipedia</td><td>Serper $0.001</td><td>You.com $0.005</td><td class="st ship">shipping</td></tr>
+          <tr><td>extract</td><td>go-readability (local)</td><td>—</td><td>Firecrawl $0.001/pg</td><td class="st ship">shipping</td></tr>
+          <tr><td>browse</td><td>Playwright (planned)</td><td>Browserless $0.002</td><td>Browserbase (planned)</td><td class="st">partial</td></tr>
+          <tr><td>code exec</td><td>local Docker</td><td>E2B ~$0.10/hr</td><td>Modal</td><td class="st">planned</td></tr>
+          <tr><td>embeddings</td><td>nomic · bge (local)</td><td>3-small $0.02/1M</td><td>Voyage-3 · Cohere</td><td class="st">planned</td></tr>
+          <tr><td>transcribe</td><td>whisper.cpp (local)</td><td>Deepgram $0.0043/min</td><td>Whisper $0.006/min</td><td class="st">planned</td></tr>
+        </tbody>
+      </table>
     </div>
-  </header>
+    <p>
+      Every call lands in a local ledger (<code>~/.frugal/usage</code> —
+      JSONL, never leaves your machine) and <code>frugal stats</code>
+      prints the month's receipt: what you paid, what the same calls cost
+      at premium rack rate, what you kept.
+    </p>
+  </section>
 
-  <main id="main">
-    <section class="hero">
-      <div class="hero-bg" aria-hidden="true">
-        <div class="orb emerald"></div>
-        <div class="orb cyan"></div>
-        <div class="orb violet"></div>
-        <span class="hero-trumpet">🎺</span>
-      </div>
+  <section class="block" id="install" aria-labelledby="install-h">
+    <h2 id="install-h">Install</h2>
+    <p>
+      No SaaS. No account. No keys required to start — Marginalia,
+      Wikipedia, and go-readability work with an empty environment.
+      Releases are cosign-signed; the installer verifies the checksum
+      before moving the binary into place. From here to your first
+      intelligently routed tool call: under five minutes.
+    </p>
+    <pre><code>curl -fsSL https://frugal.sh/install | bash
+frugal mcp install</code><button class="copy" type="button" data-copy="curl -fsSL https://frugal.sh/install | bash
+frugal mcp install" aria-label="Copy install commands">copy</button></pre>
+    <p>
+      Add <code>SERPER_API_KEY</code>, <code>YDC_API_KEY</code>,
+      <code>FIRECRAWL_API_KEY</code>, <code>BROWSERLESS_TOKEN</code>, or
+      <code>SEARXNG_URL</code> to unlock the paid and self-hosted rungs —
+      only tools whose providers are configured get registered.
+    </p>
+    <h3>From source</h3>
+    <pre><code>git clone https://github.com/brainsparker/frugal.git &amp;&amp; cd frugal &amp;&amp; make build</code></pre>
+    <p>
+      Your keys stay local: no control plane, no data retention by
+      architecture. Source-available under
+      <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">BUSL 1.1</a>
+      — self-hosting and internal commercial use permitted; each release
+      converts to Apache 2.0 four years after publication.
+    </p>
+  </section>
 
-      <div class="shell">
-        <div class="hero-grid">
-          <div class="hero-content reveal">
-            <p class="eyebrow">source-available · byok · any model</p>
-
-            <h1>
-              Describe the job.
-              <span class="accent">Frugal routes it.</span>
-            </h1>
-            <p class="lede">
-              Frugal is the open routing layer for AI tools. Your agent
-              makes the call; Frugal picks the provider per policy —
-              <strong>cheapest by default</strong>, fast or premium when
-              you ask, pinned or denied when compliance says so — with
-              automatic failover and the decision stamped on every
-              result. Your keys. No account.
-            </p>
-
-            <div class="pills" role="list">
-              <span role="listitem">Policy-routed</span>
-              <span role="listitem">BYOK</span>
-              <span role="listitem">Any model</span>
-            </div>
-
-            <div class="cta">
-              <a class="btn btn-primary" href="#install">Install →</a>
-              <a class="btn btn-ghost" href="#policies">See the policies</a>
-            </div>
-          </div>
-
-          <aside class="hero-aside reveal" aria-label="Demo">
-            <div class="terminal" aria-label="A real zero-key routed intent">
-              <div class="terminal-label"><span>live zero-key run, unedited</span><span class="terminal-label-tag">mcp</span></div>
-              <pre class="terminal-body"><code><span class="muted">frugal__execute "search for MCP server security best practices"</span>
-
-<span class="muted">marginalia   0 hits · $0 · 273ms → falling back</span>
-wikipedia    5 hits · <span class="prompt">$0</span> ✓ · 650ms
-
-<span class="muted">reason: "routed to a web search; policy=cheap:
-  effective cost ascending; provider=wikipedia
-  won on attempt 2"</span></code></pre>
-              <button class="copy" type="button" data-copy="curl -fsSL https://frugal.sh/install | bash" aria-label="Copy install command">Copy install</button>
-            </div>
-          </aside>
-        </div>
-      </div>
-    </section>
-
-    <section class="social-proof" aria-label="Compatible agents">
-      <div class="shell social-proof-inner">
-        <p class="social-proof-label">Drops into</p>
-        <div class="client-row">
-          <span class="client"><span class="client-mark cd">CD</span> Claude Desktop</span>
-          <span class="client"><span class="client-mark cu">⟢</span> Cursor</span>
-          <span class="client"><span class="client-mark cc">CC</span> Claude Code</span>
-          <span class="client"><span class="client-mark mcp">M</span> Any MCP host</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="capabilities" id="policies" aria-labelledby="policies-heading">
-      <div class="shell reveal">
-        <p class="section-label">Policies</p>
-        <h2 id="policies-heading">One call. Your rules.</h2>
-        <p class="prose">
-          Declare per capability how the provider chain is ordered —
-          in one YAML block, or per call via
-          <code>priority</code>. Every response records which policy
-          ran and why the call landed where it did.
-        </p>
-        <div class="cap-grid">
-          <article class="cap-tile t-emerald" data-status="shipping">
-            <p class="cap-name">cheap <span class="cap-status">default</span></p>
-            <h3 class="cap-head">Cheapest capable provider.</h3>
-            <div class="cap-row"><span class="lbl">Orders by</span><span class="val free">effective cost, quota-aware</span></div>
-            <div class="cap-row"><span class="lbl">Failover</span><span class="val">automatic, up the ladder</span></div>
-          </article>
-          <article class="cap-tile t-cyan" data-status="shipping">
-            <p class="cap-name">fast <span class="cap-status">shipping</span></p>
-            <h3 class="cap-head">Your observed latency.</h3>
-            <div class="cap-row"><span class="lbl">Orders by</span><span class="val free">your machine's own ledger</span></div>
-            <div class="cap-row"><span class="lbl">Cold start</span><span class="val">falls back to cost order</span></div>
-          </article>
-          <article class="cap-tile t-violet" data-status="shipping">
-            <p class="cap-name">premium <span class="cap-status">shipping</span></p>
-            <h3 class="cap-head">Premium-priced first.</h3>
-            <div class="cap-row"><span class="lbl">Orders by</span><span class="val paid">list price, descending</span></div>
-            <div class="cap-row"><span class="lbl">Use for</span><span class="val">high-value requests</span></div>
-          </article>
-          <article class="cap-tile t-amber" data-status="shipping">
-            <p class="cap-name">order <span class="cap-status">shipping</span></p>
-            <h3 class="cap-head">Your explicit preference.</h3>
-            <div class="cap-row"><span class="lbl">Orders by</span><span class="val">your list, first to last</span></div>
-            <div class="cap-row"><span class="lbl">Unlisted</span><span class="val free">still serve as fallback</span></div>
-          </article>
-          <article class="cap-tile t-emerald" data-status="shipping">
-            <p class="cap-name">deny <span class="cap-status">shipping</span></p>
-            <h3 class="cap-head">Never call these.</h3>
-            <div class="cap-row"><span class="lbl">Scope</span><span class="val">fallback and pinned calls</span></div>
-            <div class="cap-row"><span class="lbl">Use for</span><span class="val free">privacy: deny every paid rung</span></div>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="capabilities" id="capabilities" aria-labelledby="capabilities-heading">
-      <div class="shell reveal">
-        <p class="section-label">Capabilities</p>
-        <h2 id="capabilities-heading">Every tool call, routed.</h2>
-        <p class="prose">
-          Eight capabilities. Three tiers each. The <code>cheap</code>
-          policy walks left to right; other policies reorder the walk.
-        </p>
-        <div class="cap-grid">
-          <article class="cap-tile t-emerald" data-status="shipping">
-            <p class="cap-name">Search <span class="cap-status">shipping</span></p>
-            <h3 class="cap-head">Web SERP, routed.</h3>
-            <div class="cap-row"><span class="lbl">Free</span><span class="val free">SearXNG · Marginalia · Wikipedia</span></div>
-            <div class="cap-row"><span class="lbl">Cheap</span><span class="val">Serper · $0.001</span></div>
-            <div class="cap-row"><span class="lbl">Premium</span><span class="val paid">You.com · $0.005</span></div>
-          </article>
-          <article class="cap-tile t-cyan" data-status="shipping">
-            <p class="cap-name">Extract <span class="cap-status">shipping</span></p>
-            <h3 class="cap-head">Page → clean text.</h3>
-            <div class="cap-row"><span class="lbl">Free</span><span class="val free">go-readability · local</span></div>
-            <div class="cap-row"><span class="lbl">Cheap</span><span class="val">—</span></div>
-            <div class="cap-row"><span class="lbl">Premium</span><span class="val paid">Firecrawl · $0.001/pg</span></div>
-          </article>
-          <article class="cap-tile t-violet" data-status="partial">
-            <p class="cap-name">Browse <span class="cap-status">partial</span></p>
-            <h3 class="cap-head">Headless rendering.</h3>
-            <div class="cap-row"><span class="lbl">Free</span><span class="val">Playwright (planned)</span></div>
-            <div class="cap-row"><span class="lbl">Cheap</span><span class="val paid">Browserless · $0.002</span></div>
-            <div class="cap-row"><span class="lbl">Premium</span><span class="val">Browserbase (planned)</span></div>
-          </article>
-          <article class="cap-tile t-amber" data-status="planned">
-            <p class="cap-name">Code exec <span class="cap-status">planned</span></p>
-            <h3 class="cap-head">Run untrusted code.</h3>
-            <div class="cap-row"><span class="lbl">Free</span><span class="val free">Docker · local</span></div>
-            <div class="cap-row"><span class="lbl">Cheap</span><span class="val">E2B · $0.10/hr</span></div>
-            <div class="cap-row"><span class="lbl">Premium</span><span class="val paid">Modal · $0.14/hr</span></div>
-          </article>
-          <article class="cap-tile t-emerald" data-status="planned">
-            <p class="cap-name">Embeddings <span class="cap-status">planned</span></p>
-            <h3 class="cap-head">Vector encode.</h3>
-            <div class="cap-row"><span class="lbl">Free</span><span class="val free">nomic, bge · local</span></div>
-            <div class="cap-row"><span class="lbl">Cheap</span><span class="val">3-small · $0.02/1M</span></div>
-            <div class="cap-row"><span class="lbl">Premium</span><span class="val paid">Voyage-3 · Cohere</span></div>
-          </article>
-          <article class="cap-tile t-cyan" data-status="planned">
-            <p class="cap-name">Transcribe <span class="cap-status">planned</span></p>
-            <h3 class="cap-head">Audio → text.</h3>
-            <div class="cap-row"><span class="lbl">Free</span><span class="val free">whisper.cpp · local</span></div>
-            <div class="cap-row"><span class="lbl">Cheap</span><span class="val">Deepgram · $0.0043/min</span></div>
-            <div class="cap-row"><span class="lbl">Premium</span><span class="val paid">Whisper · $0.006/min</span></div>
-          </article>
-          <article class="cap-tile t-violet" data-status="planned">
-            <p class="cap-name">Chat (small) <span class="cap-status">planned</span></p>
-            <h3 class="cap-head">Fast model call.</h3>
-            <div class="cap-row"><span class="lbl">Free</span><span class="val free">Ollama · LM Studio</span></div>
-            <div class="cap-row"><span class="lbl">Cheap</span><span class="val">4o-mini · haiku · flash</span></div>
-            <div class="cap-row"><span class="lbl">Premium</span><span class="val paid">4o · sonnet</span></div>
-          </article>
-          <article class="cap-tile t-amber" data-status="planned">
-            <p class="cap-name">Chat (large) <span class="cap-status">planned</span></p>
-            <h3 class="cap-head">Reasoning model.</h3>
-            <div class="cap-row"><span class="lbl">Free</span><span class="val free">Kimi K2 · Qwen 72B</span></div>
-            <div class="cap-row"><span class="lbl">Cheap</span><span class="val">—</span></div>
-            <div class="cap-row"><span class="lbl">Premium</span><span class="val paid">4o · opus · pro</span></div>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="surfaces" id="execute" aria-labelledby="execute-heading">
-      <div class="shell reveal">
-        <p class="section-label">Intent routing</p>
-        <h2 id="execute-heading">Or just describe the job.</h2>
-        <p class="prose">
-          <code>frugal__execute</code> takes an intent in plain language,
-          classifies it onto a capability — URL and keyword cues,
-          deterministic, no model call — and routes it under your policy.
-          The <code>reason</code> field is the receipt: what was decided,
-          under which policy, and which provider won on which attempt.
-        </p>
-        <div class="terminal">
-          <div class="terminal-label"><span>live zero-key run, unedited</span><span class="terminal-label-tag">mcp</span></div>
-          <pre class="terminal-body"><code><span class="muted">frugal__execute "read https://frugal.sh/blog/ and summarize it"</span>
-
-goreadability   $0 ✓ · 710ms
-
-<span class="muted">{
-  "capability": "extract",
-  "provider_used": "goreadability",
-  "cost_usd": 0,
-  "reason": "URL detected; routed to a page extract;
-    policy=cheap: effective cost ascending;
-    provider=goreadability won on attempt 1"
-}</span></code></pre>
-        </div>
-        <p class="prose rack-foot">
-          <code>priority: cheap | balanced | premium</code> maps onto the
-          policies above. A URL intent runs an extract and falls forward
-          to a headless render when the page needs JS, costs summed. The
-          direct tools stay available when the agent already knows the
-          capability.
-        </p>
-      </div>
-    </section>
-
-    <section class="rack-rates" id="routing" aria-labelledby="routing-heading">
-      <div class="shell reveal">
-        <p class="section-label">The routing table</p>
-        <h2 id="routing-heading">Cost is the flagship policy.</h2>
-        <p class="prose">
-          Tool prices haven't fallen the way model prices have. You.com
-          is 5× Serper. A Firecrawl scrape costs as much as the
-          gpt-4o-mini call that consumes it. SearXNG, on your machine,
-          is free. Under the <code>cheap</code> policy
-          <strong>Frugal takes the cheapest result</strong> — and when a
-          free provider comes up empty, the chain falls through to the
-          next rung instead of handing your agent an empty array. Cost
-          is one policy among several. It's the one with a receipt.
-        </p>
-        <div class="rack-table-wrap">
-          <table class="rack-table">
-            <thead>
-              <tr>
-                <th scope="col">Capability</th>
-                <th scope="col"><span class="status-tag tag-shipping">free / local</span></th>
-                <th scope="col"><span class="status-tag tag-partial">cheap paid</span></th>
-                <th scope="col"><span class="status-tag tag-planned">premium paid</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row">Search <span class="status-tag tag-shipping">shipping</span></th>
-                <td data-label="free / local"><strong>SearXNG</strong> (self-host), <strong>Marginalia</strong>, <strong>Wikipedia</strong></td>
-                <td data-label="cheap paid"><strong>Serper</strong> · $0.001/call</td>
-                <td data-label="premium paid"><strong>You.com</strong> · $0.005/call</td>
-              </tr>
-              <tr>
-                <th scope="row">Extract <span class="status-tag tag-shipping">shipping</span></th>
-                <td data-label="free / local"><strong>go-readability</strong> (local, in-process)</td>
-                <td data-label="cheap paid">—</td>
-                <td data-label="premium paid"><strong>Firecrawl</strong> · $0.001/page</td>
-              </tr>
-              <tr>
-                <th scope="row">Browse <span class="status-tag tag-partial">partial</span></th>
-                <td data-label="free / local">Playwright + Chromium (planned)</td>
-                <td data-label="cheap paid"><strong>Browserless</strong> ~$0.002/unit (30s)</td>
-                <td data-label="premium paid">Browserbase (planned)</td>
-              </tr>
-              <tr>
-                <th scope="row">Code exec <span class="status-tag tag-planned">planned</span></th>
-                <td data-label="free / local">local Docker</td>
-                <td data-label="cheap paid">E2B ~$0.10/hr (2 vCPU)</td>
-                <td data-label="premium paid">Modal ~$0.14/hr (+GPU)</td>
-              </tr>
-              <tr>
-                <th scope="row">Embeddings <span class="status-tag tag-planned">planned</span></th>
-                <td data-label="free / local">nomic-embed-text, bge-large (local)</td>
-                <td data-label="cheap paid">text-embedding-3-small · $0.02/1M tok</td>
-                <td data-label="premium paid">3-large, Voyage-3, Cohere</td>
-              </tr>
-              <tr>
-                <th scope="row">Transcription <span class="status-tag tag-planned">planned</span></th>
-                <td data-label="free / local">whisper.cpp (local)</td>
-                <td data-label="cheap paid">Deepgram Nova · $0.0043/min</td>
-                <td data-label="premium paid">OpenAI Whisper $0.006/min, Speechmatics</td>
-              </tr>
-              <tr>
-                <th scope="row">Chat (small) <span class="status-tag tag-planned">planned</span></th>
-                <td data-label="free / local">Ollama / LM Studio (local OSS)</td>
-                <td data-label="cheap paid">gpt-4o-mini, haiku, gemini-flash</td>
-                <td data-label="premium paid">gpt-4o, claude-sonnet</td>
-              </tr>
-              <tr>
-                <th scope="row">Chat (large) <span class="status-tag tag-planned">planned</span></th>
-                <td data-label="free / local">Kimi K2, Qwen 72B (serious local HW)</td>
-                <td data-label="cheap paid">—</td>
-                <td data-label="premium paid">gpt-4o, claude-opus, gemini-pro</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p class="prose rack-foot">
-          Every call prints the decision — capability, provider, cost —
-          in the agent's trace.
-        </p>
-      </div>
-    </section>
-
-    <section class="surfaces" id="surfaces" aria-labelledby="surfaces-heading">
-      <div class="shell reveal">
-        <p class="section-label">The product</p>
-        <h2 id="surfaces-heading">One MCP server. That's it.</h2>
-        <p class="prose">
-          Agents talk to Frugal via
-          <a href="https://modelcontextprotocol.io" rel="noopener">MCP</a>.
-          Two commands. No other surface.
-        </p>
-        <div class="code-grid">
-          <figure>
-            <figcaption>install into every detected agent</figcaption>
-<pre><code><span class="prompt">$</span> frugal mcp install
-<span class="muted">detected: Claude Desktop, Cursor, Claude Code
-✓ wrote all three configs.</span></code></pre>
-          </figure>
-          <figure>
-            <figcaption>run as an MCP server</figcaption>
-<pre><code><span class="prompt">$</span> frugal mcp serve
-<span class="muted">frugal__search registered  providers=[marginalia wikipedia]
-frugal__extract registered providers=[goreadability]
-frugal__execute registered search=2 extract=1 browse=0
-mcp serve · transport=stdio</span></code></pre>
-          </figure>
-        </div>
-      </div>
-    </section>
-
-    <section class="surfaces" id="receipt" aria-labelledby="receipt-heading">
-      <div class="shell reveal">
-        <p class="section-label">The receipt</p>
-        <h2 id="receipt-heading">See what you kept.</h2>
-        <p class="prose">
-          Every call lands in a local ledger — <code>~/.frugal/usage</code>,
-          plain JSONL, never leaves your machine. <code>frugal stats</code>
-          prints the month. Only the call that actually produced your
-          result earns rack credit; fallback attempts and zero-hit
-          whiffs don't inflate the number.
-        </p>
-        <div class="terminal">
-          <pre class="terminal-body"><code><span class="prompt">$</span> frugal stats
-
-frugal receipt · July 2026 (UTC)
-────────────────────────────────────────────────
-tool      provider            calls         paid
-search    marginalia              1      $0.0000
-search    wikipedia               1      $0.0000
-extract   goreadability           1      $0.0000
-────────────────────────────────────────────────
-total                             3      $0.0000
-
-same calls at premium rack rate*         $0.0060
-you paid                                 $0.0000
-────────────────────────────────────────────────
-<span class="prompt">you saved                      $0.0060   (100%)</span>
-────────────────────────────────────────────────
-<span class="muted">* rack rate = list price of each capability's premium
-  provider, snapshotted at call time.</span></code></pre>
-          <button class="copy" type="button" data-copy="frugal stats" aria-label="Copy stats command">Copy</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="install-block" id="install" aria-labelledby="install-heading">
-      <div class="shell reveal">
-        <p class="section-label">Get started</p>
-        <h2 id="install-heading">Install</h2>
-        <p class="prose">
-          One Go binary. <strong>No SaaS. No account. No keys required
-          to start</strong> — Marginalia, Wikipedia, and go-readability
-          work with an empty environment. Add
-          <code>SERPER_API_KEY</code>, <code>YDC_API_KEY</code>,
-          <code>FIRECRAWL_API_KEY</code>, <code>BROWSERLESS_TOKEN</code>,
-          or <code>SEARXNG_URL</code> to unlock the paid and self-hosted
-          rungs. Releases are cosign-signed; the installer verifies the
-          checksum before moving the binary into place. From this command
-          to your first intelligently routed tool call: under five
-          minutes.
-        </p>
-
-        <div class="terminal">
-          <pre class="terminal-body"><code><span class="prompt">$</span> curl -fsSL https://frugal.sh/install | bash</code></pre>
-          <button class="copy" type="button" data-copy="curl -fsSL https://frugal.sh/install | bash" aria-label="Copy install command">Copy</button>
-        </div>
-
-        <h3>From source</h3>
-        <div class="terminal compact">
-          <pre class="terminal-body"><code><span class="prompt">$</span> git clone https://github.com/brainsparker/frugal.git &amp;&amp; cd frugal &amp;&amp; make build</code></pre>
-        </div>
-
-        <h3>Add Frugal to your agent</h3>
-        <div class="terminal compact">
-          <pre class="terminal-body"><code><span class="prompt">$</span> frugal mcp install
-<span class="muted"># auto-detects Claude Desktop, Cursor, Claude Code.
-# merges 'frugal' into each detected config. idempotent.</span></code></pre>
-        </div>
-      </div>
-    </section>
-
-    <section class="trust" aria-labelledby="trust-heading">
-      <div class="shell reveal">
-        <p class="section-label">Trust</p>
-        <h2 id="trust-heading">Self-host everything. No lock-in.</h2>
-        <dl class="grid-trust">
-          <div>
-            <dt>Your keys stay local</dt>
-            <dd>API keys never leave your machine. No control plane.
-            <strong>No data retention by architecture.</strong></dd>
-          </div>
-          <div>
-            <dt>BUSL 1.1 → Apache 2.0</dt>
-            <dd>Source-available today. Self-hosting and internal
-            commercial use are permitted. Each release converts to
-            Apache 2.0 four years after publication.
-            <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License FAQ →</a></dd>
-          </div>
-        </dl>
-      </div>
-    </section>
-
-    <section class="trust" id="cloud" aria-labelledby="cloud-heading">
-      <div class="shell reveal">
-        <p class="section-label">Roadmap</p>
-        <h2 id="cloud-heading">Frugal Cloud — coming, not shipped.</h2>
-        <p class="prose">
-          The binary stays local and self-hostable, always. Frugal Cloud
-          adds the team layer on top — everything below is roadmap, not
-          product.
-        </p>
-        <dl class="grid-trust">
-          <div>
-            <dt>Hosted policy management</dt>
-            <dd>Edit routing policies in a dashboard and deploy them to
-            every application — instead of YAML per machine.</dd>
-          </div>
-          <div>
-            <dt>Team workspaces</dt>
-            <dd>Shared policy templates and org-wide API key
-            management.</dd>
-          </div>
-          <div>
-            <dt>Usage analytics &amp; cost reporting</dt>
-            <dd>The receipt, org-wide: spend by team, app, capability,
-            and provider.</dd>
-          </div>
-          <div>
-            <dt>Provider health &amp; routing traces</dt>
-            <dd>Health monitoring across providers and searchable
-            routing traces across environments.</dd>
-          </div>
-        </dl>
-        <p class="prose rack-foot">
-          <a class="btn btn-primary" href="mailto:sparker@hey.com?subject=Frugal%20Cloud%20waitlist">Join the waitlist</a>
-        </p>
-      </div>
-    </section>
-
-    <section class="cta-banner" aria-labelledby="cta-banner-heading">
-      <div class="shell reveal">
-        <div class="cta-banner-card">
-          <div>
-            <h2 id="cta-banner-heading">Route it your way.</h2>
-            <p>
-              One Go binary. Two commands to install. Every tool call
-              routed per your policy, with the decision — and the cost —
-              on the receipt. First routed call in under five minutes.
-              BYOK.
-            </p>
-          </div>
-          <div class="cta-banner-actions">
-            <a class="btn btn-primary" href="#install">Install →</a>
-            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">View on GitHub</a>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
+  <section class="block" id="cloud" aria-labelledby="cloud-h">
+    <h2 id="cloud-h">Frugal Cloud — coming, not shipped.</h2>
+    <p>
+      The binary stays local and self-hostable, always. Cloud adds the
+      team layer on top: hosted policy management, team workspaces and
+      shared policy templates, org-wide usage analytics and cost
+      reporting, provider health monitoring and routing traces, org-wide
+      key management.
+    </p>
+    <p><strong>Everything above is roadmap, not product.</strong> The open router never requires it — no lock-in.</p>
+    <div class="btn-row">
+      <a class="btn solid" href="mailto:sparker@hey.com?subject=Frugal%20Cloud%20waitlist">join the waitlist</a>
+      <a class="btn" href="https://github.com/brainsparker/frugal" rel="noopener">view on github</a>
+    </div>
+  </section>
 
   <footer class="bottom">
-    <div class="bottom-inner">
-      <div>
-        <span class="brand-mark small" aria-hidden="true">🎺</span>
-        <span>frugal.sh</span>
-        <span class="bottom-sep" aria-hidden="true">·</span>
-        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
-      </div>
-      <nav aria-label="Footer">
-        <a href="/blog/">Blog</a>
-        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
-        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
-        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
-        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
-      </nav>
-    </div>
+    <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+    <span class="sep">•</span>
+    <a href="/blog/">Blog</a>
+    <span class="sep">•</span>
+    <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+    <span class="sep">•</span>
+    <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+    <span class="sep">•</span>
+    <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+    <p class="byline">🎺 frugal.sh · created by <a href="/author/brian-sparker/">Brian Sparker</a></p>
   </footer>
 
+  <script src="/term-player.js"></script>
   <script>
-    // Copy-to-clipboard for every button[data-copy]. Uses the async
-    // clipboard API and falls back to execCommand for pre-clipboard-API
-    // browsers.
+    // Copy-to-clipboard for every button[data-copy].
     document.querySelectorAll('button.copy[data-copy]').forEach(function (btn) {
       btn.addEventListener('click', async function () {
         var text = btn.dataset.copy;
@@ -558,7 +273,7 @@ you paid                                 $0.0000
           document.body.removeChild(ta);
         }
         var orig = btn.textContent;
-        btn.textContent = 'Copied';
+        btn.textContent = 'copied';
         btn.classList.add('copied');
         setTimeout(function () {
           btn.textContent = orig;
@@ -566,22 +281,6 @@ you paid                                 $0.0000
         }, 1400);
       });
     });
-
-    // Section reveal on scroll — adds .in-view to each .reveal block as
-    // it enters the viewport. No-op when prefers-reduced-motion is set
-    // (the CSS already neutralizes the transform; the class still
-    // applies so opacity stays at 1).
-    var io = ('IntersectionObserver' in window) && new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); }
-      });
-    }, { rootMargin: '0px 0px -10% 0px', threshold: 0.05 });
-    if (io) {
-      document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
-    } else {
-      // Fallback for ancient browsers.
-      document.querySelectorAll('.reveal').forEach(function (el) { el.classList.add('in-view'); });
-    }
   </script>
 </body>
 </html>
