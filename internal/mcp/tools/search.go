@@ -4,9 +4,10 @@
 // later PRs, internal/extract, internal/cache, …).
 //
 // The tool surface is intentionally narrow: one tool per capability
-// (frugal__search, frugal__extract, frugal__chat, …) with the provider
-// choice happening inside the handler. Agents see one stable tool name;
-// the routing decision is invisible to them.
+// (frugal__search, frugal__extract, frugal__browse) plus the
+// intent-level frugal__execute, with the provider choice happening
+// inside the handler. Agents see one stable tool name; the routing
+// decision is reported, not delegated.
 package tools
 
 import (
@@ -31,10 +32,9 @@ type SearchInput struct {
 	MaxResults int    `json:"max_results,omitempty" jsonschema:"max results to return (default 5, clamped to 20)"`
 	Freshness  string `json:"freshness,omitempty" jsonschema:"optional time window: day | week | month"`
 	// Provider pins the search provider for this call ("searxng", "serper",
-	// "youcom", …). When empty or "auto", Frugal picks the cheapest
-	// configured provider. Recipe authors use this to override the default
-	// for use cases where the eval shows a more expensive provider has
-	// materially better recall.
+	// "youcom", …). When empty or "auto", the configured routing policy
+	// picks (cheapest-first by default). Use a pin when a specific
+	// provider is known to have materially better recall for this call.
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: searxng | marginalia | wikipedia | serper | youcom | auto"`
 }
 
@@ -75,8 +75,9 @@ func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics 
 	}
 	desc := fmt.Sprintf(
 		"Run a web search routed across %s. Returns a list of {title, url, snippet} hits "+
-			"plus the actual provider used and cost paid. Provider choice defaults to the "+
-			"cheapest configured; recipe authors can pin via the `provider` argument.",
+			"plus the actual provider used and cost paid. Provider choice follows the "+
+			"configured routing policy (cheapest-first by default, with automatic failover); "+
+			"pin via the `provider` argument.",
 		joinNames(searchers),
 	)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{

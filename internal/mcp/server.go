@@ -52,8 +52,12 @@ func New(name, version string, logger *slog.Logger) *Server {
 		Title:   "frugal",
 		Version: version,
 	}, &mcp.ServerOptions{
-		Instructions: "frugal routes each MCP tool call to the cheapest reliable provider " +
-			"per use case. See https://frugal.sh for the recipe model and routing decisions.",
+		Instructions: "frugal is the open routing layer for AI tools: each tool call is routed " +
+			"across providers per the operator's routing policy — cheapest-first by default, with " +
+			"latency, premium, provider-order, and deny policies available — and every response " +
+			"carries the decision (provider_used, cost_usd; frugal__execute adds a reason trace). " +
+			"Describe a job to frugal__execute, or call the capability tools directly. " +
+			"See https://frugal.sh for the policy model.",
 		Logger: logger,
 	})
 	return &Server{Inner: srv, Logger: logger}

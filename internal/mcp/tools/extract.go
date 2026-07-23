@@ -23,7 +23,7 @@ type ExtractInput struct {
 	// populate others.
 	Formats []string `json:"formats,omitempty" jsonschema:"output formats: markdown | html | text"`
 	// Provider pins the extract provider for this call ("goreadability",
-	// "firecrawl", …). Empty / "auto" → cheapest available wins.
+	// "firecrawl", …). Empty / "auto" → the routing policy decides.
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: goreadability | firecrawl | auto"`
 }
 
@@ -59,8 +59,9 @@ func RegisterExtract(server *sdkmcp.Server, extractors []extract.Extractor, metr
 	desc := fmt.Sprintf(
 		"Extract the main article content from a URL, routed across %s. Returns "+
 			"markdown / html / text + metadata (title, byline). Provider choice "+
-			"defaults to the cheapest configured (typically a local Readability "+
-			"pass first, falling back to a paid scraper when the page needs JS).",
+			"follows the configured routing policy (cheapest-first by default: "+
+			"typically a local Readability pass, falling back to a paid scraper "+
+			"when the page needs JS).",
 		joinExtractorNames(extractors),
 	)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{

@@ -22,7 +22,7 @@ type BrowseInput struct {
 	// Format picks the result shape: "html" (default) or "text".
 	Format string `json:"format,omitempty" jsonschema:"return format: html | text"`
 	// Provider pins the browse provider for this call. Empty / "auto"
-	// → cheapest available wins.
+	// → the routing policy decides.
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: browserless | auto"`
 }
 

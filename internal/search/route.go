@@ -172,9 +172,9 @@ func CallInOrder(ctx context.Context, ordered []Searcher, q Query, logger *slog.
 }
 
 // CallPinned dispatches one call against the named searcher only — no
-// fallback. Used when the recipe / tool-call argument pins a specific
-// provider. Returns ErrProviderNotConfigured if name doesn't match any
-// known searcher. hook may be nil.
+// fallback. Used when the tool-call argument pins a specific provider.
+// Returns ErrProviderNotConfigured if name doesn't match any known
+// searcher. hook may be nil.
 func CallPinned(ctx context.Context, searchers []Searcher, name string, q Query, logger *slog.Logger, hook AttemptHook) (Searcher, Results, error) {
 	s := Find(searchers, name)
 	if s == nil {

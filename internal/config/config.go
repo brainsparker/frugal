@@ -1,8 +1,8 @@
-// Package config loads Frugal's runtime configuration from models.yaml.
-//
-// v1.0 ships only the routed search-tool layer; chat-model pricing /
-// capability scores moved out of the binary when the recipe layer was
-// cut. They'll come back in Phase 2 with the frugal__chat MCP tool.
+// Package config loads Frugal's runtime configuration from models.yaml:
+// the per-capability provider tables (search / extract / browse) and the
+// optional routing policies that order them. Chat-model pricing /
+// capability scores live outside the binary today; they come back in
+// Phase 2 with the frugal__chat MCP tool.
 package config
 
 import (

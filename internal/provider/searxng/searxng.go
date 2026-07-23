@@ -49,7 +49,7 @@ func New(baseURL string) *Client {
 }
 
 // Name reports the provider identifier — stable, used in tool-call
-// metadata and recipe `provider:` overrides.
+// metadata and `provider:` tool-argument overrides.
 func (c *Client) Name() string { return "searxng" }
 
 // CostPerCall is always zero. SearXNG is self-hosted; the operator pays

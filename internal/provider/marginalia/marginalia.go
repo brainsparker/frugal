@@ -61,7 +61,7 @@ func New(baseURL string) *Client {
 }
 
 // Name reports the provider identifier — stable across releases, used
-// in MCP tool-call metadata and recipe YAML `provider:` overrides.
+// in MCP tool-call metadata and `provider:` tool-argument overrides.
 func (c *Client) Name() string { return "marginalia" }
 
 // CostPerCall is always zero. Marginalia is donation-funded and free

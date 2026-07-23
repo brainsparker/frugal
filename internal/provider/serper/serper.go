@@ -50,7 +50,7 @@ func New(apiKey, baseURL string, costPerCall float64) *Client {
 }
 
 // Name reports the provider identifier — stable, used in tool-call
-// metadata and recipe `provider:` overrides.
+// metadata and `provider:` tool-argument overrides.
 func (c *Client) Name() string { return "serper" }
 
 // CostPerCall returns the configured per-search USD price.

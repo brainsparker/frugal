@@ -32,8 +32,9 @@ func main() {
 }
 
 func printHelp() {
-	fmt.Println(`frugal — the same search costs $0 or $0.005
-Cost-arbitrage MCP server. $0-first routing. Any model. BYOK. Source-available.
+	fmt.Println(`frugal — the open routing layer for AI tools
+Tool calls routed per policy (cost, latency, failover, pinning) with the
+decision in every response. Any model. BYOK. Source-available.
 
 Usage:
   frugal mcp install [--client]   Install Frugal as an MCP server in agent clients
