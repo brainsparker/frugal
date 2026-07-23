@@ -397,3 +397,40 @@ func TestCallPinned_DoesNotFallBackOnTransient(t *testing.T) {
 		t.Errorf("CallPinned must not fall back to other providers; otherCheap.calls=%d", otherCheap.calls)
 	}
 }
+
+func TestCallInOrder_PreservesCallerOrder(t *testing.T) {
+	// pricey listed first and succeeding: CallInOrder must not re-sort
+	// by cost — the caller's order (e.g. a premium policy) is the chain.
+	pricey := &stubSearcher{name: "pricey", cost: 0.005,
+		res: Results{Items: []Item{{Title: "hit"}}, CostUSD: 0.005}}
+	cheap := &stubSearcher{name: "cheap", cost: 0,
+		res: Results{Items: []Item{{Title: "hit"}}}}
+	used, _, err := CallInOrder(context.Background(), []Searcher{pricey, cheap}, Query{Text: "x"}, discardLogger(), nil)
+	if err != nil {
+		t.Fatalf("CallInOrder: %v", err)
+	}
+	if used.Name() != "pricey" {
+		t.Errorf("used = %s, want pricey (caller order)", used.Name())
+	}
+	if cheap.calls != 0 {
+		t.Errorf("cheap shouldn't have been called; calls=%d", cheap.calls)
+	}
+}
+
+func TestCallWithFallback_EqualsCallInOrderOfOrderByCost(t *testing.T) {
+	mk := func() []Searcher {
+		return []Searcher{
+			&stubSearcher{name: "pricey", cost: 0.005, res: Results{Items: []Item{{Title: "p"}}, CostUSD: 0.005}},
+			&stubSearcher{name: "flaky", cost: 0, err: errors.New("boom")},
+			&stubSearcher{name: "cheap", cost: 0.001, res: Results{Items: []Item{{Title: "c"}}, CostUSD: 0.001}},
+		}
+	}
+	usedA, resA, errA := CallWithFallback(context.Background(), mk(), Query{Text: "x"}, discardLogger(), nil)
+	usedB, resB, errB := CallInOrder(context.Background(), OrderByCost(mk()), Query{Text: "x"}, discardLogger(), nil)
+	if (errA == nil) != (errB == nil) {
+		t.Fatalf("errs diverge: %v vs %v", errA, errB)
+	}
+	if usedA.Name() != usedB.Name() || len(resA.Items) != len(resB.Items) {
+		t.Errorf("CallWithFallback and CallInOrder(OrderByCost) diverge: %s vs %s", usedA.Name(), usedB.Name())
+	}
+}

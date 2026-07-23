@@ -70,13 +70,22 @@ func OrderByCost(searchers []Searcher) []Searcher {
 // available. hook may be nil; when set, it's called after each attempt
 // regardless of outcome.
 func CallWithFallback(ctx context.Context, searchers []Searcher, q Query, logger *slog.Logger, hook AttemptHook) (Searcher, Results, error) {
+	return CallInOrder(ctx, OrderByCost(searchers), q, logger, hook)
+}
+
+// CallInOrder is CallWithFallback minus the sort: it walks searchers
+// exactly as given. Callers that ordered the chain themselves — via
+// routing.Apply under an operator policy — use this; CallWithFallback
+// delegates here after the default cost sort. All fallback semantics
+// (paid-zero-hit stop, fatal short-circuit, context cancel, zero-hit
+// fall-through) are identical.
+func CallInOrder(ctx context.Context, ordered []Searcher, q Query, logger *slog.Logger, hook AttemptHook) (Searcher, Results, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	if len(searchers) == 0 {
+	if len(ordered) == 0 {
 		return nil, Results{}, errors.New("frugal: no search providers configured")
 	}
-	ordered := OrderByCost(searchers)
 	var errs []error
 	var emptyOK Searcher // first provider that succeeded with zero hits
 	var emptyRes Results
