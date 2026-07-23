@@ -104,7 +104,7 @@ and spend org-wide, watch provider health, search routing traces.
 
 That's Frugal Cloud, and it is **roadmap, not product** — nothing there
 ships today. If you want it when it exists:
-[join the waitlist](mailto:cloud@frugal.sh?subject=Frugal%20Cloud%20waitlist).
+[join the waitlist](mailto:sparker@hey.com?subject=Frugal%20Cloud%20waitlist).
 
 ## Five minutes
 

@@ -236,7 +236,7 @@ One MCP server, four tools, eight providers:
 
   Everything in Phase 4 is roadmap, not product. The open router never
   requires it — no lock-in.
-  [Join the waitlist](mailto:cloud@frugal.sh?subject=Frugal%20Cloud%20waitlist)
+  [Join the waitlist](mailto:sparker@hey.com?subject=Frugal%20Cloud%20waitlist)
 
 ## From source
 
