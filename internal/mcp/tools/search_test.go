@@ -11,6 +11,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/frugalsh/frugal/internal/routing"
 	"github.com/frugalsh/frugal/internal/search"
 )
 
@@ -322,5 +323,109 @@ func TestCallTool_UnknownProviderErrors(t *testing.T) {
 	}
 	if !res.IsError {
 		t.Errorf("expected isError=true for unknown provider, got result=%+v", res)
+	}
+}
+
+func TestCallTool_PremiumPolicyReversesWinner(t *testing.T) {
+	expensive := &fakeSearcher{
+		name: "expensive", cost: 0.01,
+		results: []search.Item{{Title: "EXPENSIVE"}},
+	}
+	cheap := &fakeSearcher{
+		name: "cheap", cost: 0.001,
+		results: []search.Item{{Title: "CHEAP"}},
+	}
+	srv := newServer()
+	RegisterSearch(srv, []search.Searcher{expensive, cheap}, nil,
+		WithPolicy(routing.Policy{Strategy: routing.StrategyPremium}))
+
+	client, cleanup := dialClient(t, srv)
+	defer cleanup()
+
+	res, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name:      "frugal__search",
+		Arguments: map[string]any{"query": "anything"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("tool returned isError: %+v", res.Content)
+	}
+	out, err := decodeSearchOutput(res.StructuredContent)
+	if err != nil {
+		t.Fatalf("decode structured content: %v", err)
+	}
+	if out.ProviderUsed != "expensive" {
+		t.Errorf("provider_used: got %q want expensive (premium policy)", out.ProviderUsed)
+	}
+	if cheap.lastQuery.Text != "" {
+		t.Errorf("cheap should not have been called under premium policy")
+	}
+}
+
+func TestCallTool_DeniedPinErrors(t *testing.T) {
+	pinned := &fakeSearcher{name: "youcom", cost: 0.005, results: []search.Item{{Title: "hit"}}}
+	free := &fakeSearcher{name: "wikipedia", cost: 0, results: []search.Item{{Title: "hit"}}}
+	srv := newServer()
+	RegisterSearch(srv, []search.Searcher{pinned, free}, nil,
+		WithPolicy(routing.Policy{Deny: map[string]bool{"youcom": true}}))
+
+	client, cleanup := dialClient(t, srv)
+	defer cleanup()
+
+	res, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name:      "frugal__search",
+		Arguments: map[string]any{"query": "anything", "provider": "youcom"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if !res.IsError {
+		t.Fatal("expected isError for a denied pinned provider")
+	}
+	text := ""
+	for _, c := range res.Content {
+		if tc, ok := c.(*sdkmcp.TextContent); ok {
+			text += tc.Text
+		}
+	}
+	if !strings.Contains(text, "denied by the routing policy") {
+		t.Errorf("error text = %q, want mention of routing policy deny", text)
+	}
+	if pinned.lastQuery.Text != "" {
+		t.Errorf("denied provider must never be called")
+	}
+}
+
+func TestCallTool_DenyRemovesFromAutoChain(t *testing.T) {
+	denied := &fakeSearcher{name: "wikipedia", cost: 0, results: []search.Item{{Title: "DENIED"}}}
+	paid := &fakeSearcher{name: "serper", cost: 0.001, results: []search.Item{{Title: "PAID"}}}
+	srv := newServer()
+	RegisterSearch(srv, []search.Searcher{denied, paid}, nil,
+		WithPolicy(routing.Policy{Deny: map[string]bool{"wikipedia": true}}))
+
+	client, cleanup := dialClient(t, srv)
+	defer cleanup()
+
+	res, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name:      "frugal__search",
+		Arguments: map[string]any{"query": "anything"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("tool returned isError: %+v", res.Content)
+	}
+	out, err := decodeSearchOutput(res.StructuredContent)
+	if err != nil {
+		t.Fatalf("decode structured content: %v", err)
+	}
+	if out.ProviderUsed != "serper" {
+		t.Errorf("provider_used: got %q want serper (wikipedia denied)", out.ProviderUsed)
+	}
+	if denied.lastQuery.Text != "" {
+		t.Errorf("denied provider must never be called")
 	}
 }

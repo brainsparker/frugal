@@ -39,7 +39,7 @@
       </a>
       <nav class="top-nav" aria-label="Primary">
         <a href="/blog/">Blog</a>
-        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#routing">Routing</a>
         <a href="/#install">Install</a>
         <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
       </nav>
@@ -95,7 +95,7 @@
           <div class="author-box-mark" aria-hidden="true">BS</div>
           <div>
             <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
-            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the MCP server that routes agent tool calls to the cheapest provider that returns a result. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the open routing layer for AI tools — an MCP server that routes agent tool calls per policy: cost, latency, pinning, failover. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
           </div>
         </aside>
         <section class="related" aria-labelledby="related-heading">
@@ -127,11 +127,11 @@
         <article class="blog-card">
           <div class="blog-card-meta">
             <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
-            <time datetime="2026-07-02">Jul 2, 2026</time>
-            <span class="blog-card-kind">Guide</span>
+            <time datetime="2026-07-23">Jul 23, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
           </div>
-          <h3 class="blog-card-title"><a href="/blog/latency-quality-cost-tradeoffs/">Latency, quality, cost: pick the two your product needs</a></h3>
-          <p class="blog-card-excerpt">Autocomplete, overnight reports, and research tasks live in different corners of the same triangle. Products that pick one corner for everything overpay in all three.</p>
+          <h3 class="blog-card-title"><a href="/blog/evaluate-models-own-traffic/">Benchmarks lie: evaluate models on your own traffic</a></h3>
+          <p class="blog-card-excerpt">A model&#39;s leaderboard position tells you how it does on the leaderboard&#39;s distribution, not yours. Fifty queries from your own logs beat it every time.</p>
         </article>
 
           </div>
@@ -139,8 +139,8 @@
 
         <div class="cta-banner-card post-cta">
           <div>
-            <h2>Route your tool calls down the price ladder.</h2>
-            <p>Frugal is one Go binary: free and local providers first, paid as fallback, <code>cost_usd</code> on every result. BYOK, no account.</p>
+            <h2>The open routing layer for AI tools.</h2>
+            <p>Frugal is one Go binary: every tool call routed per policy — cheapest by default — with the decision and <code>cost_usd</code> on every result. BYOK, no account.</p>
           </div>
           <div class="cta-banner-actions">
             <a class="btn btn-primary" href="/#install">Install →</a>

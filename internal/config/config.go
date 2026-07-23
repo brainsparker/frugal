@@ -1,8 +1,8 @@
-// Package config loads Frugal's runtime configuration from models.yaml.
-//
-// v1.0 ships only the routed search-tool layer; chat-model pricing /
-// capability scores moved out of the binary when the recipe layer was
-// cut. They'll come back in Phase 2 with the frugal__chat MCP tool.
+// Package config loads Frugal's runtime configuration from models.yaml:
+// the per-capability provider tables (search / extract / browse) and the
+// optional routing policies that order them. Chat-model pricing /
+// capability scores live outside the binary today; they come back in
+// Phase 2 with the frugal__chat MCP tool.
 package config
 
 import (
@@ -27,6 +27,34 @@ type Config struct {
 	SearchProviders  map[string]SearchProviderConfig `yaml:"search_providers,omitempty"`
 	ExtractProviders map[string]SearchProviderConfig `yaml:"extract_providers,omitempty"`
 	BrowseProviders  map[string]SearchProviderConfig `yaml:"browse_providers,omitempty"`
+	// Routing is the optional per-capability routing policy. Absent means
+	// every capability routes cheapest-first — the historical default.
+	Routing *RoutingConfig `yaml:"routing,omitempty"`
+}
+
+// RoutingConfig declares routing policy per capability. Each entry is
+// optional; a capability without one keeps the cheap default.
+type RoutingConfig struct {
+	Search  *RoutePolicy `yaml:"search,omitempty"`
+	Extract *RoutePolicy `yaml:"extract,omitempty"`
+	Browse  *RoutePolicy `yaml:"browse,omitempty"`
+}
+
+// RoutePolicy is one capability's routing rule.
+//
+//   - strategy: cheap (default — effective cost ascending) | fast (this
+//     machine's observed OK-attempt latency from the local usage ledger,
+//     cost order until enough history exists) | premium (list price
+//     descending).
+//   - order: explicit provider preference. Listed providers are tried
+//     first in the listed order; unlisted ones still follow as fallback.
+//     Wins over strategy when both are set.
+//   - deny: providers that must never be called — not by fallback, not
+//     even when a tool call pins them by name.
+type RoutePolicy struct {
+	Strategy string   `yaml:"strategy,omitempty"`
+	Order    []string `yaml:"order,omitempty"`
+	Deny     []string `yaml:"deny,omitempty"`
 }
 
 // SearchProviderConfig describes a routed search backend (You.com,
@@ -222,6 +250,64 @@ func validate(cfg *Config) error {
 	}
 	if err := validateProviders("browse_providers", cfg.BrowseProviders); err != nil {
 		return err
+	}
+	return validateRouting(cfg)
+}
+
+// validRouteStrategies is the config-file spelling of the routing
+// strategies internal/routing implements. Empty means "cheap".
+var validRouteStrategies = map[string]bool{"": true, "cheap": true, "fast": true, "premium": true}
+
+// validateRouting checks the optional routing section: strategy must be
+// a known spelling, and every provider named in order / deny must be a
+// provider this capability's scope knows — either from the shipped
+// defaults or the operator's own file. A policy naming a foreign
+// provider would silently do nothing at runtime, so it fails the load
+// with a wrong-section hint instead, matching the tombstone rule above.
+func validateRouting(cfg *Config) error {
+	if cfg.Routing == nil {
+		return nil
+	}
+	for _, c := range []struct {
+		capability string
+		scope      string
+		pol        *RoutePolicy
+		providers  map[string]SearchProviderConfig
+	}{
+		{"search", "search_providers", cfg.Routing.Search, cfg.SearchProviders},
+		{"extract", "extract_providers", cfg.Routing.Extract, cfg.ExtractProviders},
+		{"browse", "browse_providers", cfg.Routing.Browse, cfg.BrowseProviders},
+	} {
+		if c.pol == nil {
+			continue
+		}
+		if !validRouteStrategies[strings.TrimSpace(c.pol.Strategy)] {
+			return fmt.Errorf("routing.%s.strategy %q: want cheap | fast | premium", c.capability, c.pol.Strategy)
+		}
+		known := func(name string) bool {
+			if _, ok := c.providers[name]; ok {
+				return true
+			}
+			return defaultScopeNames()[c.scope][name]
+		}
+		seen := map[string]string{} // name → "order" | "deny"
+		for _, list := range []struct {
+			field string
+			names []string
+		}{{"order", c.pol.Order}, {"deny", c.pol.Deny}} {
+			for _, name := range list.names {
+				if !known(name) {
+					return fmt.Errorf("routing.%s.%s: unknown provider %q for this capability (wrong section?)", c.capability, list.field, name)
+				}
+				if prev, dup := seen[name]; dup {
+					if prev == list.field {
+						return fmt.Errorf("routing.%s.%s: provider %q listed twice", c.capability, list.field, name)
+					}
+					return fmt.Errorf("routing.%s: provider %q appears in both order and deny — ordering a provider you deny is ambiguous", c.capability, name)
+				}
+				seen[name] = list.field
+			}
+		}
 	}
 	return nil
 }

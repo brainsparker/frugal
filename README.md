@@ -1,20 +1,20 @@
 # frugal
 
-**Your agent doesn't shop around. Frugal does.**
+**The open routing layer for AI tools.**
 
-The same web search costs $0 on Wikipedia, Marginalia, or SearXNG, $0.001
-on Serper, $0.005 on You.com — and agents pick providers by what's wired
-in, not by price. For search-heavy agents that's most of the bill: in one
-Deep Research teardown, search alone was 54% of task cost.
+Frugal is an MCP server that sits between your agent and its tool
+providers. You describe the job — a search, an extraction, a render, or
+just an intent — and Frugal decides how to complete it, routing each call
+per policy: cheapest capable provider by default, fastest or premium when
+you say so, pinned or denied when compliance says so, with automatic
+failover when a provider errors or comes up empty. Every response carries
+the decision — `provider_used`, `cost_usd`, and (via `frugal__execute`) a
+one-line reason — so you can audit why each call went where it did.
 
-Frugal is an MCP server that routes every search / extract / browse call
-down the price ladder: free and local first, cheap paid next, premium only
-when nothing cheaper returns a result. Every response carries
-`provider_used` and `cost_usd`, so the routing decision is auditable right
-in the agent's trace.
+Works with any model. One Go binary. Your keys. No account. Self-host
+everything, no lock-in. Source-available (BUSL 1.1 → Apache 2.0).
 
-Works with any model. One Go binary. Your keys. No account.
-Source-available (BUSL 1.1 → Apache 2.0).
+Install to first intelligently routed tool call: under five minutes.
 
 [frugal.sh](https://frugal.sh)
 
@@ -34,8 +34,9 @@ configured MCP server list.
 Search and extract work out of the box: **Marginalia** (free index of the
 indie / non-commercial web), **Wikipedia** (free Wikimedia REST search),
 and **go-readability** (free, pure-Go local extractor) ship enabled with
-zero configuration. When a provider comes up empty, the chain falls
-through to the next one. Captured from a live zero-key run:
+zero configuration. This is the default `cheap` policy at work — free and
+local rungs first, failover when a provider comes up empty. Captured from
+a live zero-key run:
 
 ```
 frugal__search {"query": "AI agent framework comparison", "max_results": 3}
@@ -60,9 +61,72 @@ workflow for research and local extraction — it is not a Google-grade
 SERP. One env var changes that: `SEARXNG_URL` (free, self-hosted) or
 `SERPER_API_KEY` ($0.001/call) gives the chain a stronger rung to fall to.
 
+## Routing policies
+
+Declare per capability how the provider chain is ordered, in
+`~/.frugal/config/models.yaml`:
+
+```yaml
+routing:
+  search:
+    strategy: fast            # cheap (default) | fast | premium
+    deny: [youcom]            # never called — not by fallback, not even pinned
+  extract:
+    order: [firecrawl, goreadability]  # explicit preference; unlisted providers still fall back
+```
+
+- **cheap** (default) — effective cost ascending, quota-aware; automatic
+  failover up the ladder.
+- **fast** — ordered by your machine's own observed latency (from the
+  local usage ledger, successful calls only). Falls back to cost order
+  until enough history exists. Not a live probe.
+- **premium** — prefers your premium-priced providers, list price
+  descending.
+- **order** — an explicit preference list. It's a prefix, not a
+  whitelist: unlisted providers still serve as fallback.
+- **deny** — providers that must never be called. Enforced on pinned
+  calls too; this is the honest privacy knob (e.g. deny every paid
+  provider and nothing leaves your free/local rungs).
+
+Every call chain logs which policy ran, and `frugal__execute` returns it
+in the response.
+
+## Describe the job: `frugal__execute`
+
+Instead of picking a tool, an agent can state the intent and a priority.
+Frugal classifies it onto a capability (URL and keyword cues —
+deterministic, no model call) and routes under your policy. Captured from
+a live zero-key run:
+
+```
+frugal__execute {"intent": "search for MCP server security best practices"}
+
+  stderr › search zero hits; falling back  provider=marginalia latency_ms=273
+  result › {
+    "capability": "search",
+    "provider_used": "wikipedia",
+    "cost_usd": 0,
+    "latency_ms": 650,
+    "reason": "routed to a web search; policy=cheap: effective cost ascending; provider=wikipedia won on attempt 2",
+    "results": [
+      {"title": "ChatGPT", "url": "https://en.wikipedia.org/wiki/ChatGPT", ...},
+      ...
+    ]
+  }
+```
+
+`priority: "cheap" | "balanced" | "premium"` maps onto the policies above
+(`balanced` defers to your configured strategy). A URL intent runs an
+extract and falls forward to a headless render when the page needs JS,
+with the costs summed. The `reason` field is the receipt: what was
+decided, under which policy, and which provider won on which attempt.
+The direct tools (`frugal__search`, `frugal__extract`, `frugal__browse`)
+remain for callers that already know the capability.
+
 ## See what you kept
 
-Every call lands in a local ledger (`~/.frugal/usage`, JSONL, never leaves
+Cost is Frugal's flagship policy, and the receipt is its proof. Every
+call lands in a local ledger (`~/.frugal/usage`, JSONL, never leaves
 your machine; `FRUGAL_STATS=off` disables it). `frugal stats` prints the
 month's receipt:
 
@@ -106,11 +170,10 @@ export FIRECRAWL_API_KEY=...     # premium paid (JS-rendered pages)
 export BROWSERLESS_TOKEN=...     # headless render
 ```
 
-That's it. Restart your agent. `frugal__search`, `frugal__extract`, and
-`frugal__browse` show up in the tool picker (only the tools whose
-providers are configured get registered).
+That's it. Restart your agent. Only the tools whose providers are
+configured get registered.
 
-## The rack-rate gap
+## The routing table
 
 Tool prices haven't fallen the way model prices have. You.com at $0.005/call
 is 5× Serper at $0.001/call. SearXNG, running on your own machine, is free.
@@ -124,13 +187,19 @@ is 5× Serper at $0.001/call. SearXNG, running on your own machine, is free.
 | Embeddings | nomic-embed-text, bge-large | text-embedding-3-small $0.02/1M tok | 3-large, Voyage-3, Cohere | planned |
 | Transcription | whisper.cpp | Deepgram Nova $0.0043/min | OpenAI Whisper $0.006/min | planned |
 
-Frugal walks the columns left to right. Each tool call goes to the leftmost
-configured provider that returns a result; you keep the gap.
+Under the `cheap` policy Frugal walks the columns left to right and you
+keep the gap; `fast` and `premium` reorder the walk; `deny` fences
+columns off entirely. Cost is one policy among several — but it's the
+one with a receipt.
 
 ## What ships today
 
-One MCP server, three tools, eight providers:
+One MCP server, four tools, eight providers:
 
+- **`frugal__execute`** — **shipping**. Describe the job (`intent`,
+  optional `priority`); heuristic classification onto a capability, then
+  policy-routed. Returns the full routing trace (`capability`,
+  `provider_used`, `cost_usd`, `reason`).
 - **`frugal__search`** — **shipping**. Routed across **SearXNG** (free,
   self-hosted), **Marginalia** (free, public), **Wikipedia** (free,
   public), **Serper** (`$0.001/call`), and **You.com** (`$0.005/call`).
@@ -142,6 +211,8 @@ One MCP server, three tools, eight providers:
   JS-rendered).
 - **`frugal__browse`** — *partial*. **Browserless** (`~$0.002/render`,
   headless Chrome) shipping; local Playwright deferred.
+- **Routing policies** — **shipping**. Per-capability `strategy`
+  (cheap / fast / premium), explicit `order`, `deny` lists.
 - **`frugal stats`** — the local savings receipt (see above).
 - Stdio + Streamable HTTP transports.
 - HTTP transport supports bearer-token auth (`FRUGAL_AUTH_TOKEN`),
@@ -150,12 +221,22 @@ One MCP server, three tools, eight providers:
 - `frugal mcp install` writes the right config into Claude Desktop,
   Cursor, and Claude Code.
 
-## What's coming
+## Roadmap
 
 - **Phase 3** — embeddings, transcription, code execution, local chat
   models, semantic cache.
-- **Phase 4** — Frugal Cloud: hosted MCP endpoint for users who don't want
-  to operate the local stack themselves.
+- **Phase 4 — Frugal Cloud** *(not shipped — waitlist open)*. The binary
+  stays local and self-hostable; Cloud adds the team layer on top:
+  - Hosted policy management (edit routing policies in a dashboard,
+    deploy to every app)
+  - Team workspaces and shared policy templates
+  - Usage analytics and cost reporting across the org
+  - Provider health monitoring and routing traces
+  - Org-wide API key management
+
+  Everything in Phase 4 is roadmap, not product. The open router never
+  requires it — no lock-in.
+  [Join the waitlist](mailto:sparker@hey.com?subject=Frugal%20Cloud%20waitlist)
 
 ## From source
 

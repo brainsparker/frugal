@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/frugalsh/frugal/internal/provider/serper"
 	"github.com/frugalsh/frugal/internal/provider/wikipedia"
 	"github.com/frugalsh/frugal/internal/provider/youcom"
+	"github.com/frugalsh/frugal/internal/routing"
 	"github.com/frugalsh/frugal/internal/search"
 )
 
@@ -113,37 +115,67 @@ func runMCPServe(args []string) int {
 			slog.Warn("mcp serve: usage ledger disabled — cannot resolve home dir", "err", lerr)
 		}
 	}
+	// Routing policies: absent config keeps the cheap default per
+	// capability. The latency lookup feeds the fast strategy from the
+	// local ledger; when the ledger is off, fast degrades to cost order.
+	latFor := func(string) routing.LatencyLookup { return nil }
+	if ledger.Enabled() {
+		if dir, lerr := ledger.Dir(); lerr == nil {
+			lc := newLatencyCache(dir, 5*time.Minute)
+			latFor = lc.lookup
+		}
+	}
+	policies := map[string]routing.Policy{
+		"search":  policyFor(cfg.Routing, "search"),
+		"extract": policyFor(cfg.Routing, "extract"),
+		"browse":  policyFor(cfg.Routing, "browse"),
+	}
+	if cfg.Routing != nil {
+		for _, capability := range []string{"search", "extract", "browse"} {
+			p := policies[capability]
+			if p.Strategy == routing.StrategyCheap && len(p.Order) == 0 && len(p.Deny) == 0 {
+				continue
+			}
+			slog.Info("mcp serve: routing policy",
+				"capability", capability,
+				"strategy", p.Strategy.String(),
+				"order", p.Order,
+				"deny", denyNames(p.Deny))
+		}
+	}
+
 	searchers := buildSearchers(cfg)
-	tools.RegisterSearch(srv.Inner, searchers, metrics)
+	warnPolicyStrangers("search", policies["search"], searcherNames(searchers))
+	tools.RegisterSearch(srv.Inner, searchers, metrics,
+		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")))
 	if len(searchers) == 0 {
 		slog.Warn("mcp serve: no search providers configured — frugal__search will not be advertised. " +
 			"Set SEARXNG_URL (free, self-hosted), SERPER_API_KEY, or YDC_API_KEY to enable.")
 	} else {
-		names := make([]string, 0, len(searchers))
-		for _, s := range searchers {
-			names = append(names, s.Name())
-		}
-		slog.Info("mcp serve: frugal__search registered", "providers", names)
+		slog.Info("mcp serve: frugal__search registered", "providers", searcherNames(searchers))
 	}
 
 	extractors := buildExtractors(cfg)
-	tools.RegisterExtract(srv.Inner, extractors, metrics)
+	warnPolicyStrangers("extract", policies["extract"], extractorNames(extractors))
+	tools.RegisterExtract(srv.Inner, extractors, metrics,
+		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")))
 	if len(extractors) > 0 {
-		names := make([]string, 0, len(extractors))
-		for _, e := range extractors {
-			names = append(names, e.Name())
-		}
-		slog.Info("mcp serve: frugal__extract registered", "providers", names)
+		slog.Info("mcp serve: frugal__extract registered", "providers", extractorNames(extractors))
 	}
 
 	browsers := buildBrowsers(cfg)
-	tools.RegisterBrowse(srv.Inner, browsers, metrics)
+	warnPolicyStrangers("browse", policies["browse"], browserNames(browsers))
+	tools.RegisterBrowse(srv.Inner, browsers, metrics,
+		tools.WithPolicy(policies["browse"]), tools.WithLatencyLookup(latFor("browse")))
 	if len(browsers) > 0 {
-		names := make([]string, 0, len(browsers))
-		for _, b := range browsers {
-			names = append(names, b.Name())
-		}
-		slog.Info("mcp serve: frugal__browse registered", "providers", names)
+		slog.Info("mcp serve: frugal__browse registered", "providers", browserNames(browsers))
+	}
+
+	tools.RegisterExecute(srv.Inner, searchers, extractors, browsers, metrics,
+		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor))
+	if len(searchers) > 0 {
+		slog.Info("mcp serve: frugal__execute registered",
+			"search", len(searchers), "extract", len(extractors), "browse", len(browsers))
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -292,6 +324,137 @@ func runMCPInstall(args []string) int {
 	fmt.Fprintln(os.Stderr, "  2. restart the agent client to pick up the new MCP server")
 	fmt.Fprintln(os.Stderr, "  3. look for the 'frugal__search' tool in the agent's tool picker")
 	return 0
+}
+
+// policyFor maps one capability's YAML routing policy onto the routing
+// package's Policy. A nil section (or nil Routing entirely) yields the
+// zero value — cheap, nothing denied — the historical default.
+func policyFor(rc *config.RoutingConfig, capability string) routing.Policy {
+	var rp *config.RoutePolicy
+	if rc != nil {
+		switch capability {
+		case "search":
+			rp = rc.Search
+		case "extract":
+			rp = rc.Extract
+		case "browse":
+			rp = rc.Browse
+		}
+	}
+	if rp == nil {
+		return routing.Policy{}
+	}
+	p := routing.Policy{Order: append([]string(nil), rp.Order...)}
+	switch strings.TrimSpace(rp.Strategy) {
+	case "fast":
+		p.Strategy = routing.StrategyFast
+	case "premium":
+		p.Strategy = routing.StrategyPremium
+	}
+	if len(rp.Deny) > 0 {
+		p.Deny = make(map[string]bool, len(rp.Deny))
+		for _, n := range rp.Deny {
+			p.Deny[n] = true
+		}
+	}
+	return p
+}
+
+// warnPolicyStrangers flags policy order/deny entries that name no
+// registered provider. Config validation already rejected names foreign
+// to the capability; this catches the softer case — a provider that's
+// valid but didn't register (key unset, disabled) — which is worth a
+// startup note, not an error.
+func warnPolicyStrangers(capability string, p routing.Policy, registered []string) {
+	if len(p.Order) == 0 && len(p.Deny) == 0 {
+		return
+	}
+	have := make(map[string]bool, len(registered))
+	for _, n := range registered {
+		have[n] = true
+	}
+	for _, n := range p.Order {
+		if !have[n] {
+			slog.Warn("mcp serve: routing policy orders a provider that is not registered",
+				"capability", capability, "provider", n)
+		}
+	}
+	for n := range p.Deny {
+		if !have[n] {
+			slog.Warn("mcp serve: routing policy denies a provider that is not registered anyway",
+				"capability", capability, "provider", n)
+		}
+	}
+}
+
+// denyNames renders a deny set as a sorted slice for logging.
+func denyNames(deny map[string]bool) []string {
+	out := make([]string, 0, len(deny))
+	for n := range deny {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func searcherNames(searchers []search.Searcher) []string {
+	out := make([]string, 0, len(searchers))
+	for _, s := range searchers {
+		out = append(out, s.Name())
+	}
+	return out
+}
+
+func extractorNames(extractors []extract.Extractor) []string {
+	out := make([]string, 0, len(extractors))
+	for _, e := range extractors {
+		out = append(out, e.Name())
+	}
+	return out
+}
+
+func browserNames(browsers []browse.Browser) []string {
+	out := make([]string, 0, len(browsers))
+	for _, b := range browsers {
+		out = append(out, b.Name())
+	}
+	return out
+}
+
+// latencyCache wraps ledger.LatencySnapshot behind a TTL so the fast
+// strategy doesn't re-read the ledger files on every tool call. Safe
+// for concurrent use; a snapshot failure is treated as "no data" and
+// retried after the TTL.
+type latencyCache struct {
+	dir string
+	ttl time.Duration
+
+	mu   sync.Mutex
+	at   time.Time
+	snap map[string]map[string]routing.LatencyStat
+}
+
+func newLatencyCache(dir string, ttl time.Duration) *latencyCache {
+	return &latencyCache{dir: dir, ttl: ttl}
+}
+
+// lookup returns the LatencyLookup for one capability's tool name.
+func (c *latencyCache) lookup(tool string) routing.LatencyLookup {
+	return func(provider string) (routing.LatencyStat, bool) {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		now := time.Now()
+		if c.at.IsZero() || now.Sub(c.at) > c.ttl {
+			snap, err := ledger.LatencySnapshot(c.dir, now)
+			if err != nil {
+				snap = nil
+			}
+			c.snap = snap
+			c.at = now
+		}
+		st, ok := c.snap[tool][provider]
+		return st, ok
+	}
 }
 
 // canonicalProviderOrder fixes the tie-break between same-cost providers:

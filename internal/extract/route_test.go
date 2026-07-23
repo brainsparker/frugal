@@ -191,3 +191,18 @@ func TestCallPinned_DoesNotFallBack(t *testing.T) {
 		t.Errorf("CallPinned must not fall back; other.calls=%d", other.calls)
 	}
 }
+
+func TestCallInOrder_PreservesCallerOrder(t *testing.T) {
+	pricey := &stubExtractor{name: "pricey", cost: 0.001, res: Result{Markdown: "hit", CostUSD: 0.001}}
+	free := &stubExtractor{name: "free", cost: 0, res: Result{Markdown: "hit"}}
+	used, _, err := CallInOrder(context.Background(), []Extractor{pricey, free}, Query{URL: "https://x"}, discardLogger(), nil)
+	if err != nil {
+		t.Fatalf("CallInOrder: %v", err)
+	}
+	if used.Name() != "pricey" {
+		t.Errorf("used = %s, want pricey (caller order)", used.Name())
+	}
+	if free.calls != 0 {
+		t.Errorf("free shouldn't have been called; calls=%d", free.calls)
+	}
+}

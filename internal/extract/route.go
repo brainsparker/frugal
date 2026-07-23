@@ -42,13 +42,20 @@ func OrderByCost(extractors []Extractor) []Extractor {
 // per-call cost, and the error (nil on success). Used by the metrics
 // layer to record every attempt — not just the winner.
 func CallWithFallback(ctx context.Context, extractors []Extractor, q Query, logger *slog.Logger, hook AttemptHook) (Extractor, Result, error) {
+	return CallInOrder(ctx, OrderByCost(extractors), q, logger, hook)
+}
+
+// CallInOrder is CallWithFallback minus the sort: it walks extractors
+// exactly as given. Callers that ordered the chain themselves — via
+// routing.Apply under an operator policy — use this; CallWithFallback
+// delegates here after the default cost sort.
+func CallInOrder(ctx context.Context, ordered []Extractor, q Query, logger *slog.Logger, hook AttemptHook) (Extractor, Result, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	if len(extractors) == 0 {
+	if len(ordered) == 0 {
 		return nil, Result{}, errors.New("frugal: no extract providers configured")
 	}
-	ordered := OrderByCost(extractors)
 	var errs []error
 	for i, e := range ordered {
 		start := time.Now()

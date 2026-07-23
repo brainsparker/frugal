@@ -4,26 +4,26 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Brian Sparker — creator of Frugal | frugal.sh</title>
-  <meta name="description" content="Brian Sparker is the creator of Frugal, the MCP server that routes AI agent tool calls free-first. He writes about provider routing, AI tool costs, and agent infrastructure." />
+  <meta name="description" content="Brian Sparker is the creator of Frugal, the open routing layer for AI tools. He writes about provider routing, AI tool costs, and agent infrastructure." />
   <meta name="theme-color" content="#fafafa" />
   <meta name="color-scheme" content="light" />
 
   <meta property="og:type" content="profile" />
   <meta property="og:url" content="https://frugal.sh/author/brian-sparker/" />
   <meta property="og:title" content="Brian Sparker — creator of Frugal | frugal.sh" />
-  <meta property="og:description" content="Brian Sparker is the creator of Frugal, the MCP server that routes AI agent tool calls free-first. He writes about provider routing, AI tool costs, and agent infrastructure." />
+  <meta property="og:description" content="Brian Sparker is the creator of Frugal, the open routing layer for AI tools. He writes about provider routing, AI tool costs, and agent infrastructure." />
   <meta property="og:site_name" content="frugal.sh" />
 
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" content="Brian Sparker — creator of Frugal | frugal.sh" />
-  <meta name="twitter:description" content="Brian Sparker is the creator of Frugal, the MCP server that routes AI agent tool calls free-first. He writes about provider routing, AI tool costs, and agent infrastructure." />
+  <meta name="twitter:description" content="Brian Sparker is the creator of Frugal, the open routing layer for AI tools. He writes about provider routing, AI tool costs, and agent infrastructure." />
 
   <link rel="canonical" href="https://frugal.sh/author/brian-sparker/" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/blog.css" />
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"ProfilePage","mainEntity":{"@type":"Person","description":"Brian Sparker is the creator of Frugal, the MCP server that routes AI agent tool calls free-first. He writes about provider routing, AI tool costs, and agent infrastructure.","jobTitle":"Creator of Frugal","knowsAbout":["Provider routing","AI tool-call economics","MCP servers","Agent infrastructure","Model selection"],"name":"Brian Sparker","sameAs":["https://github.com/brainsparker","https://sparker.co"],"url":"https://frugal.sh/author/brian-sparker/"}}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"ProfilePage","mainEntity":{"@type":"Person","description":"Brian Sparker is the creator of Frugal, the open routing layer for AI tools. He writes about provider routing, AI tool costs, and agent infrastructure.","jobTitle":"Creator of Frugal","knowsAbout":["Provider routing","AI tool-call economics","MCP servers","Agent infrastructure","Model selection"],"name":"Brian Sparker","sameAs":["https://github.com/brainsparker","https://sparker.co"],"url":"https://frugal.sh/author/brian-sparker/"}}</script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -36,7 +36,7 @@
       </a>
       <nav class="top-nav" aria-label="Primary">
         <a href="/blog/">Blog</a>
-        <a href="/#rack-rates">Rack rates</a>
+        <a href="/#routing">Routing</a>
         <a href="/#install">Install</a>
         <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
       </nav>
@@ -58,18 +58,19 @@
           </div>
         </div>
         <div class="post-body author-bio">
-<p>Brian Sparker is the creator of <a href="/">Frugal</a>, an MCP server that routes AI
-agent tool calls — search, extract, browse — down a price ladder: free and
-local providers first, paid providers only when nothing cheaper returns a
-result. Every response carries <code>provider_used</code> and <code>cost_usd</code>, so the
-routing decision is auditable in the agent's own trace.</p>
-<p>Frugal came out of a simple observation: the same web search costs $0 on
-Wikipedia or Marginalia, $0.001 on Serper, and $0.005 on You.com — and
-agents pick providers by what's wired in, not by price. For search-heavy
-workloads, that gap is most of the bill. Building the router meant living
-inside the details this blog covers: fallback chains, zero-hit semantics,
-latency budgets, MCP transports, and the ledger math of what an agent run
-actually costs.</p>
+<p>Brian Sparker is the creator of <a href="/">Frugal</a>, the open routing layer for
+AI tools: an MCP server that routes agent tool calls — search, extract,
+browse — across providers per policy: cost, latency, provider pinning,
+deny lists, automatic failover. Every response carries <code>provider_used</code>
+and <code>cost_usd</code>, so the routing decision is auditable in the agent's own
+trace.</p>
+<p>Frugal started as a cost router, out of a simple observation: the same
+web search costs $0 on Wikipedia or Marginalia, $0.001 on Serper, and
+$0.005 on You.com — and agents pick providers by what's wired in, not by
+price. Cost is still Frugal's flagship policy; it's now one policy among
+several. Building the router meant living inside the details this blog
+covers: fallback chains, zero-hit semantics, latency budgets, MCP
+transports, and the ledger math of what an agent run actually costs.</p>
 <p>He writes here about provider routing, AI tool-call economics, model
 selection, and the operational work of keeping agents reliable — aimed at
 engineers and small teams building on AI APIs without a platform team to
@@ -101,6 +102,28 @@ lean on.</p>
       <div class="shell">
         <h2 id="byline-heading" class="author-posts-heading">All posts by Brian Sparker</h2>
         <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-07-23">Jul 23, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/frugal-open-routing-layer/">Frugal is the open routing layer for AI tools</a></h3>
+          <p class="blog-card-excerpt">Cost was the wedge. Routing is the product. What&#39;s shipping, what changed, and what Frugal Cloud will add.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <time datetime="2026-07-23">Jul 23, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/evaluate-models-own-traffic/">Benchmarks lie: evaluate models on your own traffic</a></h3>
+          <p class="blog-card-excerpt">A model&#39;s leaderboard position tells you how it does on the leaderboard&#39;s distribution, not yours. Fifty queries from your own logs beat it every time.</p>
+        </article>
+
 
         <article class="blog-card">
           <div class="blog-card-meta">

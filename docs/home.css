@@ -1,0 +1,318 @@
+/* frugal.sh landing page — terminal-first, monospace, minimal.
+   Loaded only by index.html; the blog keeps styles.css/blog.css.
+   No external fonts: the site's CSP is style-src 'self', so the
+   system mono stack is both the aesthetic and the only option. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --text: #111;
+  --muted: #6b7280;
+  --faint: #9ca3af;
+  --line: #e5e7eb;
+  --bg: #fff;
+  --green: #16a34a;
+  --amber: #b45309;
+  --link: #111;
+}
+
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+body {
+  font-family: var(--mono);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+a { color: var(--link); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--faint); }
+a:hover { text-decoration-color: var(--text); }
+
+.skip {
+  position: absolute; left: -9999px; top: 0;
+  background: var(--text); color: var(--bg); padding: 0.5rem 1rem; z-index: 200;
+}
+.skip:focus { left: 0.5rem; top: 0.5rem; }
+
+/* ── Above the fold ── */
+.above-fold {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Nav ── */
+nav.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 1rem 1.5rem;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  flex-shrink: 0;
+  gap: 1rem;
+}
+.nav-left, .nav-right { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.brand { font-weight: 700; font-size: 0.95rem; text-decoration: none; }
+.brand .mark { margin-right: 0.35rem; }
+nav.top a.nav-link {
+  font-size: 0.85rem; color: var(--muted); text-decoration: none;
+}
+nav.top a.nav-link:hover { color: var(--text); }
+
+/* ── Hero ── */
+.hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 2.5rem 1rem 3rem;
+  gap: 2.25rem;
+}
+.hero-title {
+  font-size: clamp(1.15rem, 4.2vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  word-break: break-word;
+}
+.hero-title .dollar { color: var(--green); }
+.hero-tagline {
+  color: var(--muted);
+  font-size: clamp(0.9rem, 2.4vw, 1.05rem);
+  margin-top: 0.75rem;
+}
+.hero-sub {
+  color: var(--faint);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  margin-top: 0.5rem;
+}
+
+/* ── Terminal player ── */
+.term-player {
+  --tp-bg: #16161a;
+  --tp-bar: #26262b;
+  --tp-text: #e5e5e7;
+  --tp-muted: #98989d;
+  --tp-green: #32d74b;
+  --tp-amber: #ffd60a;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.08);
+  font-family: var(--mono);
+  text-align: left;
+}
+.tp-bar {
+  background: var(--tp-bar);
+  display: flex;
+  align-items: center;
+  padding: 0.55rem 0.75rem;
+  gap: 0.5rem;
+  position: relative;
+}
+.tp-dots { display: flex; gap: 0.4rem; flex-shrink: 0; }
+.tp-dot { width: 0.65rem; height: 0.65rem; border-radius: 50%; }
+.tp-dot.r { background: #ff5f57; }
+.tp-dot.y { background: #febc2e; }
+.tp-dot.g { background: #28c840; }
+.tp-title {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  font-size: 0.7rem; color: var(--tp-muted); white-space: nowrap;
+}
+.tp-restart {
+  margin-left: auto;
+  background: none; border: none; cursor: pointer;
+  color: var(--tp-muted); font-family: var(--mono); font-size: 0.7rem;
+  padding: 0 0.25rem;
+}
+.tp-restart:hover { color: var(--tp-text); }
+.tp-tabs {
+  background: var(--tp-bar);
+  display: flex;
+  padding: 0 0.5rem;
+  gap: 0.15rem;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tp-tabs::-webkit-scrollbar { display: none; }
+.tp-tab {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--tp-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tp-tab[aria-selected="true"] { color: #fff; border-bottom-color: var(--tp-green); }
+.tp-screen {
+  background: var(--tp-bg);
+  color: var(--tp-text);
+  padding: 1rem 1.1rem 1.25rem;
+  min-height: 21rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  overflow-x: auto;
+}
+.tp-screen pre {
+  font-family: var(--mono);
+  white-space: pre;
+  margin: 0;
+}
+.tp-screen .c-p { color: var(--tp-green); font-weight: 700; }
+.tp-screen .c-m { color: var(--tp-muted); }
+.tp-screen .c-g { color: var(--tp-green); }
+.tp-screen .c-a { color: var(--tp-amber); }
+.tp-cursor {
+  display: inline-block;
+  width: 0.55em; height: 1.1em;
+  background: #fff;
+  vertical-align: text-bottom;
+  animation: tp-blink 1s steps(1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tp-cursor { animation: none; }
+}
+@keyframes tp-blink { 50% { opacity: 0; } }
+.tp-note {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--faint);
+  margin-top: 0.6rem;
+}
+
+/* ── Sections ── */
+section.block {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem;
+  border-top: 1px solid var(--line);
+}
+section.block:first-of-type { border-top: none; }
+section.block h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  letter-spacing: -0.01em;
+}
+section.block h3 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 1.75rem 0 0.5rem;
+}
+section.block p { margin: 0.75rem 0; font-size: 0.85rem; color: #374151; }
+section.block p strong { color: var(--text); }
+section.block code {
+  font-family: var(--mono);
+  background: #f3f4f6;
+  border: 1px solid var(--line);
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.95em;
+}
+section.block pre {
+  background: #f9fafb;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  margin: 1rem 0;
+}
+section.block pre code { background: none; border: none; padding: 0; }
+.cmt { color: var(--muted); }
+
+/* policy list */
+ul.policy-list { list-style: none; margin: 1rem 0; }
+ul.policy-list li {
+  font-size: 0.85rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px dashed var(--line);
+  color: #374151;
+}
+ul.policy-list li:last-child { border-bottom: none; }
+ul.policy-list b { color: var(--text); }
+
+/* table */
+.table-wrap { overflow-x: auto; margin: 1.25rem 0; }
+table.routes {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.78rem;
+}
+table.routes th, table.routes td {
+  text-align: left;
+  padding: 0.5rem 0.75rem 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  white-space: nowrap;
+}
+table.routes thead th { color: var(--muted); font-weight: 400; font-size: 0.72rem; }
+table.routes .st { font-size: 0.68rem; color: var(--muted); }
+table.routes .st.ship { color: var(--green); }
+
+/* buttons */
+.btn-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.25rem; }
+a.btn {
+  display: inline-block;
+  font-size: 0.82rem;
+  padding: 0.5rem 1rem;
+  border: 1.5px solid var(--text);
+  border-radius: 0.4rem;
+  text-decoration: none;
+  font-weight: 600;
+}
+a.btn.solid { background: var(--text); color: var(--bg); }
+a.btn:hover { opacity: 0.85; }
+
+button.copy {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+  margin-left: 0.5rem;
+}
+button.copy:hover { color: var(--text); border-color: var(--muted); }
+button.copy.copied { color: var(--green); border-color: var(--green); }
+
+/* ── Footer ── */
+footer.bottom {
+  border-top: 1px solid var(--line);
+  padding: 2rem 1.5rem 3rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+footer.bottom a { color: var(--muted); }
+footer.bottom a:hover { color: var(--text); }
+footer.bottom .sep { margin: 0 0.5rem; color: var(--line); }
+footer.bottom .byline { margin-top: 0.75rem; font-size: 0.72rem; color: var(--faint); }
+
+@media (max-width: 640px) {
+  nav.top { padding: 0.85rem 1rem; }
+  .nav-left { gap: 0.7rem; }
+  .hero { padding: 1.5rem 0.75rem 2rem; gap: 1.5rem; }
+  .term-player { border-radius: 0.5rem; }
+  .tp-screen { font-size: 0.68rem; min-height: 18rem; }
+  section.block { padding: 2.5rem 1rem; }
+}

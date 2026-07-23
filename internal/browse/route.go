@@ -31,13 +31,20 @@ func OrderByCost(browsers []Browser) []Browser {
 // ctx is done or a driver reports a fatal (request-scoped) error.
 // Hook (may be nil) fires once per attempt.
 func CallWithFallback(ctx context.Context, browsers []Browser, q Query, logger *slog.Logger, hook AttemptHook) (Browser, Result, error) {
+	return CallInOrder(ctx, OrderByCost(browsers), q, logger, hook)
+}
+
+// CallInOrder is CallWithFallback minus the sort: it walks browsers
+// exactly as given. Callers that ordered the chain themselves — via
+// routing.Apply under an operator policy — use this; CallWithFallback
+// delegates here after the default cost sort.
+func CallInOrder(ctx context.Context, ordered []Browser, q Query, logger *slog.Logger, hook AttemptHook) (Browser, Result, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	if len(browsers) == 0 {
+	if len(ordered) == 0 {
 		return nil, Result{}, errors.New("frugal: no browse providers configured")
 	}
-	ordered := OrderByCost(browsers)
 	var errs []error
 	for i, b := range ordered {
 		start := time.Now()

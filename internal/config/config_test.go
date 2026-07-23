@@ -510,3 +510,84 @@ search_providers: {}
 		t.Fatalf("expected single-document error, got: %v", err)
 	}
 }
+
+func TestParse_RoutingSectionRoundTrips(t *testing.T) {
+	cfg, err := Parse([]byte(`
+search_providers:
+  serper:
+    api_key_env: SERPER_API_KEY
+    cost_per_call: 0.001
+routing:
+  search:
+    strategy: fast
+    order: [serper, searxng]
+    deny: [youcom]
+`))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Routing == nil || cfg.Routing.Search == nil {
+		t.Fatal("routing.search missing after parse")
+	}
+	p := cfg.Routing.Search
+	if p.Strategy != "fast" || len(p.Order) != 2 || p.Order[0] != "serper" || len(p.Deny) != 1 || p.Deny[0] != "youcom" {
+		t.Errorf("routing.search = %+v", p)
+	}
+}
+
+func TestParse_RoutingRejectsUnknownStrategy(t *testing.T) {
+	_, err := Parse([]byte("routing:\n  search:\n    strategy: fastest\n"))
+	if err == nil || !strings.Contains(err.Error(), "routing.search.strategy") {
+		t.Fatalf("want strategy error, got %v", err)
+	}
+}
+
+func TestParse_RoutingRejectsUnknownProvider(t *testing.T) {
+	// goreadability is an extract provider — naming it under
+	// routing.search is a misplaced line.
+	_, err := Parse([]byte("routing:\n  search:\n    deny: [goreadability]\n"))
+	if err == nil || !strings.Contains(err.Error(), "unknown provider") {
+		t.Fatalf("want unknown-provider error, got %v", err)
+	}
+}
+
+func TestParse_RoutingAcceptsOperatorOwnProviders(t *testing.T) {
+	// A provider declared in the operator's own file is fair game for
+	// policy even if the shipped defaults don't know it.
+	_, err := Parse([]byte(`
+search_providers:
+  mysearch:
+    base_url: https://search.internal
+    cost_per_call: 0
+routing:
+  search:
+    order: [mysearch]
+`))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+}
+
+func TestParse_RoutingRejectsOrderDenyOverlap(t *testing.T) {
+	_, err := Parse([]byte("routing:\n  search:\n    order: [serper]\n    deny: [serper]\n"))
+	if err == nil || !strings.Contains(err.Error(), "both order and deny") {
+		t.Fatalf("want order/deny overlap error, got %v", err)
+	}
+}
+
+func TestParse_RoutingRejectsDuplicateNames(t *testing.T) {
+	_, err := Parse([]byte("routing:\n  search:\n    order: [serper, serper]\n"))
+	if err == nil || !strings.Contains(err.Error(), "listed twice") {
+		t.Fatalf("want duplicate error, got %v", err)
+	}
+}
+
+func TestParse_ConfigWithoutRoutingUnchanged(t *testing.T) {
+	cfg, err := Parse([]byte("search_providers:\n  wikipedia:\n    cost_per_call: 0\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Routing != nil {
+		t.Errorf("Routing = %+v, want nil", cfg.Routing)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/frugalsh/frugal/internal/config"
+	"github.com/frugalsh/frugal/internal/routing"
 )
 
 func boolPtr(b bool) *bool { return &b }
@@ -59,5 +60,41 @@ func TestRackRates_SkipsDisabledAndUnwireable(t *testing.T) {
 	got := rackRates(cfg)
 	if got["search"] != 0.001 {
 		t.Errorf("search rack rate = %v, want 0.001 (serper; youcom disabled, internal-search unwireable)", got["search"])
+	}
+}
+
+func TestPolicyFor_MapsYAMLOntoRoutingPolicy(t *testing.T) {
+	rc := &config.RoutingConfig{
+		Search: &config.RoutePolicy{
+			Strategy: "fast",
+			Order:    []string{"serper"},
+			Deny:     []string{"youcom"},
+		},
+		Extract: &config.RoutePolicy{Strategy: "premium"},
+	}
+
+	p := policyFor(rc, "search")
+	if p.Strategy != routing.StrategyFast {
+		t.Errorf("search strategy = %v, want fast", p.Strategy)
+	}
+	if len(p.Order) != 1 || p.Order[0] != "serper" {
+		t.Errorf("search order = %v", p.Order)
+	}
+	if !p.Deny["youcom"] {
+		t.Errorf("search deny = %v, want youcom denied", p.Deny)
+	}
+
+	if p := policyFor(rc, "extract"); p.Strategy != routing.StrategyPremium {
+		t.Errorf("extract strategy = %v, want premium", p.Strategy)
+	}
+
+	// browse has no section → zero value (cheap default).
+	if p := policyFor(rc, "browse"); p.Strategy != routing.StrategyCheap || p.Deny != nil || len(p.Order) != 0 {
+		t.Errorf("browse policy = %+v, want zero value", p)
+	}
+
+	// nil routing config entirely → zero value.
+	if p := policyFor(nil, "search"); p.Strategy != routing.StrategyCheap || p.Deny != nil {
+		t.Errorf("nil routing policy = %+v, want zero value", p)
 	}
 }

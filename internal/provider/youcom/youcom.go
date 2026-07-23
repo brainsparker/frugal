@@ -59,7 +59,7 @@ func New(apiKey, baseURL string, costPerCall float64) *Client {
 }
 
 // Name reports the provider identifier — stable across releases, used
-// in MCP tool-call metadata and recipe YAML `provider:` overrides.
+// in MCP tool-call metadata and `provider:` tool-argument overrides.
 func (c *Client) Name() string { return "youcom" }
 
 // CostPerCall returns the configured per-search USD price.

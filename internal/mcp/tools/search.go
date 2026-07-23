@@ -4,9 +4,10 @@
 // later PRs, internal/extract, internal/cache, …).
 //
 // The tool surface is intentionally narrow: one tool per capability
-// (frugal__search, frugal__extract, frugal__chat, …) with the provider
-// choice happening inside the handler. Agents see one stable tool name;
-// the routing decision is invisible to them.
+// (frugal__search, frugal__extract, frugal__browse) plus the
+// intent-level frugal__execute, with the provider choice happening
+// inside the handler. Agents see one stable tool name; the routing
+// decision is reported, not delegated.
 package tools
 
 import (
@@ -19,6 +20,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/frugalsh/frugal/internal/obs"
+	"github.com/frugalsh/frugal/internal/routing"
 	"github.com/frugalsh/frugal/internal/search"
 )
 
@@ -30,10 +32,9 @@ type SearchInput struct {
 	MaxResults int    `json:"max_results,omitempty" jsonschema:"max results to return (default 5, clamped to 20)"`
 	Freshness  string `json:"freshness,omitempty" jsonschema:"optional time window: day | week | month"`
 	// Provider pins the search provider for this call ("searxng", "serper",
-	// "youcom", …). When empty or "auto", Frugal picks the cheapest
-	// configured provider. Recipe authors use this to override the default
-	// for use cases where the eval shows a more expensive provider has
-	// materially better recall.
+	// "youcom", …). When empty or "auto", the configured routing policy
+	// picks (cheapest-first by default). Use a pin when a specific
+	// provider is known to have materially better recall for this call.
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: searxng | marginalia | wikipedia | serper | youcom | auto"`
 }
 
@@ -63,7 +64,7 @@ type SearchOutput struct {
 // Pass metrics (non-nil) to record per-provider call counts, error counts,
 // latency, and cost as each call lands. Nil metrics disables observability
 // but keeps the routing semantics identical.
-func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics *obs.Metrics) {
+func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics *obs.Metrics, opts ...ToolOption) {
 	if len(searchers) == 0 {
 		return
 	}
@@ -74,8 +75,9 @@ func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics 
 	}
 	desc := fmt.Sprintf(
 		"Run a web search routed across %s. Returns a list of {title, url, snippet} hits "+
-			"plus the actual provider used and cost paid. Provider choice defaults to the "+
-			"cheapest configured; recipe authors can pin via the `provider` argument.",
+			"plus the actual provider used and cost paid. Provider choice follows the "+
+			"configured routing policy (cheapest-first by default, with automatic failover); "+
+			"pin via the `provider` argument.",
 		joinNames(searchers),
 	)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
@@ -88,10 +90,10 @@ func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics 
 			IdempotentHint:  false, // search results can shift between calls
 			OpenWorldHint:   boolPtr(true),
 		},
-	}, makeSearchHandler(searchers, metrics))
+	}, makeSearchHandler(searchers, metrics, buildToolOptions(opts)))
 }
 
-func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics) func(context.Context, *sdkmcp.CallToolRequest, SearchInput) (*sdkmcp.CallToolResult, SearchOutput, error) {
+func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o toolOptions) func(context.Context, *sdkmcp.CallToolRequest, SearchInput) (*sdkmcp.CallToolResult, SearchOutput, error) {
 	// Hook closes over metrics so every fallback attempt is recorded —
 	// not just the winner. Nil metrics skips recording, costing a comparison
 	// per call.
@@ -125,7 +127,15 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics) func(c
 			searchErr error
 		)
 		if isAuto(provider) {
-			used, res, searchErr = search.CallWithFallback(ctx, searchers, q, logger, hook)
+			ordered, reason := routing.Apply(searchers, o.policy, o.lat, time.Now())
+			if len(ordered) == 0 {
+				return nil, SearchOutput{}, fmt.Errorf("frugal__search: every configured provider is denied by the routing policy")
+			}
+			logger.Debug("search routing", "reason", reason)
+			used, res, searchErr = search.CallInOrder(ctx, ordered, q, logger, hook)
+		} else if o.policy.Deny[provider] {
+			// Deny means "never call" — a pin doesn't override it.
+			return nil, SearchOutput{}, fmt.Errorf("frugal__search: provider %q is denied by the routing policy", provider)
 		} else {
 			used, res, searchErr = search.CallPinned(ctx, searchers, provider, q, logger, hook)
 		}

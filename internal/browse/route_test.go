@@ -149,3 +149,18 @@ func TestStripHTML_RealWorldish(t *testing.T) {
 		t.Errorf("script + style content leaked; got %q", got)
 	}
 }
+
+func TestCallInOrder_PreservesCallerOrder(t *testing.T) {
+	pricey := &stubBrowser{name: "pricey", cost: 0.01, res: Result{HTML: "hit", CostUSD: 0.01}}
+	cheap := &stubBrowser{name: "cheap", cost: 0.002, res: Result{HTML: "hit"}}
+	used, _, err := CallInOrder(context.Background(), []Browser{pricey, cheap}, Query{URL: "https://x"}, discardLogger(), nil)
+	if err != nil {
+		t.Fatalf("CallInOrder: %v", err)
+	}
+	if used.Name() != "pricey" {
+		t.Errorf("used = %s, want pricey (caller order)", used.Name())
+	}
+	if cheap.calls != 0 {
+		t.Errorf("cheap shouldn't have been called; calls=%d", cheap.calls)
+	}
+}

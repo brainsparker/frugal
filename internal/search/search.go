@@ -50,8 +50,8 @@ func EffectiveCostOf(s Searcher, now time.Time) float64 {
 type Searcher interface {
 	// Name reports the provider's identifier ("searxng", "serper", "youcom", …). Used
 	// in tool-result metadata and in error messages. Must be stable across
-	// releases — the recipe YAML uses these names in the `provider:` arg
-	// when a recipe author pins a specific provider.
+	// releases — routing-policy order / deny lists and the `provider:`
+	// tool argument pin providers by these names.
 	Name() string
 	// CostPerCall is the published per-call price the operator agreed to.
 	// The auto-router picks the lowest CostPerCall among configured
@@ -127,7 +127,7 @@ func RouteCheapest(searchers []Searcher) Searcher {
 }
 
 // Find returns the searcher whose Name matches name, or nil if none does.
-// Used when a recipe step or MCP tool argument pins a specific provider.
+// Used when an MCP tool argument pins a specific provider.
 func Find(searchers []Searcher, name string) Searcher {
 	for _, s := range searchers {
 		if s.Name() == name {

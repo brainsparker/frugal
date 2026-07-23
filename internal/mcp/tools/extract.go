@@ -10,6 +10,7 @@ import (
 
 	"github.com/frugalsh/frugal/internal/extract"
 	"github.com/frugalsh/frugal/internal/obs"
+	"github.com/frugalsh/frugal/internal/routing"
 )
 
 // ExtractInput is the JSON-schema-generating shape for frugal__extract.
@@ -22,7 +23,7 @@ type ExtractInput struct {
 	// populate others.
 	Formats []string `json:"formats,omitempty" jsonschema:"output formats: markdown | html | text"`
 	// Provider pins the extract provider for this call ("goreadability",
-	// "firecrawl", …). Empty / "auto" → cheapest available wins.
+	// "firecrawl", …). Empty / "auto" → the routing policy decides.
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: goreadability | firecrawl | auto"`
 }
 
@@ -46,7 +47,7 @@ type ExtractOutput struct {
 // extractors is the operator-configured list. A no-op when empty —
 // no ghost tools in tools/list. Pass metrics (non-nil) to record
 // per-attempt call counts, errors, latency, and cost.
-func RegisterExtract(server *sdkmcp.Server, extractors []extract.Extractor, metrics *obs.Metrics) {
+func RegisterExtract(server *sdkmcp.Server, extractors []extract.Extractor, metrics *obs.Metrics, opts ...ToolOption) {
 	if len(extractors) == 0 {
 		return
 	}
@@ -58,8 +59,9 @@ func RegisterExtract(server *sdkmcp.Server, extractors []extract.Extractor, metr
 	desc := fmt.Sprintf(
 		"Extract the main article content from a URL, routed across %s. Returns "+
 			"markdown / html / text + metadata (title, byline). Provider choice "+
-			"defaults to the cheapest configured (typically a local Readability "+
-			"pass first, falling back to a paid scraper when the page needs JS).",
+			"follows the configured routing policy (cheapest-first by default: "+
+			"typically a local Readability pass, falling back to a paid scraper "+
+			"when the page needs JS).",
 		joinExtractorNames(extractors),
 	)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
@@ -72,10 +74,10 @@ func RegisterExtract(server *sdkmcp.Server, extractors []extract.Extractor, metr
 			IdempotentHint:  true, // extracting the same URL twice should yield the same content
 			OpenWorldHint:   boolPtr(true),
 		},
-	}, makeExtractHandler(extractors, metrics))
+	}, makeExtractHandler(extractors, metrics, buildToolOptions(opts)))
 }
 
-func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics) func(context.Context, *sdkmcp.CallToolRequest, ExtractInput) (*sdkmcp.CallToolResult, ExtractOutput, error) {
+func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o toolOptions) func(context.Context, *sdkmcp.CallToolRequest, ExtractInput) (*sdkmcp.CallToolResult, ExtractOutput, error) {
 	hook := extract.AttemptHook(nil)
 	if metrics != nil {
 		hook = func(provider string, latency time.Duration, costUSD float64, won bool, err error) {
@@ -96,10 +98,19 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics) fu
 			res  extract.Result
 			err  error
 		)
-		if isAuto(in.Provider) {
-			used, res, err = extract.CallWithFallback(ctx, extractors, q, logger, hook)
+		provider := normalizeProvider(in.Provider)
+		if isAuto(provider) {
+			ordered, reason := routing.Apply(extractors, o.policy, o.lat, time.Now())
+			if len(ordered) == 0 {
+				return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: every configured provider is denied by the routing policy")
+			}
+			logger.Debug("extract routing", "reason", reason)
+			used, res, err = extract.CallInOrder(ctx, ordered, q, logger, hook)
+		} else if o.policy.Deny[provider] {
+			// Deny means "never call" — a pin doesn't override it.
+			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: provider %q is denied by the routing policy", provider)
 		} else {
-			used, res, err = extract.CallPinned(ctx, extractors, in.Provider, q, logger, hook)
+			used, res, err = extract.CallPinned(ctx, extractors, provider, q, logger, hook)
 		}
 		latency := time.Since(start).Milliseconds()
 		if err != nil {

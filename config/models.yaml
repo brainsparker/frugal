@@ -21,6 +21,22 @@
 # base_url. Any entry you do keep overrides the shipped default wholesale
 # (the merge is per-provider, not per-field).
 #
+# Routing policy (optional). Without a `routing:` section every
+# capability routes cheapest-first with automatic failover — the
+# default. To change how a capability's provider chain is ordered:
+#
+#   routing:
+#     search:
+#       strategy: fast          # cheap (default) | fast | premium
+#       order: [serper, searxng] # explicit preference; unlisted providers still fall back
+#       deny: [youcom]           # never called — not by fallback, not even pinned
+#
+# strategy=fast ranks providers by this machine's own observed latency
+# (from the local usage ledger, OK calls only) and falls back to cost
+# order until enough history exists. strategy=premium prefers your
+# premium-priced providers, list price descending. `order` wins over
+# `strategy` when both are set.
+#
 # v1.0 ships only the search-tool layer. Chat-model routing and its
 # pricing tables come back in Phase 2 with the frugal__chat MCP tool.
 search_providers:
