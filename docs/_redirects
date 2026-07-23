@@ -8,6 +8,7 @@
 /install      /install.sh   200
 
 # Convenience redirects so links from talks/blogs land on the canonical docs.
+/cloud        /#cloud                                                                 301
 /github       https://github.com/brainsparker/frugal                                  301
 /docs         https://github.com/brainsparker/frugal#readme                           301
 /security     https://github.com/brainsparker/frugal/blob/main/SECURITY.md            301

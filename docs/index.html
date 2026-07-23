@@ -3,20 +3,20 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>frugal — the same search costs $0 or $0.005</title>
-  <meta name="description" content="The same web search costs $0 to $0.005 per call depending on provider. Frugal is an MCP server that routes agent search, extract, and browse calls down the price ladder — free / local first, paid as fallback — and stamps cost_usd on every result. BYOK." />
+  <title>frugal — the open routing layer for AI tools</title>
+  <meta name="description" content="Frugal is the open routing layer for AI tools: an MCP server that routes agent tool calls across providers per policy — cost, latency, pinning, deny lists — with automatic failover and the routing decision on every result. One Go binary, BYOK, no account. Source-available." />
   <meta name="theme-color" content="#fafafa" />
   <meta name="color-scheme" content="light" />
 
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://frugal.sh/" />
-  <meta property="og:title" content="frugal — the same search costs $0 or $0.005" />
-  <meta property="og:description" content="One MCP server that routes agent tool calls to the cheapest provider that returns a result. Marginalia / Wikipedia / SearXNG / go-readability free. Serper cheap. You.com / Firecrawl / Browserless paid. cost_usd on every result. Any model. BYOK." />
+  <meta property="og:title" content="frugal — the open routing layer for AI tools" />
+  <meta property="og:description" content="Describe the job. Frugal decides how to complete it — every tool call routed per policy, with the decision and cost on every result. Any model. BYOK. Self-host everything." />
   <meta property="og:site_name" content="frugal.sh" />
 
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="frugal — the same search costs $0 or $0.005" />
-  <meta name="twitter:description" content="The MCP server that routes every agent tool call free-first and prints the cost on every result. Any model. BYOK." />
+  <meta name="twitter:title" content="frugal — the open routing layer for AI tools" />
+  <meta name="twitter:description" content="Describe the job. Frugal routes it — per policy, with the decision and cost on every result. Any model. BYOK." />
 
   <link rel="canonical" href="https://frugal.sh/" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -34,9 +34,10 @@
         <span class="brand-name">frugal</span>
       </a>
       <nav class="top-nav" aria-label="Primary">
-        <a href="#rack-rates">Rack rates</a>
-        <a href="#receipt">Receipt</a>
+        <a href="#policies">Policies</a>
+        <a href="#routing">Routing</a>
         <a href="#install">Install</a>
+        <a href="#cloud">Cloud</a>
         <a href="/blog/">Blog</a>
         <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
       </nav>
@@ -58,38 +59,41 @@
             <p class="eyebrow">source-available · byok · any model</p>
 
             <h1>
-              Same search.
-              <span class="accent">$0 or $0.005.</span>
+              Describe the job.
+              <span class="accent">Frugal routes it.</span>
             </h1>
             <p class="lede">
-              The same web search costs $0 to $0.005 per call — and agents
-              pick providers by availability, not price. Frugal routes
-              every tool call down the ladder. <strong>Free / local
-              first.</strong> Paid as fallback. Cost printed on every
+              Frugal is the open routing layer for AI tools. Your agent
+              makes the call; Frugal picks the provider per policy —
+              <strong>cheapest by default</strong>, fast or premium when
+              you ask, pinned or denied when compliance says so — with
+              automatic failover and the decision stamped on every
               result. Your keys. No account.
             </p>
 
             <div class="pills" role="list">
-              <span role="listitem">$0-first</span>
+              <span role="listitem">Policy-routed</span>
               <span role="listitem">BYOK</span>
               <span role="listitem">Any model</span>
             </div>
 
             <div class="cta">
               <a class="btn btn-primary" href="#install">Install →</a>
-              <a class="btn btn-ghost" href="#rack-rates">See the rate gap</a>
+              <a class="btn btn-ghost" href="#policies">See the policies</a>
             </div>
           </div>
 
           <aside class="hero-aside reveal" aria-label="Demo">
-            <div class="terminal" aria-label="A real zero-key routed search">
+            <div class="terminal" aria-label="A real zero-key routed intent">
               <div class="terminal-label"><span>live zero-key run, unedited</span><span class="terminal-label-tag">mcp</span></div>
-              <pre class="terminal-body"><code><span class="muted">frugal__search "AI agent framework comparison"</span>
+              <pre class="terminal-body"><code><span class="muted">frugal__execute "search for MCP server security best practices"</span>
 
-<span class="muted">marginalia   0 hits · $0 · 529ms → falling back</span>
-wikipedia    3 hits · <span class="prompt">$0</span> ✓
+<span class="muted">marginalia   0 hits · $0 · 273ms → falling back</span>
+wikipedia    5 hits · <span class="prompt">$0</span> ✓ · 650ms
 
-<span class="muted">{"provider_used":"wikipedia","cost_usd":0,"latency_ms":954}</span></code></pre>
+<span class="muted">reason: "routed to a web search; policy=cheap:
+  effective cost ascending; provider=wikipedia
+  won on attempt 2"</span></code></pre>
               <button class="copy" type="button" data-copy="curl -fsSL https://frugal.sh/install | bash" aria-label="Copy install command">Copy install</button>
             </div>
           </aside>
@@ -109,13 +113,58 @@ wikipedia    3 hits · <span class="prompt">$0</span> ✓
       </div>
     </section>
 
+    <section class="capabilities" id="policies" aria-labelledby="policies-heading">
+      <div class="shell reveal">
+        <p class="section-label">Policies</p>
+        <h2 id="policies-heading">One call. Your rules.</h2>
+        <p class="prose">
+          Declare per capability how the provider chain is ordered —
+          in one YAML block, or per call via
+          <code>priority</code>. Every response records which policy
+          ran and why the call landed where it did.
+        </p>
+        <div class="cap-grid">
+          <article class="cap-tile t-emerald" data-status="shipping">
+            <p class="cap-name">cheap <span class="cap-status">default</span></p>
+            <h3 class="cap-head">Cheapest capable provider.</h3>
+            <div class="cap-row"><span class="lbl">Orders by</span><span class="val free">effective cost, quota-aware</span></div>
+            <div class="cap-row"><span class="lbl">Failover</span><span class="val">automatic, up the ladder</span></div>
+          </article>
+          <article class="cap-tile t-cyan" data-status="shipping">
+            <p class="cap-name">fast <span class="cap-status">shipping</span></p>
+            <h3 class="cap-head">Your observed latency.</h3>
+            <div class="cap-row"><span class="lbl">Orders by</span><span class="val free">your machine's own ledger</span></div>
+            <div class="cap-row"><span class="lbl">Cold start</span><span class="val">falls back to cost order</span></div>
+          </article>
+          <article class="cap-tile t-violet" data-status="shipping">
+            <p class="cap-name">premium <span class="cap-status">shipping</span></p>
+            <h3 class="cap-head">Premium-priced first.</h3>
+            <div class="cap-row"><span class="lbl">Orders by</span><span class="val paid">list price, descending</span></div>
+            <div class="cap-row"><span class="lbl">Use for</span><span class="val">high-value requests</span></div>
+          </article>
+          <article class="cap-tile t-amber" data-status="shipping">
+            <p class="cap-name">order <span class="cap-status">shipping</span></p>
+            <h3 class="cap-head">Your explicit preference.</h3>
+            <div class="cap-row"><span class="lbl">Orders by</span><span class="val">your list, first to last</span></div>
+            <div class="cap-row"><span class="lbl">Unlisted</span><span class="val free">still serve as fallback</span></div>
+          </article>
+          <article class="cap-tile t-emerald" data-status="shipping">
+            <p class="cap-name">deny <span class="cap-status">shipping</span></p>
+            <h3 class="cap-head">Never call these.</h3>
+            <div class="cap-row"><span class="lbl">Scope</span><span class="val">fallback and pinned calls</span></div>
+            <div class="cap-row"><span class="lbl">Use for</span><span class="val free">privacy: deny every paid rung</span></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <section class="capabilities" id="capabilities" aria-labelledby="capabilities-heading">
       <div class="shell reveal">
         <p class="section-label">Capabilities</p>
         <h2 id="capabilities-heading">Every tool call, routed.</h2>
         <p class="prose">
-          Eight capabilities. Three tiers each. Walked left to right —
-          free first, paid as fallback.
+          Eight capabilities. Three tiers each. The <code>cheap</code>
+          policy walks left to right; other policies reorder the walk.
         </p>
         <div class="cap-grid">
           <article class="cap-tile t-emerald" data-status="shipping">
@@ -178,18 +227,55 @@ wikipedia    3 hits · <span class="prompt">$0</span> ✓
       </div>
     </section>
 
-    <section class="rack-rates" id="rack-rates" aria-labelledby="rack-rates-heading">
+    <section class="surfaces" id="execute" aria-labelledby="execute-heading">
       <div class="shell reveal">
-        <p class="section-label">The rack-rate gap</p>
-        <h2 id="rack-rates-heading">The cheapest tools for AI.</h2>
+        <p class="section-label">Intent routing</p>
+        <h2 id="execute-heading">Or just describe the job.</h2>
+        <p class="prose">
+          <code>frugal__execute</code> takes an intent in plain language,
+          classifies it onto a capability — URL and keyword cues,
+          deterministic, no model call — and routes it under your policy.
+          The <code>reason</code> field is the receipt: what was decided,
+          under which policy, and which provider won on which attempt.
+        </p>
+        <div class="terminal">
+          <div class="terminal-label"><span>live zero-key run, unedited</span><span class="terminal-label-tag">mcp</span></div>
+          <pre class="terminal-body"><code><span class="muted">frugal__execute "read https://frugal.sh/blog/ and summarize it"</span>
+
+goreadability   $0 ✓ · 710ms
+
+<span class="muted">{
+  "capability": "extract",
+  "provider_used": "goreadability",
+  "cost_usd": 0,
+  "reason": "URL detected; routed to a page extract;
+    policy=cheap: effective cost ascending;
+    provider=goreadability won on attempt 1"
+}</span></code></pre>
+        </div>
+        <p class="prose rack-foot">
+          <code>priority: cheap | balanced | premium</code> maps onto the
+          policies above. A URL intent runs an extract and falls forward
+          to a headless render when the page needs JS, costs summed. The
+          direct tools stay available when the agent already knows the
+          capability.
+        </p>
+      </div>
+    </section>
+
+    <section class="rack-rates" id="routing" aria-labelledby="routing-heading">
+      <div class="shell reveal">
+        <p class="section-label">The routing table</p>
+        <h2 id="routing-heading">Cost is the flagship policy.</h2>
         <p class="prose">
           Tool prices haven't fallen the way model prices have. You.com
           is 5× Serper. A Firecrawl scrape costs as much as the
           gpt-4o-mini call that consumes it. SearXNG, on your machine,
-          is free. <strong>Frugal takes the cheapest result</strong> —
-          and when a free provider comes up empty, the chain falls
-          through to the next rung instead of handing your agent an
-          empty array.
+          is free. Under the <code>cheap</code> policy
+          <strong>Frugal takes the cheapest result</strong> — and when a
+          free provider comes up empty, the chain falls through to the
+          next rung instead of handing your agent an empty array. Cost
+          is one policy among several. It's the one with a receipt.
         </p>
         <div class="rack-table-wrap">
           <table class="rack-table">
@@ -281,6 +367,7 @@ wikipedia    3 hits · <span class="prompt">$0</span> ✓
 <pre><code><span class="prompt">$</span> frugal mcp serve
 <span class="muted">frugal__search registered  providers=[marginalia wikipedia]
 frugal__extract registered providers=[goreadability]
+frugal__execute registered search=2 extract=1 browse=0
 mcp serve · transport=stdio</span></code></pre>
           </figure>
         </div>
@@ -334,7 +421,9 @@ you paid                                 $0.0000
           <code>FIRECRAWL_API_KEY</code>, <code>BROWSERLESS_TOKEN</code>,
           or <code>SEARXNG_URL</code> to unlock the paid and self-hosted
           rungs. Releases are cosign-signed; the installer verifies the
-          checksum before moving the binary into place.
+          checksum before moving the binary into place. From this command
+          to your first intelligently routed tool call: under five
+          minutes.
         </p>
 
         <div class="terminal">
@@ -359,7 +448,7 @@ you paid                                 $0.0000
     <section class="trust" aria-labelledby="trust-heading">
       <div class="shell reveal">
         <p class="section-label">Trust</p>
-        <h2 id="trust-heading">Built to self-host.</h2>
+        <h2 id="trust-heading">Self-host everything. No lock-in.</h2>
         <dl class="grid-trust">
           <div>
             <dt>Your keys stay local</dt>
@@ -377,15 +466,53 @@ you paid                                 $0.0000
       </div>
     </section>
 
+    <section class="trust" id="cloud" aria-labelledby="cloud-heading">
+      <div class="shell reveal">
+        <p class="section-label">Roadmap</p>
+        <h2 id="cloud-heading">Frugal Cloud — coming, not shipped.</h2>
+        <p class="prose">
+          The binary stays local and self-hostable, always. Frugal Cloud
+          adds the team layer on top — everything below is roadmap, not
+          product.
+        </p>
+        <dl class="grid-trust">
+          <div>
+            <dt>Hosted policy management</dt>
+            <dd>Edit routing policies in a dashboard and deploy them to
+            every application — instead of YAML per machine.</dd>
+          </div>
+          <div>
+            <dt>Team workspaces</dt>
+            <dd>Shared policy templates and org-wide API key
+            management.</dd>
+          </div>
+          <div>
+            <dt>Usage analytics &amp; cost reporting</dt>
+            <dd>The receipt, org-wide: spend by team, app, capability,
+            and provider.</dd>
+          </div>
+          <div>
+            <dt>Provider health &amp; routing traces</dt>
+            <dd>Health monitoring across providers and searchable
+            routing traces across environments.</dd>
+          </div>
+        </dl>
+        <p class="prose rack-foot">
+          <a class="btn btn-primary" href="mailto:cloud@frugal.sh?subject=Frugal%20Cloud%20waitlist">Join the waitlist</a>
+        </p>
+      </div>
+    </section>
+
     <section class="cta-banner" aria-labelledby="cta-banner-heading">
       <div class="shell reveal">
         <div class="cta-banner-card">
           <div>
-            <h2 id="cta-banner-heading">Cut the tool bill.</h2>
+            <h2 id="cta-banner-heading">Route it your way.</h2>
             <p>
               One Go binary. Two commands to install. Every tool call
-              routed to the cheapest provider that returns a result,
-              with the cost printed on the receipt. BYOK.
+              routed per your policy, with the decision — and the cost —
+              on the receipt. First routed call in under five minutes.
+              BYOK.
             </p>
           </div>
           <div class="cta-banner-actions">
