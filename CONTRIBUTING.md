@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest. Frugal is small and focused — contributions that sharpen the existing wedge are more welcome than ones that expand scope.
+Thanks for your interest. Frugal is small and focused — contributions that deepen the routing layer (providers, policies, failover behavior) are more welcome than ones that expand scope.
 
 ## Before you open a PR
 
@@ -20,13 +20,17 @@ Frugal is licensed under [BUSL 1.1](./LICENSE). By contributing, you agree your 
 ## What we're looking for
 
 - Bug fixes with regression tests
-- New routed-tool providers that fit the `internal/search.Searcher` interface (or future tool interfaces)
+- New routed-tool providers that fit the `internal/search.Searcher` /
+  `internal/extract.Extractor` / `internal/browse.Browser` interfaces
+- Routing-policy improvements that keep the honesty contract (the decision
+  must stay explainable in one reason line)
 - Documentation improvements that tighten claims (remove hand-waves, add measurements)
 
 ## What to skip for now
 
-- Hosted control plane / multi-tenancy features
-- Anything that adds a CLI verb (v1.0 deliberately ships only `mcp install` / `mcp serve`)
+- Hosted control plane / multi-tenancy features — Frugal Cloud is on the
+  roadmap and built by the core team; hosted contributions aren't open yet
+- Anything that adds a CLI verb (v1.x deliberately ships only `mcp install` / `mcp serve` / `stats`)
 
 ## Reporting security issues
 
