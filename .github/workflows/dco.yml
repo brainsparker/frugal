@@ -28,6 +28,13 @@ jobs:
           set -euo pipefail
           missing=0
           while read -r sha; do
+            # Bot-authored commits (dependabot, Cloudflare autoconfig, …)
+            # can't sign the DCO — a human merging the PR vouches for them.
+            author="$(git log -1 --format='%an <%ae>' "$sha")"
+            if echo "$author" | grep -qE '\[bot\]'; then
+              echo "skipping bot commit $(git log -1 --format='%h (%s)' "$sha") by $author"
+              continue
+            fi
             if ! git log -1 --format=%B "$sha" | grep -qE '^Signed-off-by: .+ <.+@.+>$'; then
               echo "::error::commit $(git log -1 --format='%h (%s)' "$sha") is missing a Signed-off-by trailer"
               missing=1
