@@ -10,6 +10,7 @@ import (
 
 	"github.com/frugalsh/frugal/internal/browse"
 	"github.com/frugalsh/frugal/internal/obs"
+	"github.com/frugalsh/frugal/internal/routing"
 )
 
 // BrowseInput is the JSON-schema-generating shape for frugal__browse.
@@ -40,7 +41,7 @@ type BrowseOutput struct {
 // RegisterBrowse wires frugal__browse onto the given MCP server.
 // browsers is the operator-configured list. A no-op when empty —
 // tools/list won't advertise a tool we can't fulfill.
-func RegisterBrowse(server *sdkmcp.Server, browsers []browse.Browser, metrics *obs.Metrics) {
+func RegisterBrowse(server *sdkmcp.Server, browsers []browse.Browser, metrics *obs.Metrics, opts ...ToolOption) {
 	if len(browsers) == 0 {
 		return
 	}
@@ -66,10 +67,10 @@ func RegisterBrowse(server *sdkmcp.Server, browsers []browse.Browser, metrics *o
 			IdempotentHint:  false, // JS execution is not deterministic
 			OpenWorldHint:   boolPtr(true),
 		},
-	}, makeBrowseHandler(browsers, metrics))
+	}, makeBrowseHandler(browsers, metrics, buildToolOptions(opts)))
 }
 
-func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics) func(context.Context, *sdkmcp.CallToolRequest, BrowseInput) (*sdkmcp.CallToolResult, BrowseOutput, error) {
+func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics, o toolOptions) func(context.Context, *sdkmcp.CallToolRequest, BrowseInput) (*sdkmcp.CallToolResult, BrowseOutput, error) {
 	hook := browse.AttemptHook(nil)
 	if metrics != nil {
 		hook = func(provider string, latency time.Duration, costUSD float64, won bool, err error) {
@@ -90,10 +91,19 @@ func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics) func(con
 			res  browse.Result
 			err  error
 		)
-		if isAuto(in.Provider) {
-			used, res, err = browse.CallWithFallback(ctx, browsers, q, logger, hook)
+		provider := normalizeProvider(in.Provider)
+		if isAuto(provider) {
+			ordered, reason := routing.Apply(browsers, o.policy, o.lat, time.Now())
+			if len(ordered) == 0 {
+				return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: every configured provider is denied by the routing policy")
+			}
+			logger.Debug("browse routing", "reason", reason)
+			used, res, err = browse.CallInOrder(ctx, ordered, q, logger, hook)
+		} else if o.policy.Deny[provider] {
+			// Deny means "never call" — a pin doesn't override it.
+			return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: provider %q is denied by the routing policy", provider)
 		} else {
-			used, res, err = browse.CallPinned(ctx, browsers, in.Provider, q, logger, hook)
+			used, res, err = browse.CallPinned(ctx, browsers, provider, q, logger, hook)
 		}
 		latency := time.Since(start).Milliseconds()
 		if err != nil {

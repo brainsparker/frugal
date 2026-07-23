@@ -19,6 +19,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/frugalsh/frugal/internal/obs"
+	"github.com/frugalsh/frugal/internal/routing"
 	"github.com/frugalsh/frugal/internal/search"
 )
 
@@ -63,7 +64,7 @@ type SearchOutput struct {
 // Pass metrics (non-nil) to record per-provider call counts, error counts,
 // latency, and cost as each call lands. Nil metrics disables observability
 // but keeps the routing semantics identical.
-func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics *obs.Metrics) {
+func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics *obs.Metrics, opts ...ToolOption) {
 	if len(searchers) == 0 {
 		return
 	}
@@ -88,10 +89,10 @@ func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics 
 			IdempotentHint:  false, // search results can shift between calls
 			OpenWorldHint:   boolPtr(true),
 		},
-	}, makeSearchHandler(searchers, metrics))
+	}, makeSearchHandler(searchers, metrics, buildToolOptions(opts)))
 }
 
-func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics) func(context.Context, *sdkmcp.CallToolRequest, SearchInput) (*sdkmcp.CallToolResult, SearchOutput, error) {
+func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o toolOptions) func(context.Context, *sdkmcp.CallToolRequest, SearchInput) (*sdkmcp.CallToolResult, SearchOutput, error) {
 	// Hook closes over metrics so every fallback attempt is recorded —
 	// not just the winner. Nil metrics skips recording, costing a comparison
 	// per call.
@@ -125,7 +126,15 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics) func(c
 			searchErr error
 		)
 		if isAuto(provider) {
-			used, res, searchErr = search.CallWithFallback(ctx, searchers, q, logger, hook)
+			ordered, reason := routing.Apply(searchers, o.policy, o.lat, time.Now())
+			if len(ordered) == 0 {
+				return nil, SearchOutput{}, fmt.Errorf("frugal__search: every configured provider is denied by the routing policy")
+			}
+			logger.Debug("search routing", "reason", reason)
+			used, res, searchErr = search.CallInOrder(ctx, ordered, q, logger, hook)
+		} else if o.policy.Deny[provider] {
+			// Deny means "never call" — a pin doesn't override it.
+			return nil, SearchOutput{}, fmt.Errorf("frugal__search: provider %q is denied by the routing policy", provider)
 		} else {
 			used, res, searchErr = search.CallPinned(ctx, searchers, provider, q, logger, hook)
 		}
