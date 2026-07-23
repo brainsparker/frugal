@@ -171,6 +171,13 @@ func runMCPServe(args []string) int {
 		slog.Info("mcp serve: frugal__browse registered", "providers", browserNames(browsers))
 	}
 
+	tools.RegisterExecute(srv.Inner, searchers, extractors, browsers, metrics,
+		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor))
+	if len(searchers) > 0 {
+		slog.Info("mcp serve: frugal__execute registered",
+			"search", len(searchers), "extract", len(extractors), "browse", len(browsers))
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 

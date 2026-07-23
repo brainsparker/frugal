@@ -11,6 +11,11 @@ import (
 type toolOptions struct {
 	policy routing.Policy
 	lat    routing.LatencyLookup
+	// policies / latFor are the per-capability variants frugal__execute
+	// consumes — it routes across all three capabilities, so a single
+	// policy/lookup pair isn't enough.
+	policies map[string]routing.Policy
+	latFor   func(tool string) routing.LatencyLookup
 }
 
 // ToolOption configures a routed tool at registration time.
@@ -25,6 +30,19 @@ func WithPolicy(p routing.Policy) ToolOption {
 // strategy ranks on. Without one, fast degrades to cost order.
 func WithLatencyLookup(l routing.LatencyLookup) ToolOption {
 	return func(o *toolOptions) { o.lat = l }
+}
+
+// WithPolicies sets the per-capability policies ("search" / "extract" /
+// "browse") frugal__execute routes under. Missing keys keep the cheap
+// default.
+func WithPolicies(m map[string]routing.Policy) ToolOption {
+	return func(o *toolOptions) { o.policies = m }
+}
+
+// WithLatencyLookupFor supplies a per-capability latency source for
+// frugal__execute.
+func WithLatencyLookupFor(f func(tool string) routing.LatencyLookup) ToolOption {
+	return func(o *toolOptions) { o.latFor = f }
 }
 
 func buildToolOptions(opts []ToolOption) toolOptions {
