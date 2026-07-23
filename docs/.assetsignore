@@ -1,0 +1,2 @@
+# Files in the assets directory that must not be served as pages.
+wrangler.jsonc
