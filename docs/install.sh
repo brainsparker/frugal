@@ -280,8 +280,8 @@ main() {
         uninstall
     fi
 
-    info "installing frugal.sh — tool calls are the new tokens"
-    info "cost-arbitrage MCP server. \$0-first routing. any model. BYOK."
+    info "installing frugal.sh — the open routing layer for AI tools"
+    info "tool calls routed per policy, decision on every result. any model. BYOK."
     echo
 
     local platform version

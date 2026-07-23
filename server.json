@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.brainsparker/frugal",
   "title": "Frugal",
-  "description": "Cost-optimized MCP server: routes every tool call to the cheapest provider that returns a result.",
+  "description": "The open routing layer for AI tools: an MCP server that routes agent tool calls across providers per policy — cost (default), latency, pinning, deny lists — with automatic failover and the routing decision on every result.",
   "repository": {
     "url": "https://github.com/brainsparker/frugal",
     "source": "github"

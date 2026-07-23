@@ -1,6 +1,6 @@
 # frugal-mcp
 
-> Cost-optimized MCP server. Routes every tool call to the cheapest provider that returns a result — free / local first, paid as fallback.
+> The open routing layer for AI tools. Every tool call routed per policy — cheapest capable provider by default, fast / premium / pinned / deny-list policies available — with automatic failover and the decision on every result.
 
 ```bash
 npx frugal-mcp mcp install
@@ -12,13 +12,15 @@ This npm package is a thin Node wrapper. On first run it downloads the matching 
 
 ## What ships
 
-- `frugal__search` — routed across SearXNG, Marginalia (both free), Serper, and You.com.
+- `frugal__execute` — describe the job (`intent`, optional `priority`); Frugal classifies it onto a capability and routes it under your policy, returning the full routing trace.
+- `frugal__search` — routed across SearXNG, Marginalia, Wikipedia (all free), Serper, and You.com.
 - `frugal__extract` — routed across go-readability (free, local) and Firecrawl.
 - `frugal__browse` — Browserless.
+- Routing policies — per-capability `strategy` (cheap / fast / premium), explicit `order`, `deny` lists in `~/.frugal/config/models.yaml`.
 
-Free providers work without any API keys. Add `SERPER_API_KEY`, `YDC_API_KEY`, `FIRECRAWL_API_KEY`, or `BROWSERLESS_TOKEN` in your shell to enable the paid fallbacks.
+Free providers work without any API keys. Add `SERPER_API_KEY`, `YDC_API_KEY`, `FIRECRAWL_API_KEY`, or `BROWSERLESS_TOKEN` in your shell to enable the paid rungs.
 
-Source, full docs, and the rack-rate gap: <https://github.com/brainsparker/frugal> · <https://frugal.sh>
+Source, full docs, and the routing table: <https://github.com/brainsparker/frugal> · <https://frugal.sh>
 
 ## License
 

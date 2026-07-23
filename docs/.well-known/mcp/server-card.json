@@ -3,7 +3,7 @@
   "serverInfo": {
     "name": "frugal",
     "title": "Frugal",
-    "description": "Cost-arbitrage MCP server. Routes every agent tool call to the cheapest provider that returns a result. Free / local first, paid as fallback. BYOK, no SaaS, no account.",
+    "description": "The open routing layer for AI tools. Routes each agent tool call across providers per policy — cost (default), latency, pinning, deny lists — with automatic failover and the routing decision on every result. BYOK, no SaaS, no account.",
     "homepage": "https://frugal.sh",
     "repository": "https://github.com/brainsparker/frugal",
     "license": "BUSL-1.1"
@@ -27,9 +27,14 @@
   },
   "tools": [
     {
+      "name": "frugal__execute",
+      "description": "Describe the job in plain language; Frugal classifies it onto a capability (URL / keyword heuristics, no model call) and routes it under the configured policy. Returns capability, provider_used, cost_usd, and a one-line reason.",
+      "providers": ["(routes across the capability tools below)"]
+    },
+    {
       "name": "frugal__search",
-      "description": "Routed web search. Cheapest configured provider wins; falls through on transient error.",
-      "providers": ["searxng", "marginalia", "serper", "youcom"]
+      "description": "Routed web search. The configured routing policy orders the chain (cheapest-first by default); falls through on errors and zero hits.",
+      "providers": ["searxng", "marginalia", "wikipedia", "serper", "youcom"]
     },
     {
       "name": "frugal__extract",
