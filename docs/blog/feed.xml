@@ -6,6 +6,20 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>Frugal is the open routing layer for AI tools</title>
+      <link>https://frugal.sh/blog/frugal-open-routing-layer/</link>
+      <guid>https://frugal.sh/blog/frugal-open-routing-layer/</guid>
+      <pubDate>Thu, 23 Jul 2026 16:00:00 +0000</pubDate>
+      <description>Cost was the wedge. Routing is the product. What&#39;s shipping, what changed, and what Frugal Cloud will add.</description>
+    </item>
+    <item>
+      <title>Benchmarks lie: evaluate models on your own traffic</title>
+      <link>https://frugal.sh/blog/evaluate-models-own-traffic/</link>
+      <guid>https://frugal.sh/blog/evaluate-models-own-traffic/</guid>
+      <pubDate>Thu, 23 Jul 2026 15:20:00 +0000</pubDate>
+      <description>A model&#39;s leaderboard position tells you how it does on the leaderboard&#39;s distribution, not yours. Fifty queries from your own logs beat it every time.</description>
+    </item>
+    <item>
       <title>Hardening an MCP server&#39;s HTTP transport</title>
       <link>https://frugal.sh/blog/hardening-mcp-http-transport/</link>
       <guid>https://frugal.sh/blog/hardening-mcp-http-transport/</guid>
@@ -130,20 +144,6 @@
       <guid>https://frugal.sh/blog/latency-budgets-agent-tool-calls/</guid>
       <pubDate>Tue, 19 May 2026 14:50:00 +0000</pubDate>
       <description>An agent chains tool calls in sequence, and sequences are where tail latency compounds. How to set a budget, split it per call, and spend it on fallback rungs.</description>
-    </item>
-    <item>
-      <title>Shipping your first AI feature: a checklist for product teams</title>
-      <link>https://frugal.sh/blog/ai-feature-launch-checklist/</link>
-      <guid>https://frugal.sh/blog/ai-feature-launch-checklist/</guid>
-      <pubDate>Thu, 14 May 2026 16:20:00 +0000</pubDate>
-      <description>The demo is the easy 20%. This is the other 80% — seven checks that decide whether your AI feature survives contact with real users and a real invoice.</description>
-    </item>
-    <item>
-      <title>What is an LLM router — and do you actually need one?</title>
-      <link>https://frugal.sh/blog/what-is-an-llm-router/</link>
-      <guid>https://frugal.sh/blog/what-is-an-llm-router/</guid>
-      <pubDate>Tue, 12 May 2026 13:45:00 +0000</pubDate>
-      <description>The term gets used for two different things. Here&#39;s what a router actually contains — policy, health, fallback, accounting — and the honest cases where you should skip one.</description>
     </item>
   </channel>
 </rss>
