@@ -445,7 +445,7 @@ main() {
     else
         printf '  \033[2m─── \033[0m\033[1;36mWire it in\033[0m\033[2m ──────────────────────────────────────\033[0m\n'
         echo
-        printf '  \033[1;32m1.\033[0m  \033[1minstall into your agent stack\033[0m  \033[2m(Claude Desktop / Cursor / Claude Code)\033[0m\n'
+        printf '  \033[1;32m1.\033[0m  \033[1minstall into your agent stack\033[0m  \033[2m(Claude Desktop / Cursor / AnythingLLM / Claude Code)\033[0m\n'
         printf '        \033[1m$\033[0m %s mcp install\n' "$BIN_DIR/frugal"
         printf '        \033[2m(plain "frugal" works once you open a new shell)\033[0m\n'
         echo

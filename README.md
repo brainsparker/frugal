@@ -26,8 +26,25 @@ frugal mcp install
 ```
 
 The first command drops the binary in your `$PATH`. The second auto-detects
-Claude Desktop, Cursor, and Claude Code and merges `frugal` into each
-configured MCP server list.
+Claude Desktop, Cursor, AnythingLLM, and Claude Code and merges `frugal`
+into each configured MCP server list.
+
+### AnythingLLM
+
+`frugal mcp install` finds AnythingLLM Desktop on its own and merges
+`frugal` into `<storage>/plugins/anythingllm_mcp_servers.json`. For a
+self-hosted or Docker AnythingLLM, point the installer at that instance's
+storage directory (the same path its own `STORAGE_DIR` uses):
+
+```bash
+ANYTHINGLLM_STORAGE_DIR=/path/to/anythingllm/storage frugal mcp install --client anythingllm
+```
+
+Restart AnythingLLM, then look for **frugal** under Agent Skills → MCP
+Servers. The tools load for agent sessions, so call them from an `@agent`
+chat. In Docker, the `command` path must resolve *inside* the container —
+mount the `frugal` binary in, or run `frugal mcp serve --http` on the host
+and register it as a `streamable` server instead.
 
 ## Try it now (no keys)
 
@@ -219,7 +236,7 @@ One MCP server, four tools, eight providers:
   per-IP rate limiting, and a `/metrics` endpoint (Prometheus text:
   `frugal_calls_total{tool=,provider=}` etc.).
 - `frugal mcp install` writes the right config into Claude Desktop,
-  Cursor, and Claude Code.
+  Cursor, AnythingLLM, and Claude Code.
 
 ## Roadmap
 

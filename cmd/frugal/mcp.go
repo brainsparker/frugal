@@ -40,7 +40,7 @@ import (
 //
 // Subcommands:
 //   - serve:   run Frugal as an MCP server (stdio default; --http ADDR for Streamable HTTP)
-//   - install: write MCP server config into Claude Desktop / Cursor / Claude Code (Phase 1 PR 6)
+//   - install: write MCP server config into Claude Desktop / Cursor / AnythingLLM / Claude Code
 //
 // Anything else falls through to a usage error.
 func runMCP(args []string) int {
@@ -208,9 +208,10 @@ func runMCPServe(args []string) int {
 }
 
 // runMCPInstall writes the `frugal` MCP server entry into each detected
-// agent client's config — Claude Desktop and Cursor merge into a JSON
-// file; Claude Code gets a printed `claude mcp add` command (the
-// `claude` CLI manages its own config).
+// agent client's config — Claude Desktop, Cursor, and AnythingLLM merge
+// into a JSON file; Claude Code is registered by shelling out to `claude
+// mcp add` (the `claude` CLI manages its own config), falling back to
+// printing the command.
 //
 // Flags:
 //   - --client <id|all>  install only into the named client (default: all detected)
@@ -219,12 +220,14 @@ func runMCPServe(args []string) int {
 func runMCPInstall(args []string) int {
 	fs := flag.NewFlagSet("mcp install", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
-	clientID := fs.String("client", "all", "install into a specific client (claude-desktop | cursor | claude-code | all)")
+	clientID := fs.String("client", "all", "install into a specific client (claude-desktop | cursor | anythingllm | claude-code | all)")
 	printOnly := fs.Bool("print", false, "print the plan without writing")
 	assumeYes := fs.Bool("yes", false, "skip the confirmation prompt")
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: frugal mcp install [flags]")
-		fmt.Fprintln(os.Stderr, "Wire 'frugal' as an MCP server in agent clients (Claude Desktop, Cursor, Claude Code).")
+		fmt.Fprintln(os.Stderr, "Wire 'frugal' as an MCP server in agent clients (Claude Desktop, Cursor,")
+		fmt.Fprintln(os.Stderr, "AnythingLLM, Claude Code). For a self-hosted or Docker AnythingLLM, set")
+		fmt.Fprintln(os.Stderr, "ANYTHINGLLM_STORAGE_DIR to its storage directory first.")
 		fmt.Fprintln(os.Stderr)
 		fs.PrintDefaults()
 	}
@@ -260,8 +263,8 @@ func runMCPInstall(args []string) int {
 	if len(targets) == 0 {
 		fmt.Fprintln(os.Stderr, "no clients selected for install.")
 		if *clientID == "all" {
-			fmt.Fprintln(os.Stderr, "(no detected clients — install Claude Desktop, Cursor, or Claude Code first,")
-			fmt.Fprintln(os.Stderr, " or pass --client X to force install into one anyway.)")
+			fmt.Fprintln(os.Stderr, "(no detected clients — install Claude Desktop, Cursor, AnythingLLM, or")
+			fmt.Fprintln(os.Stderr, " Claude Code first, or pass --client X to force install into one anyway.)")
 		}
 		return 1
 	}
@@ -285,6 +288,7 @@ func runMCPInstall(args []string) int {
 
 	var hadErr bool
 	var wroteJSON bool
+	var wroteAnythingLLM bool
 	for _, c := range targets {
 		suggestion, err := install.Apply(c, binPath, env)
 		if err != nil {
@@ -298,6 +302,9 @@ func runMCPInstall(args []string) int {
 		switch c.Kind {
 		case install.KindJSONFile:
 			wroteJSON = true
+			if c.ID == "anythingllm" {
+				wroteAnythingLLM = true
+			}
 			fmt.Fprintf(os.Stderr, "✓ %s: wrote %s\n", c.Title, c.ConfigPath)
 		case install.KindCLI:
 			fmt.Fprintf(os.Stderr, "✓ %s: registered via `claude mcp add`\n", c.Title)
@@ -323,6 +330,10 @@ func runMCPInstall(args []string) int {
 	}
 	fmt.Fprintln(os.Stderr, "  2. restart the agent client to pick up the new MCP server")
 	fmt.Fprintln(os.Stderr, "  3. look for the 'frugal__search' tool in the agent's tool picker")
+	if wroteAnythingLLM {
+		fmt.Fprintln(os.Stderr, "     (AnythingLLM: Agent Skills → MCP Servers, then call it from an")
+		fmt.Fprintln(os.Stderr, "      @agent chat — MCP tools only load for agent sessions there)")
+	}
 	return 0
 }
 

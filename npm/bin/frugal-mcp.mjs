@@ -210,7 +210,7 @@ async function main() {
       "frugal-mcp — npm wrapper that runs the frugal Go binary\n" +
       "Usage:\n" +
       "  frugal-mcp mcp serve     run the MCP server over stdio (what agent clients invoke)\n" +
-      "  frugal-mcp mcp install   wire Frugal into Claude Desktop, Cursor, or Claude Code\n" +
+      "  frugal-mcp mcp install   wire Frugal into Claude Desktop, Cursor, AnythingLLM, or Claude Code\n" +
       "  frugal-mcp stats         show this month's tool-call savings receipt\n" +
       "The first real command downloads and checksum-verifies the binary (~15 MB, cached).\n" +
       "Full CLI reference: https://github.com/brainsparker/frugal#readme\n";

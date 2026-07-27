@@ -387,9 +387,74 @@ func TestDetectClients_HitsForTempConfigDir(t *testing.T) {
 	t.Fatalf("claude-desktop not in client list")
 }
 
+func TestDetectClients_AnythingLLM_HitsForStorageDirWithoutPluginsDir(t *testing.T) {
+	// AnythingLLM writes plugins/anythingllm_mcp_servers.json lazily, on
+	// the first agent boot. A fresh install has the storage dir and nothing
+	// under it — detection must still fire, or `frugal mcp install` skips
+	// the client that most needs it.
+	storage := filepath.Join(t.TempDir(), "storage")
+	t.Setenv("ANYTHINGLLM_STORAGE_DIR", storage)
+	if err := os.MkdirAll(storage, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	c := findClient(t, DetectClients(), "anythingllm")
+	if !c.Detected {
+		t.Errorf("expected anythingllm detected, got false (reason=%s)", c.DetectionReason)
+	}
+	want := filepath.Join(storage, "plugins", "anythingllm_mcp_servers.json")
+	if c.ConfigPath != want {
+		t.Errorf("ConfigPath = %q, want %q", c.ConfigPath, want)
+	}
+}
+
+func TestDetectClients_AnythingLLM_MissesWhenStorageDirAbsent(t *testing.T) {
+	t.Setenv("ANYTHINGLLM_STORAGE_DIR", filepath.Join(t.TempDir(), "never-created"))
+	if c := findClient(t, DetectClients(), "anythingllm"); c.Detected {
+		t.Errorf("expected anythingllm undetected, got true (reason=%s)", c.DetectionReason)
+	}
+}
+
+func TestApply_AnythingLLM_PreservesClientOwnedEntryKeys(t *testing.T) {
+	// AnythingLLM's own tool picker persists suppression state onto the
+	// frugal entry. A re-install must not silently re-enable tools the user
+	// turned off there.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "anythingllm_mcp_servers.json")
+	writeJSON(t, path, map[string]any{
+		"mcpServers": map[string]any{
+			"frugal": map[string]any{
+				"command": "/old/frugal",
+				"args":    []any{"mcp", "serve"},
+				"anythingllm": map[string]any{
+					"autoStart":       true,
+					"suppressedTools": []any{"frugal__browse"},
+				},
+			},
+		},
+	})
+	c := Client{ID: "anythingllm", Kind: KindJSONFile, ConfigPath: path}
+	if _, err := Apply(c, "/new/frugal", nil); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	root := loadJSON(t, path)
+	servers, _ := root["mcpServers"].(map[string]any)
+	frugal, _ := servers["frugal"].(map[string]any)
+	if got := frugal["command"]; got != "/new/frugal" {
+		t.Errorf("command should be refreshed; got %v", got)
+	}
+	block, _ := frugal["anythingllm"].(map[string]any)
+	if block == nil {
+		t.Fatalf("anythingllm block dropped on re-install: %#v", frugal)
+	}
+	suppressed, _ := block["suppressedTools"].([]any)
+	if len(suppressed) != 1 || suppressed[0] != "frugal__browse" {
+		t.Errorf("suppressedTools not preserved: %#v", block)
+	}
+}
+
 func TestAllClients_CatalogStable(t *testing.T) {
 	got := AllClients()
-	wantIDs := []string{"claude-desktop", "cursor", "claude-code"}
+	wantIDs := []string{"claude-desktop", "cursor", "anythingllm", "claude-code"}
 	if len(got) != len(wantIDs) {
 		t.Fatalf("AllClients: got %d entries, want %d", len(got), len(wantIDs))
 	}
@@ -401,6 +466,19 @@ func TestAllClients_CatalogStable(t *testing.T) {
 }
 
 // --- helpers ---
+
+// findClient pulls one entry out of a DetectClients catalog by ID, failing
+// the test when the catalog doesn't carry it at all.
+func findClient(t *testing.T, clients []Client, id string) Client {
+	t.Helper()
+	for _, c := range clients {
+		if c.ID == id {
+			return c
+		}
+	}
+	t.Fatalf("%s not in client list", id)
+	return Client{}
+}
 
 func loadJSON(t *testing.T, path string) map[string]any {
 	t.Helper()

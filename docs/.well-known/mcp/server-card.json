@@ -20,7 +20,7 @@
   "install": {
     "shell": "curl -fsSL https://frugal.sh/install | bash",
     "wire": "frugal mcp install",
-    "notes": "Single Go binary (~10 MB). Auto-detects Claude Desktop, Cursor, Claude Code and merges the MCP config in. No SaaS or account."
+    "notes": "Single Go binary (~10 MB). Auto-detects Claude Desktop, Cursor, AnythingLLM, Claude Code and merges the MCP config in. No SaaS or account."
   },
   "capabilities": {
     "tools": true

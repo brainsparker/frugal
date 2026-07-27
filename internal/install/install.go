@@ -1,13 +1,16 @@
 // Package install wires Frugal as an MCP server into the configs of
-// MCP-aware agent clients — Claude Desktop, Cursor, and Claude Code.
+// MCP-aware agent clients — Claude Desktop, Cursor, AnythingLLM, and
+// Claude Code.
 //
 // Two install patterns live here:
 //
-//   - File-based clients (Claude Desktop, Cursor) keep `mcpServers` in a
-//     JSON config file. We idempotently merge `mcpServers.frugal =
-//     {command, args, env}` into the existing file (or create it),
-//     preserving every other key the user has set — including env values
-//     a previous install baked that this run doesn't supply.
+//   - File-based clients (Claude Desktop, Cursor, AnythingLLM) keep
+//     `mcpServers` in a JSON config file. We idempotently merge
+//     `mcpServers.frugal = {command, args, env}` into the existing file
+//     (or create it), preserving every other key the user has set —
+//     including env values a previous install baked that this run doesn't
+//     supply, and client-specific sub-blocks on the frugal entry itself
+//     (AnythingLLM writes tool suppression there from its own UI).
 //
 //   - CLI-managed clients (Claude Code) own their own config and expect
 //     `claude mcp add` to mutate it. We shell out to the claude CLI when
@@ -50,7 +53,7 @@ const (
 // Client describes one MCP-aware client target.
 type Client struct {
 	// ID is the stable identifier for the --client flag (claude-desktop,
-	// cursor, claude-code).
+	// cursor, anythingllm, claude-code).
 	ID string
 	// Title is the human-readable name shown in the install plan.
 	Title string
@@ -68,8 +71,9 @@ type Client struct {
 }
 
 // ServerEntry is the value Frugal writes under mcpServers.frugal. The
-// shape matches what Claude Desktop and Cursor consume (both use the same
-// schema). Args is omitted from JSON when empty.
+// shape matches what Claude Desktop, Cursor, and AnythingLLM consume (all
+// three read the same {command, args, env} stdio schema). Args is omitted
+// from JSON when empty.
 type ServerEntry struct {
 	Command string            `json:"command"`
 	Args    []string          `json:"args,omitempty"`
@@ -84,6 +88,7 @@ func AllClients() []Client {
 	return []Client{
 		{ID: "claude-desktop", Title: "Claude Desktop", Kind: KindJSONFile, ConfigPath: claudeDesktopConfigPath()},
 		{ID: "cursor", Title: "Cursor", Kind: KindJSONFile, ConfigPath: cursorConfigPath()},
+		{ID: "anythingllm", Title: "AnythingLLM", Kind: KindJSONFile, ConfigPath: anythingLLMConfigPath()},
 		{ID: "claude-code", Title: "Claude Code", Kind: KindCLI},
 	}
 }
@@ -98,20 +103,16 @@ func DetectClients() []Client {
 		c := &clients[i]
 		switch c.ID {
 		case "claude-desktop", "cursor":
-			if c.ConfigPath == "" {
-				c.DetectionReason = "no known config path for this OS"
-				continue
-			}
 			// Detection is "the parent directory exists" — having the
 			// directory means the client has been installed at some point,
 			// even if the file itself hasn't been written yet.
-			dir := filepath.Dir(c.ConfigPath)
-			if _, err := os.Stat(dir); err == nil {
-				c.Detected = true
-				c.DetectionReason = "config dir present at " + dir
-			} else {
-				c.DetectionReason = "config dir not found at " + dir
-			}
+			markDetectedIfDirExists(c, filepath.Dir(c.ConfigPath), "config dir")
+		case "anythingllm":
+			// AnythingLLM creates plugins/ lazily: the MCP hypervisor only
+			// writes the servers file the first time the agent subsystem
+			// boots. Stat the storage dir one level up instead, so a fresh
+			// install that has never opened an agent still counts.
+			markDetectedIfDirExists(c, anythingLLMStorageDir(), "storage dir")
 		case "claude-code":
 			if path, err := exec.LookPath("claude"); err == nil {
 				c.Detected = true
@@ -122,6 +123,23 @@ func DetectClients() []Client {
 		}
 	}
 	return clients
+}
+
+// markDetectedIfDirExists flips c.Detected when dir is present on this
+// machine, recording a human-readable reason either way. A client with no
+// resolvable config path (unsupported OS, unreadable home) is never
+// detected — there is nothing Apply could write.
+func markDetectedIfDirExists(c *Client, dir, label string) {
+	if c.ConfigPath == "" || dir == "" {
+		c.DetectionReason = "no known config path for this OS"
+		return
+	}
+	if _, err := os.Stat(dir); err == nil {
+		c.Detected = true
+		c.DetectionReason = label + " present at " + dir
+	} else {
+		c.DetectionReason = label + " not found at " + dir
+	}
 }
 
 // PlanFor returns the human-readable change description that Apply would
@@ -287,6 +305,54 @@ func cursorConfigPath() string {
 	return filepath.Join(home, ".cursor", "mcp.json")
 }
 
+// anythingLLMStorageDir returns the AnythingLLM storage directory — the
+// root that holds `plugins/anythingllm_mcp_servers.json`. The OS-specific
+// defaults are AnythingLLM Desktop's; a self-hosted or Docker install puts
+// storage wherever its own STORAGE_DIR points, which we can't discover, so
+// ANYTHINGLLM_STORAGE_DIR overrides. (We deliberately don't read
+// STORAGE_DIR itself: the name is generic enough that some other tool's
+// value would send this installer writing a stray config into an unrelated
+// directory.)
+func anythingLLMStorageDir() string {
+	if dir := strings.TrimSpace(os.Getenv("ANYTHINGLLM_STORAGE_DIR")); dir != "" {
+		return dir
+	}
+	const appDir = "anythingllm-desktop"
+	switch runtime.GOOS {
+	case "darwin":
+		home, _ := os.UserHomeDir()
+		if home == "" {
+			return ""
+		}
+		return filepath.Join(home, "Library", "Application Support", appDir, "storage")
+	case "windows":
+		appData := os.Getenv("APPDATA")
+		if appData == "" {
+			return ""
+		}
+		return filepath.Join(appData, appDir, "storage")
+	case "linux":
+		home, _ := os.UserHomeDir()
+		if home == "" {
+			return ""
+		}
+		return filepath.Join(home, ".config", appDir, "storage")
+	}
+	return ""
+}
+
+// anythingLLMConfigPath returns the MCP servers file AnythingLLM's
+// hypervisor reads. Path shape is fixed by AnythingLLM
+// (<storage>/plugins/anythingllm_mcp_servers.json); only the storage root
+// varies by OS and deployment.
+func anythingLLMConfigPath() string {
+	storage := anythingLLMStorageDir()
+	if storage == "" {
+		return ""
+	}
+	return filepath.Join(storage, "plugins", "anythingllm_mcp_servers.json")
+}
+
 // claudeCodeAddCommand renders the `claude mcp add` invocation the user
 // should run to register Frugal with Claude Code. We print this rather
 // than shelling out because the `claude` CLI's flag surface varies
@@ -316,7 +382,7 @@ func mergeJSONConfig(path, name string, entry ServerEntry) error {
 		servers = map[string]any{}
 	}
 	entry.Env = mergeEnv(servers[name], entry.Env)
-	servers[name] = entryToMap(entry)
+	servers[name] = mergeEntry(servers[name], entry)
 	root["mcpServers"] = servers
 	return writeJSONFile(path, root)
 }
@@ -343,6 +409,32 @@ func mergeEnv(prevEntry any, env map[string]string) map[string]string {
 		merged[k] = v
 	}
 	return merged
+}
+
+// mergeEntry layers the fields Frugal owns (command, args, env) over
+// whatever the client already had on the frugal entry, so keys we don't
+// manage survive a re-install. AnythingLLM makes this load-bearing: its
+// tool picker persists `anythingllm.suppressedTools` (and autoStart) onto
+// this very entry, so replacing the object wholesale would silently
+// re-enable tools the user turned off. Env is expected pre-merged by
+// mergeEnv; an empty result drops the key rather than writing `{}`.
+func mergeEntry(prevEntry any, entry ServerEntry) map[string]any {
+	out := map[string]any{}
+	if prev, ok := prevEntry.(map[string]any); ok {
+		for k, v := range prev {
+			out[k] = v
+		}
+	}
+	for k, v := range entryToMap(entry) {
+		out[k] = v
+	}
+	if len(entry.Args) == 0 {
+		delete(out, "args")
+	}
+	if len(entry.Env) == 0 {
+		delete(out, "env")
+	}
+	return out
 }
 
 func entryToMap(e ServerEntry) map[string]any {
