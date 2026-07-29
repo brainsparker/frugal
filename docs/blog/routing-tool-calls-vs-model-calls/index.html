@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Routing tool calls vs routing model calls — frugal blog</title>
+  <meta name="description" content="AI request routing isn&#39;t one problem. Tool calls fail discretely, model calls degrade smoothly — and each needs its own fallback rules." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/routing-tool-calls-vs-model-calls/" />
+  <meta property="og:title" content="Routing tool calls vs routing model calls — frugal blog" />
+  <meta property="og:description" content="AI request routing isn&#39;t one problem. Tool calls fail discretely, model calls degrade smoothly — and each needs its own fallback rules." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-07-28T13:45:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Routing tool calls vs routing model calls — frugal blog" />
+  <meta name="twitter:description" content="AI request routing isn&#39;t one problem. Tool calls fail discretely, model calls degrade smoothly — and each needs its own fallback rules." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/routing-tool-calls-vs-model-calls/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-07-28T13:45:00Z","datePublished":"2026-07-28T13:45:00Z","description":"AI request routing isn't one problem. Tool calls fail discretely, model calls degrade smoothly — and each needs its own fallback rules.","headline":"Routing tool calls vs routing model calls","keywords":"AI request routing","mainEntityOfPage":"https://frugal.sh/blog/routing-tool-calls-vs-model-calls/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/routing-tool-calls-vs-model-calls/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Routing tool calls vs routing model calls","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#routing">Routing</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Routing tool calls vs routing model calls</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h1>Routing tool calls vs routing model calls</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-07-28">Jul 28, 2026</time>
+            · 6 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Routing a search call and routing a chat completion look like the same problem — walk a ladder of providers, cheapest first, fall back when a rung disappoints. I believed that for a while. Then I built the tool-call version and started sketching the model-call version, and the designs kept diverging. AI request routing is really two problems wearing one name, and routers that treat them as one problem get both wrong.</p>
+<p>The difference isn't in the plumbing. It's in the physics of the responses. A tool call has a discrete outcome: it found the thing or it didn't. A model call degrades smoothly: every model returns <em>something</em>, and the something varies in quality along a continuum you can't cheaply measure. Everything else — health signals, fallback rules, accounting — flows from that one distinction.</p>
+<h2>Discrete outcomes vs smooth degradation</h2>
+<p>When Frugal's router sends a search to Marginalia, the result is legible. Three hits or zero hits. HTTP 200 or HTTP 503. The router can inspect the response and know, mechanically, whether the rung answered. That legibility is what makes <a href="/blog/provider-fallback-chains/">fallback chains</a> tractable for tools: the fall-through decision is a comparison against zero, not a judgment call.</p>
+<p>Now send the same prompt to a small local model and a frontier model. Both return a completion. Both are grammatical. One is subtly wrong in a way that no router-level check can see, because evaluating the answer is as hard as producing it. There is no <code>hits: 0</code> field on a bad paragraph.</p>
+<p>This is the core asymmetry. Tool routing gets its quality signal <em>in-band</em>, per call, for free. Model routing has to get its quality signal <em>out-of-band</em> — from evals run beforehand, from downstream task success, from users. Which means a model router can't actually route on response quality in real time. It routes on a prediction of quality, made earlier, about which classes of request a given rung can handle. The <a href="/blog/what-is-an-llm-router/">LLM router</a> designs that work are all classifiers at heart: decide the difficulty tier before the call, because you can't grade the answer after it.</p>
+<h2>Health means different things on each ladder</h2>
+<p>&quot;Is this rung healthy?&quot; also splits in two.</p>
+<p>For tools, health is mostly liveness and yield. Error rates, timeouts, and hit rates tell you nearly everything. Marginalia being up but returning zero hits for news queries isn't unhealthy — it's a partial index doing what partial indexes do, which is exactly the <a href="/blog/zero-hits-empty-results/">zero-hit semantics</a> problem: an empty result from a free rung means &quot;not in my corner of the web,&quot; so you fall through. The signal is noisy per-query but perfectly observable.</p>
+<p>For models, liveness is the boring part. A model provider is almost never <em>down</em>; it's slow, or it's quietly nerfed, or a silent version bump shifted behavior on your prompts. The health signals that matter — eval pass rates drifting, refusal rates creeping up, output-format compliance dropping — are statistical, delayed, and invisible to a per-request health check. A tool router can mark a rung unhealthy after three consecutive 503s. A model router marking a rung unhealthy needs something closer to a nightly eval suite and a changelog subscription.</p>
+<p>Conflate the two and you get a router that health-checks its models with pings — green across the board while quality quietly rots.</p>
+<h2>Fallback rules: when zero hits ends the chain, and why models have no equivalent</h2>
+<p>The tool-side fallback rule I keep coming back to has a beautiful asymmetry. Free rung returns zero hits: fall through, it costs nothing to ask the next index. Paid rung returns zero hits: end the chain — a full-index provider came back empty, so the query has no hits, and paying a pricier provider to confirm nothing is the worst spend available.</p>
+<p>Try to port that rule to models and it dissolves, because there's no &quot;zero hits.&quot; A model never comes back empty-handed; it comes back wrong, and you can't detect wrong. So model-side fallback triggers on the things you <em>can</em> detect: hard errors, timeouts, refusals, malformed output against a schema, context-length overflows. Those are real and worth escalating on. But notice how much narrower that list is. The tool router escalates on outcome. The model router escalates on mechanics, and handles outcome by classifying difficulty up front — easy requests start (and usually end) on the cheap rung, hard ones start higher.</p>
+<p>There's a second divergence: retry semantics. Re-asking a second search index the same query is free of side effects and often productive. Re-asking a second model the same prompt after a <em>bad</em> answer you couldn't detect is something you never get to do, because you didn't know. Escalation on quality happens between deployments, not between requests.</p>
+<h2>The accounting doesn't even use the same units</h2>
+<p>Tool calls price per call. A Serper search is $0.001 whether the query is three words or thirty. That makes the ledger trivial: stamp <code>cost_usd</code> on the result, sum the column. Frugal's whole receipt model leans on this — one call, one line, one price, and the rung that answered earns the rack credit.</p>
+<p>Model calls price per token, in two directions, with the output half unknown until the response finishes. Cost isn't an attribute of the request; it's an outcome of it. Same prompt, different verbosity, 3× cost swing. Any router accounting for both needs two schemas: tools get <code>cost_usd</code> as a constant lookup, models get <code>cost_usd</code> computed from token counts after the fact — and budgets enforced on models need mid-flight controls (max output tokens) rather than pre-flight arithmetic.</p>
+<p>This sounds like bookkeeping trivia. It isn't. A router that budgets model spend the way it budgets tool spend — fixed price per call — will be wrong by whatever your output-length variance is, which for agent workloads is a lot.</p>
+<h2>One router, two rulebooks</h2>
+<p>So: same ladder silhouette, different semantics at every layer.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Tool calls</th>
+<th>Model calls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Outcome</td>
+<td>Discrete: found / didn't</td>
+<td>Continuous: quality gradient</td>
+</tr>
+<tr>
+<td>Quality signal</td>
+<td>In-band, per call</td>
+<td>Out-of-band, from evals</td>
+</tr>
+<tr>
+<td>Health check</td>
+<td>Liveness + yield</td>
+<td>Statistical drift over days</td>
+</tr>
+<tr>
+<td>Fallback trigger</td>
+<td>Outcome (zero hits, errors)</td>
+<td>Mechanics only (errors, schema, refusals)</td>
+</tr>
+<tr>
+<td>Escalation timing</td>
+<td>Mid-request</td>
+<td>Mostly pre-request, via classification</td>
+</tr>
+<tr>
+<td>Pricing unit</td>
+<td>Per call, fixed</td>
+<td>Per token, variable</td>
+</tr>
+</tbody>
+</table>
+<p>None of this means you need two routers. It means you need two rulebooks inside one, and the discipline not to let either vocabulary colonize the other. The failed designs I've seen all made one of two errors: treating model calls as discrete (ping-healthy, retry-on-bad — except you can't see bad), or treating tool calls as smooth (adding eval machinery to decide whether three search hits are &quot;good enough&quot; when the hit count already told you).</p>
+<p>Frugal today routes tool calls, where the discrete rulebook applies cleanly; chat routing is on the roadmap, and getting this distinction right is most of that design work. If you're building your own, start by writing down, for each call type, one sentence: <em>how do I know this response was good?</em> If the answer is &quot;the response tells me,&quot; you're routing tools. If the answer is &quot;I found out last Tuesday from an eval,&quot; you're routing models — and you should go read more on <a href="/blog/topics/provider-routing/">provider routing</a> with that lens, because nearly every rule changes depending on which sentence you wrote.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the open routing layer for AI tools — an MCP server that routes agent tool calls per policy: cost, latency, pinning, failover. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-05-12">May 12, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/what-is-an-llm-router/">What is an LLM router — and do you actually need one?</a></h3>
+          <p class="blog-card-excerpt">The term gets used for two different things. Here&#39;s what a router actually contains — policy, health, fallback, accounting — and the honest cases where you should skip one.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-05-26">May 26, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/provider-fallback-chains/">Fallback chains: designing a provider ladder that doesn&#39;t page you</a></h3>
+          <p class="blog-card-excerpt">A backup provider you&#39;ve never exercised is a config value, not a plan. The rules I use to order rungs, avoid paying twice, and break flapping providers out of the chain.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-06-09">Jun 9, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/zero-hits-empty-results/">Zero hits is not an error</a></h3>
+          <p class="blog-card-excerpt">An empty result set arrives as a 200 and gets treated like a 500. The provider didn&#39;t fail — it answered. What you do next should depend on whether that answer cost money.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>The open routing layer for AI tools.</h2>
+            <p>Frugal is one Go binary: every tool call routed per policy — cheapest by default — with the decision and <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

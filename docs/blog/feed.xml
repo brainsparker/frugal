@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>Routing tool calls vs routing model calls</title>
+      <link>https://frugal.sh/blog/routing-tool-calls-vs-model-calls/</link>
+      <guid>https://frugal.sh/blog/routing-tool-calls-vs-model-calls/</guid>
+      <pubDate>Tue, 28 Jul 2026 13:45:00 +0000</pubDate>
+      <description>The same ladder idea, two different physics. Why a router that treats search results and model completions identically gets both of them wrong.</description>
+    </item>
+    <item>
       <title>Frugal is the open routing layer for AI tools</title>
       <link>https://frugal.sh/blog/frugal-open-routing-layer/</link>
       <guid>https://frugal.sh/blog/frugal-open-routing-layer/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/small-models-first/</guid>
       <pubDate>Thu, 21 May 2026 15:30:00 +0000</pubDate>
       <description>Escalation isn&#39;t a cost hack, it&#39;s an architecture: the cheap model handles the bulk, the expensive one earns its rung. The same ladder logic that works for tool calls.</description>
-    </item>
-    <item>
-      <title>Latency budgets for agent tool calls</title>
-      <link>https://frugal.sh/blog/latency-budgets-agent-tool-calls/</link>
-      <guid>https://frugal.sh/blog/latency-budgets-agent-tool-calls/</guid>
-      <pubDate>Tue, 19 May 2026 14:50:00 +0000</pubDate>
-      <description>An agent chains tool calls in sequence, and sequences are where tail latency compounds. How to set a budget, split it per call, and spend it on fallback rungs.</description>
     </item>
   </channel>
 </rss>
