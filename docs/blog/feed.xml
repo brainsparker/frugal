@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>Timeouts are a product decision</title>
+      <link>https://frugal.sh/blog/timeouts-product-decision/</link>
+      <guid>https://frugal.sh/blog/timeouts-product-decision/</guid>
+      <pubDate>Thu, 30 Jul 2026 16:05:00 +0000</pubDate>
+      <description>Somewhere in your config is a number deciding how long users stare at a spinner for an answer that may never come. Nobody senior chose it.</description>
+    </item>
+    <item>
       <title>Routing tool calls vs routing model calls</title>
       <link>https://frugal.sh/blog/routing-tool-calls-vs-model-calls/</link>
       <guid>https://frugal.sh/blog/routing-tool-calls-vs-model-calls/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/provider-fallback-chains/</guid>
       <pubDate>Tue, 26 May 2026 13:35:00 +0000</pubDate>
       <description>A backup provider you&#39;ve never exercised is a config value, not a plan. The rules I use to order rungs, avoid paying twice, and break flapping providers out of the chain.</description>
-    </item>
-    <item>
-      <title>Small models first: the case for escalation</title>
-      <link>https://frugal.sh/blog/small-models-first/</link>
-      <guid>https://frugal.sh/blog/small-models-first/</guid>
-      <pubDate>Thu, 21 May 2026 15:30:00 +0000</pubDate>
-      <description>Escalation isn&#39;t a cost hack, it&#39;s an architecture: the cheap model handles the bulk, the expensive one earns its rung. The same ladder logic that works for tool calls.</description>
     </item>
   </channel>
 </rss>
