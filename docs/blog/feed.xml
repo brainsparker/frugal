@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>Build vs buy for agent infrastructure</title>
+      <link>https://frugal.sh/blog/build-vs-buy-agent-infrastructure/</link>
+      <guid>https://frugal.sh/blog/build-vs-buy-agent-infrastructure/</guid>
+      <pubDate>Thu, 06 Aug 2026 13:25:00 +0000</pubDate>
+      <description>Your evals are your product. Your retry loop is not. Splitting the agent stack along that line answers the platform question before a vendor call.</description>
+    </item>
+    <item>
       <title>Unit economics for tool calls: budgeting an AI product</title>
       <link>https://frugal.sh/blog/ai-product-unit-economics/</link>
       <guid>https://frugal.sh/blog/ai-product-unit-economics/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/evals-before-scale/</guid>
       <pubDate>Thu, 04 Jun 2026 15:45:00 +0000</pubDate>
       <description>Thirty real queries with expected answers will save you more money than any discount negotiation. You can&#39;t swap models, cut costs, or route traffic without a way to score the output.</description>
-    </item>
-    <item>
-      <title>stdio or Streamable HTTP? Choosing an MCP transport</title>
-      <link>https://frugal.sh/blog/mcp-transport-stdio-vs-http/</link>
-      <guid>https://frugal.sh/blog/mcp-transport-stdio-vs-http/</guid>
-      <pubDate>Tue, 02 Jun 2026 14:05:00 +0000</pubDate>
-      <description>One transport is a subprocess and a pipe. The other is a service you now operate. Which MCP transport you pick is really a question about who connects, from where.</description>
     </item>
   </channel>
 </rss>
