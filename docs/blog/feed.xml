@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>How to evaluate an MCP server before you install it: a 10-point checklist</title>
+      <link>https://frugal.sh/blog/evaluate-mcp-server-checklist/</link>
+      <guid>https://frugal.sh/blog/evaluate-mcp-server-checklist/</guid>
+      <pubDate>Fri, 07 Aug 2026 16:10:00 +0000</pubDate>
+      <description>Installing an MCP server hands your agent new capabilities and someone else new visibility. Ten checks to run before it touches your config.</description>
+    </item>
+    <item>
       <title>Build vs buy for agent infrastructure</title>
       <link>https://frugal.sh/blog/build-vs-buy-agent-infrastructure/</link>
       <guid>https://frugal.sh/blog/build-vs-buy-agent-infrastructure/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/zero-hits-empty-results/</guid>
       <pubDate>Tue, 09 Jun 2026 13:20:00 +0000</pubDate>
       <description>An empty result set arrives as a 200 and gets treated like a 500. The provider didn&#39;t fail — it answered. What you do next should depend on whether that answer cost money.</description>
-    </item>
-    <item>
-      <title>Evals before scale: the cheapest insurance in AI engineering</title>
-      <link>https://frugal.sh/blog/evals-before-scale/</link>
-      <guid>https://frugal.sh/blog/evals-before-scale/</guid>
-      <pubDate>Thu, 04 Jun 2026 15:45:00 +0000</pubDate>
-      <description>Thirty real queries with expected answers will save you more money than any discount negotiation. You can&#39;t swap models, cut costs, or route traffic without a way to score the output.</description>
     </item>
   </channel>
 </rss>
