@@ -108,6 +108,39 @@ routing:
 Every call chain logs which policy ran, and `frugal__execute` returns it
 in the response.
 
+## Spend caps and rate-limit cooldown
+
+Two guardrails cap what a provider can cost you, enforced in the routing
+layer alongside the policy above:
+
+```yaml
+search_providers:
+  youcom:
+    api_key_env: YDC_API_KEY
+    cost_per_call: 0.005
+    daily_budget_usd: 2.50   # skip youcom once it has spent $2.50 today
+
+routing:
+  cooldown: 90s              # after a 429, skip that provider for 90s (default 60s)
+```
+
+- **daily_budget_usd** (per provider, any of the three tables) — once a
+  provider's spend for the current UTC day reaches this cap, the router
+  skips it and falls through to the next provider in the chain; a call
+  that pins it by name errors. Counters reset at UTC midnight. Zero or
+  absent means no cap. The same provider name under two capability tables
+  gets an independent budget.
+- **cooldown** (top level under `routing:`) — when a provider returns a
+  rate limit (HTTP 429), it is fenced off for this long so the chain
+  stops hammering it. A Go duration string like `90s` or `2m`; an invalid
+  value warns at startup and falls back to the 60s default. Applies to
+  every provider, capped or not.
+
+When a guardrail skips a provider it is noted in the routing trace
+(`; budget: skipped youcom (...)`) and logged at Warn. If every provider
+in a chain is over budget or cooling down, the call fails with a clear
+message rather than silently doing nothing.
+
 ## Describe the job: `frugal__execute`
 
 Instead of picking a tool, an agent can state the intent and a priority.

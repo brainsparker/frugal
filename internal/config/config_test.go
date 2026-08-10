@@ -591,3 +591,56 @@ func TestParse_ConfigWithoutRoutingUnchanged(t *testing.T) {
 		t.Errorf("Routing = %+v, want nil", cfg.Routing)
 	}
 }
+
+func TestParse_DailyBudgetRoundTrips(t *testing.T) {
+	cfg, err := Parse([]byte(`
+search_providers:
+  youcom:
+    api_key_env: YDC_API_KEY
+    cost_per_call: 0.005
+    daily_budget_usd: 2.50
+`))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if got := cfg.SearchProviders["youcom"].DailyBudgetUSD; got != 2.50 {
+		t.Errorf("youcom.daily_budget_usd = %v, want 2.50", got)
+	}
+}
+
+func TestParse_DailyBudgetDefaultsToZero(t *testing.T) {
+	// An entry without daily_budget_usd means no cap (zero value).
+	cfg, err := Parse([]byte("search_providers:\n  wikipedia:\n    cost_per_call: 0\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if got := cfg.SearchProviders["wikipedia"].DailyBudgetUSD; got != 0 {
+		t.Errorf("absent daily_budget_usd = %v, want 0", got)
+	}
+}
+
+func TestParse_RejectsNegativeDailyBudget(t *testing.T) {
+	_, err := Parse([]byte(`
+search_providers:
+  bad:
+    api_key_env: X
+    cost_per_call: 0.001
+    daily_budget_usd: -1
+`))
+	if err == nil || !strings.Contains(err.Error(), "daily_budget_usd") {
+		t.Fatalf("want daily_budget_usd error, got %v", err)
+	}
+}
+
+func TestParse_CooldownRoundTrips(t *testing.T) {
+	// Cooldown is a top-level routing knob, not per capability. The
+	// string is stored as-is; parsing / validation of the duration
+	// happens at wiring time, so any string round-trips here.
+	cfg, err := Parse([]byte("routing:\n  cooldown: 90s\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Routing == nil || cfg.Routing.Cooldown != "90s" {
+		t.Fatalf("routing.cooldown = %+v, want \"90s\"", cfg.Routing)
+	}
+}

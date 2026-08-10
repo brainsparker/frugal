@@ -37,6 +37,22 @@
 # premium-priced providers, list price descending. `order` wins over
 # `strategy` when both are set.
 #
+# Spend caps and rate-limit cooldown (optional). Set daily_budget_usd on
+# any provider to skip it once its spend for the current UTC day reaches
+# that cap (counters reset at UTC midnight); zero or absent means no cap:
+#
+#   youcom:
+#     api_key_env: YDC_API_KEY
+#     cost_per_call: 0.005
+#     daily_budget_usd: 2.50
+#
+# routing.cooldown is a top-level Go duration (e.g. 90s). After a provider
+# returns a 429 it is skipped for this long. Invalid values warn and fall
+# back to the 60s default:
+#
+#   routing:
+#     cooldown: 90s
+#
 # v1.0 ships only the search-tool layer. Chat-model routing and its
 # pricing tables come back in Phase 2 with the frugal__chat MCP tool.
 search_providers:
