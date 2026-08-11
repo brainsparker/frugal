@@ -78,12 +78,13 @@ func RegisterExtract(server *sdkmcp.Server, extractors []extract.Extractor, metr
 }
 
 func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o toolOptions) func(context.Context, *sdkmcp.CallToolRequest, ExtractInput) (*sdkmcp.CallToolResult, ExtractOutput, error) {
-	hook := extract.AttemptHook(nil)
+	var hook extract.AttemptHook
 	if metrics != nil {
 		hook = func(provider string, latency time.Duration, costUSD float64, won bool, err error) {
 			metrics.RecordCall(provider, latency, costUSD, won, err)
 		}
 	}
+	hook = composeHook(o.guard, "extract", hook)
 
 	return func(ctx context.Context, _ *sdkmcp.CallToolRequest, in ExtractInput) (*sdkmcp.CallToolResult, ExtractOutput, error) {
 		if in.URL == "" {
@@ -104,11 +105,18 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 			if len(ordered) == 0 {
 				return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: every configured provider is denied by the routing policy")
 			}
+			ordered, reason = guardChain(o.guard, "extract", ordered, reason, logger)
+			if len(ordered) == 0 {
+				return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: %w", guardEmptyError("extract"))
+			}
 			logger.Debug("extract routing", "reason", reason)
 			used, res, err = extract.CallInOrder(ctx, ordered, q, logger, hook)
 		} else if o.policy.Deny[provider] {
 			// Deny means "never call" — a pin doesn't override it.
 			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: provider %q is denied by the routing policy", provider)
+		} else if ok, why := o.guard.Allow("extract", provider); !ok {
+			// Budget / cooldown blocks a pin the same way deny does.
+			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: provider %q unavailable: %s", provider, why)
 		} else {
 			used, res, err = extract.CallPinned(ctx, extractors, provider, q, logger, hook)
 		}

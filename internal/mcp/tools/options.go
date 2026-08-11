@@ -16,6 +16,11 @@ type toolOptions struct {
 	// policy/lookup pair isn't enough.
 	policies map[string]routing.Policy
 	latFor   func(tool string) routing.LatencyLookup
+	// guard enforces per-provider daily spend caps and the rate-limit
+	// cooldown. A nil guard is a safe no-op on every method, so the
+	// enforcement call sites need no conditionals and the zero value keeps
+	// the historical behavior exactly.
+	guard *routing.Guard
 }
 
 // ToolOption configures a routed tool at registration time.
@@ -43,6 +48,12 @@ func WithPolicies(m map[string]routing.Policy) ToolOption {
 // frugal__execute.
 func WithLatencyLookupFor(f func(tool string) routing.LatencyLookup) ToolOption {
 	return func(o *toolOptions) { o.latFor = f }
+}
+
+// WithGuard supplies the spend-cap / cooldown guard the enforcement layer
+// consults before each routed call. Nil (the default) disables both rails.
+func WithGuard(g *routing.Guard) ToolOption {
+	return func(o *toolOptions) { o.guard = g }
 }
 
 func buildToolOptions(opts []ToolOption) toolOptions {

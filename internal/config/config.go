@@ -38,6 +38,15 @@ type RoutingConfig struct {
 	Search  *RoutePolicy `yaml:"search,omitempty"`
 	Extract *RoutePolicy `yaml:"extract,omitempty"`
 	Browse  *RoutePolicy `yaml:"browse,omitempty"`
+	// Cooldown is the rate-limit circuit-breaker window applied to every
+	// provider across all capabilities: after a provider returns a 429 the
+	// router skips it for this long. A Go duration string like "90s" or
+	// "2m"; empty or invalid falls back to the 60s default (invalid values
+	// warn at wiring time rather than failing the load, since a
+	// mistyped cooldown shouldn't brick an otherwise-good config). Top
+	// level, not per capability: a provider's rate limit is a fact about
+	// the provider, not about which capability called it.
+	Cooldown string `yaml:"cooldown,omitempty"`
 }
 
 // RoutePolicy is one capability's routing rule.
@@ -73,6 +82,13 @@ type SearchProviderConfig struct {
 	BaseURL     string  `yaml:"base_url,omitempty"`
 	BaseURLEnv  string  `yaml:"base_url_env,omitempty"`
 	CostPerCall float64 `yaml:"cost_per_call"`
+	// DailyBudgetUSD, when set above zero, caps this provider's spend per
+	// UTC day: once reached, the router skips the provider (and errors a
+	// pin to it) until UTC midnight. Zero or absent means no cap. Shared
+	// by all three provider tables. Enforced in internal/routing.Guard,
+	// not here: validation only rejects non-finite / negative values,
+	// same as cost_per_call.
+	DailyBudgetUSD float64 `yaml:"daily_budget_usd,omitempty"`
 	// Enabled, when explicitly false, keeps the entry out of tool
 	// registration. LoadAuto/LoadTrusted overlay providers missing from an
 	// operator's file with the shipped defaults, so deleting an entry no
@@ -364,6 +380,12 @@ func validateProviders(scope string, providers map[string]SearchProviderConfig) 
 		}
 		if sp.CostPerCall < 0 {
 			return fmt.Errorf("%s.%s.cost_per_call must be non-negative", scope, name)
+		}
+		if math.IsNaN(sp.DailyBudgetUSD) || math.IsInf(sp.DailyBudgetUSD, 0) {
+			return fmt.Errorf("%s.%s.daily_budget_usd must be finite", scope, name)
+		}
+		if sp.DailyBudgetUSD < 0 {
+			return fmt.Errorf("%s.%s.daily_budget_usd must be non-negative", scope, name)
 		}
 		hasEndpoint := strings.TrimSpace(sp.APIKeyEnv) != "" || strings.TrimSpace(sp.BaseURL) != "" || strings.TrimSpace(sp.BaseURLEnv) != ""
 		if sp.Disabled() {

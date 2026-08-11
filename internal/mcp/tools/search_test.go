@@ -398,6 +398,81 @@ func TestCallTool_DeniedPinErrors(t *testing.T) {
 	}
 }
 
+func TestCallTool_GuardSkipsOverBudgetProviderInChain(t *testing.T) {
+	// The cheap provider is over its daily budget, so the auto chain must
+	// fall through to the paid one even though it sorts later.
+	overBudget := &fakeSearcher{name: "wikipedia", cost: 0, results: []search.Item{{Title: "FREE"}}}
+	paid := &fakeSearcher{name: "serper", cost: 0.001, results: []search.Item{{Title: "PAID"}}}
+
+	guard := routing.NewGuard(map[string]float64{"search/wikipedia": 0.01}, time.Minute)
+	guard.RecordCost("search", "wikipedia", 0.02) // exhaust it
+
+	srv := newServer()
+	RegisterSearch(srv, []search.Searcher{overBudget, paid}, nil, WithGuard(guard))
+
+	client, cleanup := dialClient(t, srv)
+	defer cleanup()
+
+	res, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name:      "frugal__search",
+		Arguments: map[string]any{"query": "anything"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("tool returned isError: %+v", res.Content)
+	}
+	out, err := decodeSearchOutput(res.StructuredContent)
+	if err != nil {
+		t.Fatalf("decode structured content: %v", err)
+	}
+	if out.ProviderUsed != "serper" {
+		t.Errorf("provider_used: got %q want serper (wikipedia over budget)", out.ProviderUsed)
+	}
+	if overBudget.lastQuery.Text != "" {
+		t.Errorf("over-budget provider must never be called")
+	}
+}
+
+func TestCallTool_GuardBlockedPinErrors(t *testing.T) {
+	// Pinning a provider that is over budget errors, exactly like a
+	// denied pin: blocked means blocked.
+	pinned := &fakeSearcher{name: "youcom", cost: 0.005, results: []search.Item{{Title: "hit"}}}
+
+	guard := routing.NewGuard(map[string]float64{"search/youcom": 0.01}, time.Minute)
+	guard.RecordCost("search", "youcom", 0.02) // exhaust it
+
+	srv := newServer()
+	RegisterSearch(srv, []search.Searcher{pinned}, nil, WithGuard(guard))
+
+	client, cleanup := dialClient(t, srv)
+	defer cleanup()
+
+	res, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name:      "frugal__search",
+		Arguments: map[string]any{"query": "anything", "provider": "youcom"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if !res.IsError {
+		t.Fatal("expected isError for a pinned over-budget provider")
+	}
+	text := ""
+	for _, c := range res.Content {
+		if tc, ok := c.(*sdkmcp.TextContent); ok {
+			text += tc.Text
+		}
+	}
+	if !strings.Contains(text, "unavailable") || !strings.Contains(text, "daily budget") {
+		t.Errorf("error text = %q, want mention of unavailable / daily budget", text)
+	}
+	if pinned.lastQuery.Text != "" {
+		t.Errorf("blocked provider must never be called")
+	}
+}
+
 func TestCallTool_DenyRemovesFromAutoChain(t *testing.T) {
 	denied := &fakeSearcher{name: "wikipedia", cost: 0, results: []search.Item{{Title: "DENIED"}}}
 	paid := &fakeSearcher{name: "serper", cost: 0.001, results: []search.Item{{Title: "PAID"}}}

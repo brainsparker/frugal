@@ -138,9 +138,17 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 			return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: provider %q is denied by the routing policy", provider)
 		}
 
+		// Budget / cooldown blocks a pin the same way deny does: check
+		// before dispatch so a blocked pin errors instead of calling.
+		if !isAuto(provider) {
+			if ok, why := o.guard.Allow(it.Capability, provider); !ok {
+				return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: provider %q unavailable: %s", provider, why)
+			}
+		}
+
 		logger := slog.Default()
 		start := time.Now()
-		out, err := dispatchIntent(ctx, it, polOf, latOf, provider, searchers, extractors, browsers, metrics, logger)
+		out, err := dispatchIntent(ctx, it, polOf, latOf, provider, searchers, extractors, browsers, metrics, o.guard, logger)
 		if err != nil {
 			return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: %w", err)
 		}
@@ -151,12 +159,17 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 
 // hookFor adapts the metrics sink into an AttemptHook while counting
 // attempts, so the reason line can report which rung of the chain won.
-func hookFor(metrics *obs.Metrics, attempts *atomic.Int64) routing.AttemptHook {
+// capability is the capability the attempt runs under: execute routes
+// across all three, so the guard must book spend / trip the cooldown
+// under the real capability, never an "execute" pseudo-key. The guard is
+// nil-safe, so guardRecord is a no-op when no budgets are configured.
+func hookFor(metrics *obs.Metrics, guard *routing.Guard, capability string, attempts *atomic.Int64) routing.AttemptHook {
 	return func(provider string, latency time.Duration, costUSD float64, won bool, err error) {
 		attempts.Add(1)
 		if metrics != nil {
 			metrics.RecordCall(provider, latency, costUSD, won, err)
 		}
+		guardRecord(guard, capability, provider, costUSD, err)
 	}
 }
 
@@ -170,9 +183,9 @@ func reasonLine(it Intent, pol routing.Policy, applyReason string, provider stri
 // JS-rendered-page case frugal__browse's own docs describe — with
 // costs summed across both chains. The fall-forward browse runs under
 // the browse capability's own policy.
-func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.Policy, latOf func(string) routing.LatencyLookup, provider string, searchers []search.Searcher, extractors []extract.Extractor, browsers []browse.Browser, metrics *obs.Metrics, logger *slog.Logger) (ExecuteOutput, error) {
+func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.Policy, latOf func(string) routing.LatencyLookup, provider string, searchers []search.Searcher, extractors []extract.Extractor, browsers []browse.Browser, metrics *obs.Metrics, guard *routing.Guard, logger *slog.Logger) (ExecuteOutput, error) {
 	var attempts atomic.Int64
-	hook := hookFor(metrics, &attempts)
+	hook := hookFor(metrics, guard, it.Capability, &attempts)
 	now := time.Now()
 	pol := polOf(it.Capability)
 	lat := latOf(it.Capability)
@@ -190,6 +203,10 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 			ordered, applyReason := routing.Apply(searchers, pol, lat, now)
 			if len(ordered) == 0 {
 				return ExecuteOutput{}, fmt.Errorf("every configured search provider is denied by the routing policy")
+			}
+			ordered, applyReason = guardChain(guard, "search", ordered, applyReason, logger)
+			if len(ordered) == 0 {
+				return ExecuteOutput{}, guardEmptyError("search")
 			}
 			reason = applyReason
 			used, res, err = search.CallInOrder(ctx, ordered, q, logger, hook)
@@ -225,6 +242,10 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 			if len(ordered) == 0 {
 				return ExecuteOutput{}, fmt.Errorf("every configured extract provider is denied by the routing policy")
 			}
+			ordered, applyReason = guardChain(guard, "extract", ordered, applyReason, logger)
+			if len(ordered) == 0 {
+				return ExecuteOutput{}, guardEmptyError("extract")
+			}
 			reason = applyReason
 			used, res, err = extract.CallInOrder(ctx, ordered, q, logger, hook)
 		} else {
@@ -239,7 +260,11 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 			// (the URL itself is gone) never fall forward — a renderer
 			// can't fix a 404.
 			extractCost := res.CostUSD
-			out, berr := browseFor(ctx, it, polOf("browse"), latOf("browse"), browsers, hook, logger, "text", now)
+			// The fall-forward runs under the browse capability, so its
+			// hook must book spend / cooldown under "browse", not the
+			// extract key the primary hook uses.
+			browseHook := hookFor(metrics, guard, "browse", &attempts)
+			out, berr := browseFor(ctx, it, polOf("browse"), latOf("browse"), browsers, guard, browseHook, logger, "text", now)
 			if berr == nil {
 				out.CostUSD += extractCost
 				out.Reason = reasonLine(it, pol, "extract produced no content; fell forward to a headless render", out.ProviderUsed, attempts.Load())
@@ -281,7 +306,7 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 				Reason:       reasonLine(it, pol, "provider pinned by caller", used.Name(), attempts.Load()),
 			}, nil
 		}
-		out, err := browseFor(ctx, it, pol, lat, browsers, hook, logger, "", now)
+		out, err := browseFor(ctx, it, pol, lat, browsers, guard, hook, logger, "", now)
 		if err != nil {
 			return ExecuteOutput{}, err
 		}
@@ -294,10 +319,14 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 // browseFor runs the browse chain under the given policy. The returned
 // Reason is only the policy apply-reason; callers wrap it into the full
 // trace line.
-func browseFor(ctx context.Context, it Intent, pol routing.Policy, lat routing.LatencyLookup, browsers []browse.Browser, hook routing.AttemptHook, logger *slog.Logger, format string, now time.Time) (ExecuteOutput, error) {
+func browseFor(ctx context.Context, it Intent, pol routing.Policy, lat routing.LatencyLookup, browsers []browse.Browser, guard *routing.Guard, hook routing.AttemptHook, logger *slog.Logger, format string, now time.Time) (ExecuteOutput, error) {
 	ordered, applyReason := routing.Apply(browsers, pol, lat, now)
 	if len(ordered) == 0 {
 		return ExecuteOutput{}, fmt.Errorf("every configured browse provider is denied by the routing policy")
+	}
+	ordered, applyReason = guardChain(guard, "browse", ordered, applyReason, logger)
+	if len(ordered) == 0 {
+		return ExecuteOutput{}, guardEmptyError("browse")
 	}
 	used, res, err := browse.CallInOrder(ctx, ordered, browse.Query{URL: it.URL, ReturnFormat: format}, logger, hook)
 	if err != nil {

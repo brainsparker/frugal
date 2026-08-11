@@ -97,12 +97,16 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 	// Hook closes over metrics so every fallback attempt is recorded —
 	// not just the winner. Nil metrics skips recording, costing a comparison
 	// per call.
-	hook := search.AttemptHook(nil)
+	var hook search.AttemptHook
 	if metrics != nil {
 		hook = func(provider string, latency time.Duration, costUSD float64, won bool, err error) {
 			metrics.RecordCall(provider, latency, costUSD, won, err)
 		}
 	}
+	// Compose the guard's cost / rate-limit recording onto the metrics
+	// hook so every attempt books spend and trips the cooldown. Nil guard
+	// makes this a pass-through (the guard methods are nil-safe).
+	hook = composeHook(o.guard, "search", hook)
 
 	return func(ctx context.Context, _ *sdkmcp.CallToolRequest, in SearchInput) (*sdkmcp.CallToolResult, SearchOutput, error) {
 		if in.Query == "" {
@@ -131,11 +135,19 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 			if len(ordered) == 0 {
 				return nil, SearchOutput{}, fmt.Errorf("frugal__search: every configured provider is denied by the routing policy")
 			}
+			ordered, reason = guardChain(o.guard, "search", ordered, reason, logger)
+			if len(ordered) == 0 {
+				return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", guardEmptyError("search"))
+			}
 			logger.Debug("search routing", "reason", reason)
 			used, res, searchErr = search.CallInOrder(ctx, ordered, q, logger, hook)
 		} else if o.policy.Deny[provider] {
 			// Deny means "never call" — a pin doesn't override it.
 			return nil, SearchOutput{}, fmt.Errorf("frugal__search: provider %q is denied by the routing policy", provider)
+		} else if ok, why := o.guard.Allow("search", provider); !ok {
+			// Budget / cooldown blocks a pin the same way deny does:
+			// blocked means blocked.
+			return nil, SearchOutput{}, fmt.Errorf("frugal__search: provider %q unavailable: %s", provider, why)
 		} else {
 			used, res, searchErr = search.CallPinned(ctx, searchers, provider, q, logger, hook)
 		}

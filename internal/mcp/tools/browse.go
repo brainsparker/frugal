@@ -71,12 +71,13 @@ func RegisterBrowse(server *sdkmcp.Server, browsers []browse.Browser, metrics *o
 }
 
 func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics, o toolOptions) func(context.Context, *sdkmcp.CallToolRequest, BrowseInput) (*sdkmcp.CallToolResult, BrowseOutput, error) {
-	hook := browse.AttemptHook(nil)
+	var hook browse.AttemptHook
 	if metrics != nil {
 		hook = func(provider string, latency time.Duration, costUSD float64, won bool, err error) {
 			metrics.RecordCall(provider, latency, costUSD, won, err)
 		}
 	}
+	hook = composeHook(o.guard, "browse", hook)
 
 	return func(ctx context.Context, _ *sdkmcp.CallToolRequest, in BrowseInput) (*sdkmcp.CallToolResult, BrowseOutput, error) {
 		if in.URL == "" {
@@ -97,11 +98,18 @@ func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics, o toolOp
 			if len(ordered) == 0 {
 				return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: every configured provider is denied by the routing policy")
 			}
+			ordered, reason = guardChain(o.guard, "browse", ordered, reason, logger)
+			if len(ordered) == 0 {
+				return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: %w", guardEmptyError("browse"))
+			}
 			logger.Debug("browse routing", "reason", reason)
 			used, res, err = browse.CallInOrder(ctx, ordered, q, logger, hook)
 		} else if o.policy.Deny[provider] {
 			// Deny means "never call" — a pin doesn't override it.
 			return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: provider %q is denied by the routing policy", provider)
+		} else if ok, why := o.guard.Allow("browse", provider); !ok {
+			// Budget / cooldown blocks a pin the same way deny does.
+			return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: provider %q unavailable: %s", provider, why)
 		} else {
 			used, res, err = browse.CallPinned(ctx, browsers, provider, q, logger, hook)
 		}

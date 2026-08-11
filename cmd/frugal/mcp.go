@@ -144,10 +144,18 @@ func runMCPServe(args []string) int {
 		}
 	}
 
+	// Spend-cap / cooldown guard: one instance shared across every
+	// capability, keyed "capability/provider" internally so the same
+	// provider name in two tables gets independent budgets. Built
+	// unconditionally — a Guard with no caps still enforces the cooldown,
+	// and a nil guard and an empty-caps guard are both no-ops on the spend
+	// rail, so there's no behavior difference for a budget-free config.
+	guard := buildGuard(cfg)
+
 	searchers := buildSearchers(cfg)
 	warnPolicyStrangers("search", policies["search"], searcherNames(searchers))
 	tools.RegisterSearch(srv.Inner, searchers, metrics,
-		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")))
+		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard))
 	if len(searchers) == 0 {
 		slog.Warn("mcp serve: no search providers configured — frugal__search will not be advertised. " +
 			"Set SEARXNG_URL (free, self-hosted), SERPER_API_KEY, or YDC_API_KEY to enable.")
@@ -158,7 +166,7 @@ func runMCPServe(args []string) int {
 	extractors := buildExtractors(cfg)
 	warnPolicyStrangers("extract", policies["extract"], extractorNames(extractors))
 	tools.RegisterExtract(srv.Inner, extractors, metrics,
-		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")))
+		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")), tools.WithGuard(guard))
 	if len(extractors) > 0 {
 		slog.Info("mcp serve: frugal__extract registered", "providers", extractorNames(extractors))
 	}
@@ -166,13 +174,13 @@ func runMCPServe(args []string) int {
 	browsers := buildBrowsers(cfg)
 	warnPolicyStrangers("browse", policies["browse"], browserNames(browsers))
 	tools.RegisterBrowse(srv.Inner, browsers, metrics,
-		tools.WithPolicy(policies["browse"]), tools.WithLatencyLookup(latFor("browse")))
+		tools.WithPolicy(policies["browse"]), tools.WithLatencyLookup(latFor("browse")), tools.WithGuard(guard))
 	if len(browsers) > 0 {
 		slog.Info("mcp serve: frugal__browse registered", "providers", browserNames(browsers))
 	}
 
 	tools.RegisterExecute(srv.Inner, searchers, extractors, browsers, metrics,
-		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor))
+		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor), tools.WithGuard(guard))
 	if len(searchers) > 0 {
 		slog.Info("mcp serve: frugal__execute registered",
 			"search", len(searchers), "extract", len(extractors), "browse", len(browsers))
@@ -369,6 +377,50 @@ func policyFor(rc *config.RoutingConfig, capability string) routing.Policy {
 		}
 	}
 	return p
+}
+
+// buildGuard assembles the spend-cap / cooldown Guard from the three
+// provider tables and the routing cooldown. Only providers with a
+// daily_budget_usd above zero enter the caps map, keyed
+// "capability/provider" so a name shared across tables gets an
+// independent budget. Each capped provider gets one startup log line in
+// the same style as the "routing policy" lines. An invalid cooldown
+// string warns and falls back to the routing package's default rather
+// than failing startup: a mistyped duration shouldn't stop the server.
+func buildGuard(cfg *config.Config) *routing.Guard {
+	caps := map[string]float64{}
+	add := func(capability string, providers map[string]config.SearchProviderConfig) {
+		for _, name := range sortedProviderNames(providers) {
+			sp := providers[name]
+			if sp.Disabled() || sp.DailyBudgetUSD <= 0 {
+				continue
+			}
+			caps[capability+"/"+name] = sp.DailyBudgetUSD
+			slog.Info("mcp serve: provider daily budget",
+				"capability", capability, "provider", name, "cap_usd", sp.DailyBudgetUSD)
+		}
+	}
+	add("search", cfg.SearchProviders)
+	add("extract", cfg.ExtractProviders)
+	add("browse", cfg.BrowseProviders)
+
+	var cooldown time.Duration
+	if cfg.Routing != nil {
+		if raw := strings.TrimSpace(cfg.Routing.Cooldown); raw != "" {
+			d, err := time.ParseDuration(raw)
+			switch {
+			case err != nil:
+				slog.Warn("mcp serve: invalid routing cooldown; using default",
+					"cooldown", raw, "err", err)
+			case d <= 0:
+				slog.Warn("mcp serve: routing cooldown must be positive; using default",
+					"cooldown", raw)
+			default:
+				cooldown = d
+			}
+		}
+	}
+	return routing.NewGuard(caps, cooldown)
 }
 
 // warnPolicyStrangers flags policy order/deny entries that name no
