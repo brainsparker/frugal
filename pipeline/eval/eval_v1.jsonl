@@ -1,0 +1,175 @@
+{"text": "max file size for a gist", "label": "search.general"}
+{"text": "difference between streamable http and stdio transports in mcp", "label": "search.general"}
+{"text": "go http client timeout best practice", "label": "search.general"}
+{"text": "what port does prometheus scrape by default", "label": "search.general"}
+{"text": "usdc contract address on base", "label": "search.general"}
+{"text": "how to rotate an api key without downtime", "label": "search.general"}
+{"text": "onnx runtime int8 quantization guide", "label": "search.general"}
+{"text": "which licenses are osi approved", "label": "search.general"}
+{"text": "modernbert context window size", "label": "search.general"}
+{"text": "yaml anchors tutorial", "label": "search.general"}
+{"text": "self hosted searxng hardware requirements", "label": "search.general"}
+{"text": "any acquisitions in the agent payments space this month", "label": "search.news"}
+{"text": "base gas fees right now", "label": "search.news"}
+{"text": "who won the champions league final yesterday", "label": "search.news"}
+{"text": "current 10 year treasury yield", "label": "search.news"}
+{"text": "layoffs at big search providers this week", "label": "search.news"}
+{"text": "todays usdc peg status", "label": "search.news"}
+{"text": "latest mcp registry outage updates", "label": "search.news"}
+{"text": "did the x402 v2 rollout finish", "label": "search.news"}
+{"text": "what did nvidia report in earnings this morning", "label": "search.news"}
+{"text": "is there a new go release out", "label": "search.news"}
+{"text": "breaking coverage of the cloud outage", "label": "search.news"}
+{"text": "prior work on cascade routing between llms", "label": "search.deep"}
+{"text": "find startups building offline first agent tooling", "label": "search.deep"}
+{"text": "papers evaluating tool selection under distribution shift", "label": "search.deep"}
+{"text": "open source projects similar to litellm but for search apis", "label": "search.deep"}
+{"text": "research comparing encoder vs decoder models for classification", "label": "search.deep"}
+{"text": "who else has published mcp tool use benchmarks", "label": "search.deep"}
+{"text": "analyses of why micropayments failed historically", "label": "search.deep"}
+{"text": "find writing on the economics of api aggregation", "label": "search.deep"}
+{"text": "academic work on query intent taxonomies", "label": "search.deep"}
+{"text": "essays arguing against agent autonomy in payments", "label": "search.deep"}
+{"text": "conceptual overviews of usage based billing architectures", "label": "search.deep"}
+{"text": "grab the install script contents from the page i pasted", "label": "extract.url"}
+{"text": "get the markdown of that documentation page", "label": "extract.url"}
+{"text": "pull the license text from the repo root", "label": "extract.url"}
+{"text": "extract every heading from the linked spec", "label": "extract.url"}
+{"text": "get the author and publish date from the article above", "label": "extract.url"}
+{"text": "extract the faq section from the support page", "label": "extract.url"}
+{"text": "pull the table of contents from that pdf link", "label": "extract.url"}
+{"text": "get the raw json from the api docs example page", "label": "extract.url"}
+{"text": "copy out the code blocks from the tutorial page", "label": "extract.url"}
+{"text": "get the transcript text already posted on the episode page", "label": "extract.url"}
+{"text": "extract the citations list from the arxiv abstract page", "label": "extract.url"}
+{"text": "accept the cookie banner then capture the homepage", "label": "browse.dynamic"}
+{"text": "sign in with the test account and export the usage csv", "label": "browse.dynamic"}
+{"text": "expand all the collapsed threads and copy the comments", "label": "browse.dynamic"}
+{"text": "switch the pricing toggle to annual and screenshot it", "label": "browse.dynamic"}
+{"text": "paginate through the job board and collect every listing", "label": "browse.dynamic"}
+{"text": "wait for the client side table to load then sort by price", "label": "browse.dynamic"}
+{"text": "dismiss the modal and grab whats behind it", "label": "browse.dynamic"}
+{"text": "type into the site search box and capture the suggestions", "label": "browse.dynamic"}
+{"text": "download the invoice pdf from the billing portal", "label": "browse.dynamic"}
+{"text": "check if the signup flow errors on a plus address", "label": "browse.dynamic"}
+{"text": "hover over the chart to read the tooltip values", "label": "browse.dynamic"}
+{"text": "create vectors for the changelog entries", "label": "embed"}
+{"text": "embed the crawl output before indexing", "label": "embed"}
+{"text": "compute embeddings for these 200 product titles", "label": "embed"}
+{"text": "embed the faq pairs for retrieval", "label": "embed"}
+{"text": "make sentence embeddings of the meeting notes", "label": "embed"}
+{"text": "embed both query sets so i can compare drift", "label": "embed"}
+{"text": "vector encode the error messages for clustering", "label": "embed"}
+{"text": "generate an embedding for this one paragraph", "label": "embed"}
+{"text": "batch embed the docs folder", "label": "embed"}
+{"text": "embed the titles only not the bodies", "label": "embed"}
+{"text": "convert the standup recording to text", "label": "transcribe"}
+{"text": "transcribe the customer interview and mark the speakers", "label": "transcribe"}
+{"text": "get text from the voice memo i attached", "label": "transcribe"}
+{"text": "caption the demo video audio", "label": "transcribe"}
+{"text": "transcribe the webinar and include timestamps", "label": "transcribe"}
+{"text": "turn the support call audio into a transcript", "label": "transcribe"}
+{"text": "speech to text on the conference talk file", "label": "transcribe"}
+{"text": "transcribe just the first ten minutes of the recording", "label": "transcribe"}
+{"text": "get a clean transcript of the twitter space audio", "label": "transcribe"}
+{"text": "convert the dictation to text", "label": "transcribe"}
+{"text": "run the sql against the sample db and show the rows", "label": "code.exec"}
+{"text": "execute the curl command and paste the response", "label": "code.exec"}
+{"text": "run pytest and summarize the failures", "label": "code.exec"}
+{"text": "evaluate this jq filter on the payload", "label": "code.exec"}
+{"text": "run the load test script for 60 seconds", "label": "code.exec"}
+{"text": "execute the notebook cell and return the plot data", "label": "code.exec"}
+{"text": "run go vet on the snippet", "label": "code.exec"}
+{"text": "time this function with the sample input", "label": "code.exec"}
+{"text": "run the dockerfile build and report any errors", "label": "code.exec"}
+{"text": "execute the cron expression parser on these strings", "label": "code.exec"}
+{"text": "write release notes from the merged pr titles", "label": "generate"}
+{"text": "draft a reply to the issue based on the thread", "label": "generate"}
+{"text": "make this error message friendlier", "label": "generate"}
+{"text": "turn the spec section into a checklist", "label": "generate"}
+{"text": "write a one paragraph abstract for the report", "label": "generate"}
+{"text": "convert these notes into a table", "label": "generate"}
+{"text": "shorten the readme intro to three sentences", "label": "generate"}
+{"text": "rephrase the warning for non technical users", "label": "generate"}
+{"text": "write test names for the cases listed", "label": "generate"}
+{"text": "translate the doc comment to english", "label": "generate"}
+{"text": "find the top three mcp registries and pull each ones stats page", "label": "multi_step"}
+{"text": "locate the earnings call audio and turn it into text", "label": "multi_step"}
+{"text": "look up recent posts about x402 and summarize the sentiment", "label": "multi_step"}
+{"text": "find the spec pdf and extract section 4", "label": "multi_step"}
+{"text": "get the newest release notes and rewrite them for the changelog", "label": "multi_step"}
+{"text": "search for competitor pricing pages and extract every table", "label": "multi_step"}
+{"text": "find the conference talk video and caption it", "label": "multi_step"}
+{"text": "pull the docs page and embed each section", "label": "multi_step"}
+{"text": "research similar tools then draft a comparison post", "label": "multi_step"}
+{"text": "find the paper similar to this one and extract its methods section", "label": "multi_step"}
+{"text": "renew my passport appointment", "label": "out_of_scope"}
+{"text": "schedule a dentist visit for next month", "label": "out_of_scope"}
+{"text": "pay the electricity bill", "label": "out_of_scope"}
+{"text": "call an uber to the airport", "label": "out_of_scope"}
+{"text": "add milk to the grocery list", "label": "out_of_scope"}
+{"text": "post this photo to my instagram", "label": "out_of_scope"}
+{"text": "adjust the thermostat to 68", "label": "out_of_scope"}
+{"text": "send flowers to my mom", "label": "out_of_scope"}
+{"text": "file my quarterly taxes", "label": "out_of_scope"}
+{"text": "rsvp yes to the wedding", "label": "out_of_scope"}
+{"text": "new relic pricing tiers", "label": "search.general", "boundary": "search.general|search.news"}
+{"text": "history of breaking changes policy in semver", "label": "search.general", "boundary": "search.general|search.news"}
+{"text": "current limiting resistor calculator", "label": "search.general", "boundary": "search.general|search.news"}
+{"text": "today show past hosts list", "label": "search.general", "boundary": "search.general|search.news"}
+{"text": "how often does the fed meet", "label": "search.general", "boundary": "search.general|search.news"}
+{"text": "what hours is the nyse open", "label": "search.general", "boundary": "search.general|search.news"}
+{"text": "was the semver spec updated recently", "label": "search.news", "boundary": "search.general|search.news"}
+{"text": "is the nyse open today", "label": "search.news", "boundary": "search.general|search.news"}
+{"text": "fed decision this afternoon", "label": "search.news", "boundary": "search.general|search.news"}
+{"text": "any breaking changes in the go release shipped this week", "label": "search.news", "boundary": "search.general|search.news"}
+{"text": "new relic quarterly results out today", "label": "search.news", "boundary": "search.general|search.news"}
+{"text": "price of eth over the last hour", "label": "search.news", "boundary": "search.general|search.news"}
+{"text": "what does the company modal sell", "label": "search.general", "boundary": "search.deep|search.general"}
+{"text": "github api rate limits", "label": "search.general", "boundary": "search.deep|search.general"}
+{"text": "routellm github stars", "label": "search.general", "boundary": "search.deep|search.general"}
+{"text": "definition of semantic search", "label": "search.general", "boundary": "search.deep|search.general"}
+{"text": "who is the ceo of together ai", "label": "search.general", "boundary": "search.deep|search.general"}
+{"text": "mcp bench leaderboard url", "label": "search.general", "boundary": "search.deep|search.general"}
+{"text": "map the landscape of headless browser startups", "label": "search.deep", "boundary": "search.deep|search.general"}
+{"text": "find work influenced by the routellm paper", "label": "search.deep", "boundary": "search.deep|search.general"}
+{"text": "why did prior api marketplaces consolidate, find analyses", "label": "search.deep", "boundary": "search.deep|search.general"}
+{"text": "surveys of semantic search evaluation methods", "label": "search.deep", "boundary": "search.deep|search.general"}
+{"text": "investors who back agent infrastructure companies", "label": "search.deep", "boundary": "search.deep|search.general"}
+{"text": "benchmarks comparable to mcp bench for tool use", "label": "search.deep", "boundary": "search.deep|search.general"}
+{"text": "get the text of the terms page", "label": "extract.url", "boundary": "extract.url|browse.dynamic"}
+{"text": "pull the readme from the linked repo", "label": "extract.url", "boundary": "extract.url|browse.dynamic"}
+{"text": "fetch the article body from the amp version", "label": "extract.url", "boundary": "extract.url|browse.dynamic"}
+{"text": "get the price list published on the static site", "label": "extract.url", "boundary": "extract.url|browse.dynamic"}
+{"text": "extract the schedule table from the conference page", "label": "extract.url", "boundary": "extract.url|browse.dynamic"}
+{"text": "grab the json feed at the url", "label": "extract.url", "boundary": "extract.url|browse.dynamic"}
+{"text": "click accept on the terms page and continue to signup", "label": "browse.dynamic", "boundary": "extract.url|browse.dynamic"}
+{"text": "open the repo insights tab and screenshot the traffic graph", "label": "browse.dynamic", "boundary": "extract.url|browse.dynamic"}
+{"text": "load the article and expand the comments section", "label": "browse.dynamic", "boundary": "extract.url|browse.dynamic"}
+{"text": "use the pricing calculator with 5 seats and record the total", "label": "browse.dynamic", "boundary": "extract.url|browse.dynamic"}
+{"text": "filter the conference agenda by track and copy the results", "label": "browse.dynamic", "boundary": "extract.url|browse.dynamic"}
+{"text": "log into the portal and download last months statement", "label": "browse.dynamic", "boundary": "extract.url|browse.dynamic"}
+{"text": "search for cheap and reliable proxies", "label": "search.general", "boundary": "multi_step|search.general"}
+{"text": "compare rust and go for cli tools", "label": "search.general", "boundary": "multi_step|search.general"}
+{"text": "find docs on retries and backoff", "label": "search.general", "boundary": "multi_step|search.general"}
+{"text": "look up soc2 and iso 27001 differences", "label": "search.general", "boundary": "multi_step|search.general"}
+{"text": "best practices for logging and monitoring in go", "label": "search.general", "boundary": "multi_step|search.general"}
+{"text": "search for flight data api options", "label": "search.general", "boundary": "multi_step|search.general"}
+{"text": "search for proxy vendors then extract each pricing page", "label": "multi_step", "boundary": "multi_step|search.general"}
+{"text": "find the retry docs and rewrite them as a runbook", "label": "multi_step", "boundary": "multi_step|search.general"}
+{"text": "look up the soc2 guide then pull its checklist section", "label": "multi_step", "boundary": "multi_step|search.general"}
+{"text": "search recent agent framework releases and summarize each", "label": "multi_step", "boundary": "multi_step|search.general"}
+{"text": "find the flights api docs and extract the auth section", "label": "multi_step", "boundary": "multi_step|search.general"}
+{"text": "find the outage writeup then summarize it for the team", "label": "multi_step", "boundary": "multi_step|search.general"}
+{"text": "summarize the pasted thread about routing", "label": "generate", "boundary": "generate|search.deep"}
+{"text": "write a lit review intro from the abstracts below", "label": "generate", "boundary": "generate|search.deep"}
+{"text": "turn my notes into a research outline", "label": "generate", "boundary": "generate|search.deep"}
+{"text": "summarize the state of our benchmark results", "label": "generate", "boundary": "generate|search.deep"}
+{"text": "draft a blog post from this outline", "label": "generate", "boundary": "generate|search.deep"}
+{"text": "condense the attached survey paper into bullet points", "label": "generate", "boundary": "generate|search.deep"}
+{"text": "find discussions about routing tradeoffs across forums", "label": "search.deep", "boundary": "generate|search.deep"}
+{"text": "collect abstracts of papers on llm cost optimization", "label": "search.deep", "boundary": "generate|search.deep"}
+{"text": "what research exists on query rewriting for retrieval", "label": "search.deep", "boundary": "generate|search.deep"}
+{"text": "summarize the state of research on tool routing", "label": "search.deep", "boundary": "generate|search.deep"}
+{"text": "find blog posts analyzing api pricing models", "label": "search.deep", "boundary": "generate|search.deep"}
+{"text": "locate survey papers on intent classification", "label": "search.deep", "boundary": "generate|search.deep"}

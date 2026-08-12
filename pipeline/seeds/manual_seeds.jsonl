@@ -1,0 +1,58 @@
+{"text": "who maintains the modelcontextprotocol spec", "label": "search.general", "source": "manual"}
+{"text": "best way to embed a sqlite db in a go binary", "label": "search.general", "source": "manual"}
+{"text": "serper vs brave search api pricing", "label": "search.general", "source": "manual"}
+{"text": "what does busl 1.1 allow for internal use", "label": "search.general", "source": "manual"}
+{"text": "golang yaml strict unmarshal example", "label": "search.general", "source": "manual"}
+{"text": "how do prometheus counters differ from gauges", "label": "search.general", "source": "manual"}
+{"text": "cheapest usdc onramp for developers", "label": "search.general", "source": "manual"}
+{"text": "latest anthropic model release", "label": "search.news", "source": "manual"}
+{"text": "any news on the x402 foundation this week", "label": "search.news", "source": "manual"}
+{"text": "current price of nvda", "label": "search.news", "source": "manual"}
+{"text": "did cloudflare ship the wallets beta yet", "label": "search.news", "source": "manual"}
+{"text": "results of yesterday's fed meeting", "label": "search.news", "source": "manual"}
+{"text": "what changed in the mcp spec update this month", "label": "search.news", "source": "manual"}
+{"text": "papers on encoder-based intent classification 2026", "label": "search.deep", "source": "manual"}
+{"text": "companies similar to firecrawl", "label": "search.deep", "source": "manual"}
+{"text": "prior art for llm cost routing", "label": "search.deep", "source": "manual"}
+{"text": "landscape of open weight rerankers", "label": "search.deep", "source": "manual"}
+{"text": "find research measuring tool selection accuracy of small models", "label": "search.deep", "source": "manual"}
+{"text": "startups working on agent payment rails besides skyfire", "label": "search.deep", "source": "manual"}
+{"text": "pull the full text of the article i linked", "label": "extract.url", "source": "manual"}
+{"text": "get the readme content from that github repo page", "label": "extract.url", "source": "manual"}
+{"text": "extract the pricing table from the vendor page", "label": "extract.url", "source": "manual"}
+{"text": "grab the changelog text from the release page", "label": "extract.url", "source": "manual"}
+{"text": "fetch the abstract from the arxiv page i sent", "label": "extract.url", "source": "manual"}
+{"text": "get the plain text of that blog post", "label": "extract.url", "source": "manual"}
+{"text": "log into the dashboard and check the error rate graph", "label": "browse.dynamic", "source": "manual"}
+{"text": "click through to pricing and screenshot the enterprise tier", "label": "browse.dynamic", "source": "manual"}
+{"text": "fill out the demo request form and capture the confirmation", "label": "browse.dynamic", "source": "manual"}
+{"text": "scroll the infinite feed and collect the first 50 posts", "label": "browse.dynamic", "source": "manual"}
+{"text": "open the spa and wait for the table to render then copy it", "label": "browse.dynamic", "source": "manual"}
+{"text": "navigate the checkout flow up to payment and note the fees", "label": "browse.dynamic", "source": "manual"}
+{"text": "embed these doc chunks for the vector index", "label": "embed", "source": "manual"}
+{"text": "vectorize the support tickets for clustering", "label": "embed", "source": "manual"}
+{"text": "generate embeddings for the readme sections", "label": "embed", "source": "manual"}
+{"text": "embed the query set so we can dedupe it", "label": "embed", "source": "manual"}
+{"text": "transcribe this meeting recording", "label": "transcribe", "source": "manual"}
+{"text": "get a transcript of the earnings call audio", "label": "transcribe", "source": "manual"}
+{"text": "turn the podcast episode into text with timestamps", "label": "transcribe", "source": "manual"}
+{"text": "transcribe the voicemail and pull out the callback number", "label": "transcribe", "source": "manual"}
+{"text": "run this python snippet and give me the output", "label": "code.exec", "source": "manual"}
+{"text": "execute the benchmark script and report p95", "label": "code.exec", "source": "manual"}
+{"text": "eval this regex against the sample log lines", "label": "code.exec", "source": "manual"}
+{"text": "run the migration in a sandbox and show errors", "label": "code.exec", "source": "manual"}
+{"text": "summarize this thread in two lines", "label": "generate", "source": "manual"}
+{"text": "rewrite the changelog entry in plain english", "label": "generate", "source": "manual"}
+{"text": "draft a commit message for the diff above", "label": "generate", "source": "manual"}
+{"text": "condense these notes into a status update", "label": "generate", "source": "manual"}
+{"text": "turn the bullet list into a paragraph", "label": "generate", "source": "manual"}
+{"text": "search for the arch-router paper then extract its abstract", "label": "multi_step", "source": "manual"}
+{"text": "find the earnings call recording and transcribe it", "label": "multi_step", "source": "manual"}
+{"text": "look up the top three rss libraries and pull each readme", "label": "multi_step", "source": "manual"}
+{"text": "find the vendor status page and screenshot the incident history", "label": "multi_step", "source": "manual"}
+{"text": "get the latest mcp spec changes and summarize them", "label": "multi_step", "source": "manual"}
+{"text": "book me a flight to denver next tuesday", "label": "out_of_scope", "source": "manual"}
+{"text": "set a reminder for standup at 9", "label": "out_of_scope", "source": "manual"}
+{"text": "order more coffee pods", "label": "out_of_scope", "source": "manual"}
+{"text": "text my landlord about the leak", "label": "out_of_scope", "source": "manual"}
+{"text": "turn off the office lights", "label": "out_of_scope", "source": "manual"}
