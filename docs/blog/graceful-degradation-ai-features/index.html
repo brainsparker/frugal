@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Graceful degradation for AI features — frugal blog</title>
+  <meta name="description" content="Graceful degradation for AI features means designing the cheaper model, cached answer, and honest failure states on purpose — and testing them." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/graceful-degradation-ai-features/" />
+  <meta property="og:title" content="Graceful degradation for AI features — frugal blog" />
+  <meta property="og:description" content="Graceful degradation for AI features means designing the cheaper model, cached answer, and honest failure states on purpose — and testing them." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-08-11T14:20:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Graceful degradation for AI features — frugal blog" />
+  <meta name="twitter:description" content="Graceful degradation for AI features means designing the cheaper model, cached answer, and honest failure states on purpose — and testing them." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/graceful-degradation-ai-features/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-08-11T14:20:00Z","datePublished":"2026-08-11T14:20:00Z","description":"Graceful degradation for AI features means designing the cheaper model, cached answer, and honest failure states on purpose — and testing them.","headline":"Graceful degradation for AI features","keywords":"graceful degradation","mainEntityOfPage":"https://frugal.sh/blog/graceful-degradation-ai-features/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/graceful-degradation-ai-features/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Graceful degradation for AI features","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#routing">Routing</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Graceful degradation for AI features</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h1>Graceful degradation for AI features</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-08-11">Aug 11, 2026</time>
+            · 5 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Every AI feature degrades. A provider has a bad afternoon, a rate limit trips, a query lands outside the index, a model call times out — and your feature returns <em>something</em>. The only question is whether that something was designed or improvised. Graceful degradation means the degraded states of your AI feature are product states you built on purpose, with their own UX, their own cost profile, and their own tests — not whatever your exception handler coughs up at p99.</p>
+<p>Most teams design exactly one state: the happy path. Everything else is an error boundary and an apology. That's backwards, because for a feature built on other people's APIs, the unhappy paths aren't edge cases. They're weather.</p>
+<h2>Failure is a spectrum, not a boolean</h2>
+<p>The instinct is to treat an AI feature as working or broken. But between &quot;perfect answer in two seconds&quot; and &quot;500&quot; there's a wide band of states your system can land in, and most of them are still worth something to the user:</p>
+<ul>
+<li>The premium provider is down, but a cheaper one is up.</li>
+<li>The fresh answer is unavailable, but you computed this answer yesterday.</li>
+<li>The full research task won't finish in budget, but three of five sub-questions did.</li>
+<li>Nothing found anything — which is itself information.</li>
+</ul>
+<p>A feature that collapses all of these into one error state is throwing away value it already paid for. The engineering work of graceful degradation is mostly <em>naming</em> these intermediate states and deciding what each one shows the user.</p>
+<h2>Design the degraded states on purpose</h2>
+<p>Four degraded states cover most AI features. Each is a real product state, so each deserves a real product decision.</p>
+<p><strong>The cheaper rung.</strong> When the preferred model or provider is unavailable or over budget, serve the request from a cheaper one. A smaller model's answer to &quot;summarize this page&quot; is usually fine; the user would rather have it in two seconds than your best model's version never. The decision to make on purpose: which requests tolerate the cheap rung and which don't. That's an eval question, not a guess.</p>
+<p><strong>The cached or stale answer.</strong> If you computed something yesterday, &quot;here's yesterday's answer&quot; beats a spinner that dies. Staleness is a product parameter — an hour-old company brief is fine, an hour-old stock quote is not — so set the TTL per feature and <em>label the state honestly</em> (&quot;as of yesterday&quot;). Users forgive stale. They don't forgive stale presented as fresh.</p>
+<p><strong>The smaller scope.</strong> When the full task can't complete — budget exhausted, providers flapping, timeout approaching — ship the part that did. Three answered sub-questions with a note about the missing two is a useful artifact. This requires your orchestration to produce partial results as first-class outputs rather than holding everything until the end, which is an architecture choice you make early or retrofit expensively.</p>
+<p><strong>The honest miss.</strong> Sometimes there is no answer. The degraded state for &quot;we found nothing&quot; is a designed empty state that says so plainly — not a hallucinated guess, and not a generic error that makes the user retry a query that will never hit. I've written about why <a href="/blog/zero-hits-empty-results/">zero hits is an answer, not a failure</a>; the UX corollary is that &quot;couldn't find it&quot; deserves its own screen. Honest misses build the trust that lets users forgive the other degraded states.</p>
+<h2>Degradation ladders mirror provider ladders</h2>
+<p>If you route tool calls down a price ladder, you've already built half of this. A <a href="/blog/provider-fallback-chains/">fallback chain</a> — try the free provider, fall through to cheap paid, end the chain when a paid rung says no hits — is a degradation ladder viewed from the infrastructure side. The product-side ladder is the same structure one level up: preferred experience, cheaper experience, cached experience, partial experience, honest miss.</p>
+<p>The two ladders should be designed together, because each infrastructure rung implies a product state. When the router falls from the premium provider to a free one, does the product say anything? When the chain ends with zero hits, which empty state renders? A router that stamps its results — <code>provider_used</code>, <code>cost_usd</code>, <code>latency_ms</code> — gives the product layer exactly the signal it needs to pick the right state instead of guessing. And the ladder is your <a href="/blog/ai-agents-provider-outages/">outage strategy</a> too: a routed feature degrades one rung when a provider dies, while a hardcoded one degrades to a blank screen.</p>
+<p>Timeouts are where the ladders meet most concretely. Each rung needs its own time budget, and the sum has to fit inside what the user will wait — which makes <a href="/blog/timeouts-product-decision/">the timeout a product decision</a>, not a config default. A degradation ladder with one global 30-second timeout is a ladder with one rung.</p>
+<h2>Test the degraded paths like real features</h2>
+<p>Here's where most graceful-degradation efforts quietly rot. The degraded states get designed, shipped — and never exercised again, because the happy path works in staging and nobody's provider is down during the demo. Six months later the premium API has an outage, the fallback path runs for the first time since March, and it turns out a schema change broke the cached-answer renderer in May. You degraded, un-gracefully, in front of everyone.</p>
+<p>Degraded paths are code paths. Treat them like it:</p>
+<ul>
+<li>Unit-test each state's trigger: provider error, zero hits, budget exhausted, timeout.</li>
+<li>Force the states in staging on a schedule — kill the premium rung for an hour and watch what users would have seen. Chaos engineering, at the scale of one config flag.</li>
+<li>Put the degraded states in your evals. &quot;Cheap-rung answer quality&quot; is a metric; track it, or the cheap rung will drift below acceptable without anyone noticing.</li>
+<li>Alert on <em>rate</em>, not existence. Degradation is normal; the pager fires when the fallback rate jumps, because that means a rung above it is failing.</li>
+</ul>
+<p>A useful forcing function: every degraded state should appear in your product spec with a screenshot, same as the happy path. If you can't screenshot it, you haven't designed it.</p>
+<p>Start with an inventory. List your AI features, and for each one write down what the user sees when the provider is down, when the answer is stale, when the budget runs out, and when there's genuinely nothing to find. Most teams find blanks in that table — states that exist in production but were never designed. Fill the blanks in order of how often each state actually fires, which your ledger already knows. That's the whole practice; the rest is the same reliability discipline I keep returning to on the <a href="/blog/topics/reliability/">reliability</a> hub — the unhappy paths are the product, most days.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the open routing layer for AI tools — an MCP server that routes agent tool calls per policy: cost, latency, pinning, failover. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-04-30">Apr 30, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/ai-agents-provider-outages/">Designing AI agents that survive provider outages</a></h3>
+          <p class="blog-card-excerpt">Your agent is a distributed system with a single point of failure per dependency. The playbook for staying up when a provider doesn&#39;t.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-05-26">May 26, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/provider-fallback-chains/">Fallback chains: designing a provider ladder that doesn&#39;t page you</a></h3>
+          <p class="blog-card-excerpt">A backup provider you&#39;ve never exercised is a config value, not a plan. The rules I use to order rungs, avoid paying twice, and break flapping providers out of the chain.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-07-30">Jul 30, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/timeouts-product-decision/">Timeouts are a product decision</a></h3>
+          <p class="blog-card-excerpt">Somewhere in your config is a number deciding how long users stare at a spinner for an answer that may never come. Nobody senior chose it.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>The open routing layer for AI tools.</h2>
+            <p>Frugal is one Go binary: every tool call routed per policy — cheapest by default — with the decision and <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

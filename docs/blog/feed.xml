@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>Graceful degradation for AI features</title>
+      <link>https://frugal.sh/blog/graceful-degradation-ai-features/</link>
+      <guid>https://frugal.sh/blog/graceful-degradation-ai-features/</guid>
+      <pubDate>Tue, 11 Aug 2026 14:20:00 +0000</pubDate>
+      <description>Every AI feature already degrades. The only question is whether you designed the degraded states or your users are discovering them for you.</description>
+    </item>
+    <item>
       <title>How to evaluate an MCP server before you install it: a 10-point checklist</title>
       <link>https://frugal.sh/blog/evaluate-mcp-server-checklist/</link>
       <guid>https://frugal.sh/blog/evaluate-mcp-server-checklist/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/switching-llm-providers-questions/</guid>
       <pubDate>Thu, 11 Jun 2026 16:00:00 +0000</pubDate>
       <description>Most teams discover their switching cost the day a price hike or outage forces the move. Ask these six questions while the answer is still cheap.</description>
-    </item>
-    <item>
-      <title>Zero hits is not an error</title>
-      <link>https://frugal.sh/blog/zero-hits-empty-results/</link>
-      <guid>https://frugal.sh/blog/zero-hits-empty-results/</guid>
-      <pubDate>Tue, 09 Jun 2026 13:20:00 +0000</pubDate>
-      <description>An empty result set arrives as a 200 and gets treated like a 500. The provider didn&#39;t fail — it answered. What you do next should depend on whether that answer cost money.</description>
     </item>
   </channel>
 </rss>
