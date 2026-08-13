@@ -55,6 +55,28 @@ The pipeline decontaminates training data against it (cosine >= 0.85 dropped).
 **Never train before the eval set exists** or the decontamination guarantee is
 meaningless. The eval set is hand-curated and never produced by this pipeline.
 
+## Training and ONNX export
+
+After `finalize` has produced `out/train.jsonl` / `out/val.jsonl`:
+
+```bash
+pip install -r requirements-train.txt
+python3 train.py            # fine-tune ModernBERT-base, eval against eval_v1
+python3 export_onnx.py      # ONNX export, INT8 quantize, parity check, latency bench
+```
+
+`train.py` writes the best checkpoint to `out/model/` and
+`out/metrics_eval_v1.json` with per-class P/R/F1, per-boundary accuracy
+(the five confusion pairs), top confusions, and fallback/decided-accuracy
+rates at thresholds 0.5-0.9 (this is the data for choosing the production
+confidence threshold).
+
+`export_onnx.py` writes `out/onnx/model.int8.onnx` plus
+`out/metrics_onnx.json`. Gates: INT8 accuracy drop <= 1.0 point vs torch,
+and single-thread CPU p50 is the latency number to publish (target: sub-10ms).
+
+CPU smoke test without a GPU: `python3 train.py --max-train 2000 --epochs 1`.
+
 ## Files
 
 | File | Role |
