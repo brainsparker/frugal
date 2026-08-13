@@ -1,0 +1,13 @@
+# Training + export dependencies (data pipeline itself only needs
+# scikit-learn + requests; see README).
+# ModernBERT requires transformers >= 4.48.
+torch>=2.2
+transformers>=4.48
+datasets>=2.19
+accelerate>=0.30
+# ONNX export + INT8 quantization + CPU inference
+optimum[onnxruntime]>=1.20
+onnxruntime>=1.17
+onnx>=1.15
+numpy
+scikit-learn
