@@ -84,7 +84,12 @@ LABELS = {
             "transcribe this meeting recording",
             "get a transcript of the podcast episode",
         ],
-        "guidance": "Tier 2 (train now, route later).",
+        "guidance": (
+            "Tier 2 (train now, route later). Convention (ruled 2026-08-13): "
+            "speaker diarization ('mark the speakers', 'extract speakers') is "
+            "part of transcription = single-step transcribe. Downstream work on "
+            "the transcript ('pull action items', 'summarize it') = multi_step."
+        ),
     },
     "code.exec": {
         "definition": "Run or evaluate code in a sandbox and return the output.",
