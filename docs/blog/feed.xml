@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>5 provider routing mistakes that quietly burn your budget</title>
+      <link>https://frugal.sh/blog/provider-routing-mistakes/</link>
+      <guid>https://frugal.sh/blog/provider-routing-mistakes/</guid>
+      <pubDate>Thu, 13 Aug 2026 15:50:00 +0000</pubDate>
+      <description>None of these show up as errors. They show up as an invoice that&#39;s 3–6× what the same traffic should cost, one reasonable-looking call at a time.</description>
+    </item>
+    <item>
       <title>Graceful degradation for AI features</title>
       <link>https://frugal.sh/blog/graceful-degradation-ai-features/</link>
       <guid>https://frugal.sh/blog/graceful-degradation-ai-features/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/free-first-default-provider/</guid>
       <pubDate>Tue, 16 Jun 2026 14:40:00 +0000</pubDate>
       <description>Paid providers should be the fallback, not the default. The case for making your agent&#39;s first call free, with the failure modes stated honestly.</description>
-    </item>
-    <item>
-      <title>6 questions to ask before switching LLM providers</title>
-      <link>https://frugal.sh/blog/switching-llm-providers-questions/</link>
-      <guid>https://frugal.sh/blog/switching-llm-providers-questions/</guid>
-      <pubDate>Thu, 11 Jun 2026 16:00:00 +0000</pubDate>
-      <description>Most teams discover their switching cost the day a price hike or outage forces the move. Ask these six questions while the answer is still cheap.</description>
     </item>
   </channel>
 </rss>

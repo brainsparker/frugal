@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>5 provider routing mistakes that quietly burn your budget — frugal blog</title>
+  <meta name="description" content="Five API routing mistakes that inflate agent bills: premium-first defaults, paying twice for zero hits, global timeouts, and untyped errors." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/provider-routing-mistakes/" />
+  <meta property="og:title" content="5 provider routing mistakes that quietly burn your budget — frugal blog" />
+  <meta property="og:description" content="Five API routing mistakes that inflate agent bills: premium-first defaults, paying twice for zero hits, global timeouts, and untyped errors." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-08-13T15:50:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="5 provider routing mistakes that quietly burn your budget — frugal blog" />
+  <meta name="twitter:description" content="Five API routing mistakes that inflate agent bills: premium-first defaults, paying twice for zero hits, global timeouts, and untyped errors." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/provider-routing-mistakes/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-08-13T15:50:00Z","datePublished":"2026-08-13T15:50:00Z","description":"Five API routing mistakes that inflate agent bills: premium-first defaults, paying twice for zero hits, global timeouts, and untyped errors.","headline":"5 provider routing mistakes that quietly burn your budget","keywords":"API routing mistakes","mainEntityOfPage":"https://frugal.sh/blog/provider-routing-mistakes/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/provider-routing-mistakes/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"5 provider routing mistakes that quietly burn your budget","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#routing">Routing</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">5 provider routing mistakes that quietly burn your budget</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <span class="blog-card-kind">List</span>
+          </div>
+          <h1>5 provider routing mistakes that quietly burn your budget</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-08-13">Aug 13, 2026</time>
+            · 6 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>The expensive API routing mistakes don't look like mistakes. Every individual call in the log looks reasonable — a real provider, a real response, a real price — and the waste only exists in aggregate, where nobody is looking. These are the five I see most when people show me their routing setups, and the five I built Frugal to make hard to commit. Each one is invisible in the logs and obvious on the invoice.</p>
+<p>The pattern across all five: routing decisions made by default instead of on purpose. The fix, in every case, costs less than a week and pays forever.</p>
+<h2>1. Premium-first defaults</h2>
+<p><strong>The mistake.</strong> Every call goes to the most capable, most expensive provider — $0.005/call search for queries a free index answers identically. Not some calls. Every call, including &quot;what is TCP&quot; and the company's own homepage.</p>
+<p><strong>Why it happens.</strong> The premium provider had the best docs and the cleanest SDK, so it got wired in during week one, and week one never got revisited. Nobody chose to overpay; someone chose convenience once, and the meter has run since. The gap this leaves on the table is not small — the same web search costs $0 to $0.005 depending on who answers, a 5× spread between the two paid rungs alone before the free rungs enter.</p>
+<p><strong>The fix.</strong> Invert the default. Order providers cheapest-first and make each paid rung earn its traffic by the free rungs coming up empty. I've made <a href="/blog/free-first-default-provider/">the full case for free-first defaults</a> — the short version is that the free rungs (Wikipedia, Marginalia, self-hosted SearXNG) catch a real share of agent queries, and every query they catch is a paid call that never happened.</p>
+<h2>2. Retrying a paid rung after zero hits</h2>
+<p><strong>The mistake.</strong> A paid provider returns zero results, and the router — treating &quot;empty&quot; as &quot;failed&quot; — escalates to a pricier provider. Which also returns zero, because the query genuinely has no hits. You paid twice to learn &quot;no results.&quot;</p>
+<p><strong>Why it happens.</strong> The retry logic has one branch for &quot;didn't get results,&quot; and errors and empties both land in it. It's a type error, conceptually: an outage is a fact about the <em>provider</em>, but zero hits from a full-index provider is a fact about the <em>query</em>.</p>
+<p><strong>The fix.</strong> Split the semantics by rung. Free provider returns zero hits → fall through; partial indexes miss things and falling through costs nothing. Paid provider returns zero hits → end the chain; the query is empty and confirming that at a higher price is the purest waste in the whole system. This distinction is load-bearing enough that I gave it <a href="/blog/zero-hits-empty-results/">its own post</a>. Encode it in the router, not in reviewer comments.</p>
+<h2>3. No per-call cost attribution</h2>
+<p><strong>The mistake.</strong> The router works, the fallbacks fire, and nobody can say what any of it costs, because cost exists only as a monthly invoice aggregated past usefulness. Routing without receipts means every other mistake on this list runs undetected — you can't see the premium-first default or the double-paid zero hits, because no call carries a price.</p>
+<p><strong>Why it happens.</strong> Attribution feels like bookkeeping, and bookkeeping loses the sprint-planning fight to features. Every team plans to add it later. Later is when the invoice doubles.</p>
+<p><strong>The fix.</strong> Stamp every result at the router: <code>provider_used</code>, <code>cost_usd</code>, <code>latency_ms</code>, appended to a local ledger. A JSONL file is the whole MVP — mine lives at <code>~/.frugal/usage</code> and never leaves the machine. Once calls carry prices, waste becomes greppable, and the other four mistakes on this list show up in an afternoon of analysis. The longer build-out is in <a href="/blog/agent-cost-observability/">my post on agent cost observability</a>.</p>
+<h2>4. One global timeout across all rungs</h2>
+<p><strong>The mistake.</strong> A single timeout — say 10 seconds — wrapped around the entire routing chain. The first rung has a slow day, eats 9.8 seconds, and the chain dies before the rungs that would have answered ever run. Or the inverse: each of four rungs is allowed the full 10 seconds, and the user waits 40 for a failure you knew about at second 12.</p>
+<p><strong>Why it happens.</strong> The timeout was configured where it was easiest to add — around the outermost call — instead of where the decision lives. Chains multiply latency in a way single calls don't, and a global constant can't express &quot;Marginalia gets 2 seconds, the paid rung gets 5, the whole chain gets 8.&quot;</p>
+<p><strong>The fix.</strong> Per-rung budgets inside a chain-level budget, with each rung's timeout treated as a fall-through trigger, not a failure. A rung that blows its budget is skipped, the chain continues, and the user-facing deadline holds. Sizing those numbers is a product call, not an infra default — the chain budget is exactly &quot;how long will a user wait for this feature,&quot; and that number belongs to whoever owns the feature, not to a YAML file.</p>
+<h2>5. Treating every non-200 the same</h2>
+<p><strong>The mistake.</strong> One catch-all error branch: anything that isn't a clean success gets the same retry-then-escalate treatment. But a 429, a 500, and a clean-but-empty 200 are three different facts demanding three different moves — and the catch-all picks the wrong move for at least two of them. Retrying into a rate limit makes the rate limit worse. Hammering a provider mid-outage buys you nothing and delays the fallback that would have worked.</p>
+<p><strong>Why it happens.</strong> Error handling gets written last, against the happy path, usually as one <code>catch</code>. Distinguishing failure types requires knowing each provider's actual behavior under stress — knowledge nobody has until they've operated through a real provider outage.</p>
+<p><strong>The fix.</strong> Type your failures and give each a policy. Rate limit → back off <em>this rung</em>, fall through now, return later. Server error / timeout → skip the rung immediately, maybe retry once on the next pass. Auth error → page a human; no retry will fix a revoked key. Empty 200 → apply the zero-hit semantics from mistake 2. Four failure types, four policies, maybe fifty lines of code. It's the difference between a router and a switch statement with hope.</p>
+<h2>The theme, and where to start</h2>
+<p>All five mistakes are the same mistake at different altitudes: the router makes a decision — who's first, what empty means, what an error means, how long to wait — and nobody decided it. Defaults decided it.</p>
+<p>Start with mistake 3, the ledger, because it's the one that makes the other four visible in <em>your</em> traffic instead of my telling you they're there. Then read your own week of stamped calls and fix whichever of the other four is costing you most; for most search-heavy agents it's mistake 1 by a wide margin. The mechanics of building the chain properly are in <a href="/blog/provider-fallback-chains/">the fallback chains post</a>, and the rest of the series lives on the <a href="/blog/topics/provider-routing/">provider routing</a> hub. Routing is cheap to get right. It's only expensive to not look at.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the open routing layer for AI tools — an MCP server that routes agent tool calls per policy: cost, latency, pinning, failover. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-05-26">May 26, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/provider-fallback-chains/">Fallback chains: designing a provider ladder that doesn&#39;t page you</a></h3>
+          <p class="blog-card-excerpt">A backup provider you&#39;ve never exercised is a config value, not a plan. The rules I use to order rungs, avoid paying twice, and break flapping providers out of the chain.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-06-16">Jun 16, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/free-first-default-provider/">Free-first: why your default provider should cost $0</a></h3>
+          <p class="blog-card-excerpt">Paid providers should be the fallback, not the default. The case for making your agent&#39;s first call free, with the failure modes stated honestly.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-06-09">Jun 9, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/zero-hits-empty-results/">Zero hits is not an error</a></h3>
+          <p class="blog-card-excerpt">An empty result set arrives as a 200 and gets treated like a 500. The provider didn&#39;t fail — it answered. What you do next should depend on whether that answer cost money.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>The open routing layer for AI tools.</h2>
+            <p>Frugal is one Go binary: every tool call routed per policy — cheapest by default — with the decision and <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
