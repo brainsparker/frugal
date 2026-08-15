@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>The boring parts of the AI product are the product</title>
+      <link>https://frugal.sh/blog/boring-parts-are-the-product/</link>
+      <guid>https://frugal.sh/blog/boring-parts-are-the-product/</guid>
+      <pubDate>Fri, 14 Aug 2026 13:30:00 +0000</pubDate>
+      <description>Your model call is forty lines anyone can write. The moat is the unglamorous machinery around it — and the judgment encoded inside that machinery.</description>
+    </item>
+    <item>
       <title>5 provider routing mistakes that quietly burn your budget</title>
       <link>https://frugal.sh/blog/provider-routing-mistakes/</link>
       <guid>https://frugal.sh/blog/provider-routing-mistakes/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/deep-research-cost-teardown/</guid>
       <pubDate>Thu, 18 Jun 2026 15:25:00 +0000</pubDate>
       <description>Everyone budgets for tokens. Then a teardown shows search at 54% of task cost. The math behind why research agents multiply search spend.</description>
-    </item>
-    <item>
-      <title>Free-first: why your default provider should cost $0</title>
-      <link>https://frugal.sh/blog/free-first-default-provider/</link>
-      <guid>https://frugal.sh/blog/free-first-default-provider/</guid>
-      <pubDate>Tue, 16 Jun 2026 14:40:00 +0000</pubDate>
-      <description>Paid providers should be the fallback, not the default. The case for making your agent&#39;s first call free, with the failure modes stated honestly.</description>
     </item>
   </channel>
 </rss>
