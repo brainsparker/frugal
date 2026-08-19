@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>When a premium model is worth it (and when it&#39;s just expensive)</title>
+      <link>https://frugal.sh/blog/when-premium-models-are-worth-it/</link>
+      <guid>https://frugal.sh/blog/when-premium-models-are-worth-it/</guid>
+      <pubDate>Tue, 18 Aug 2026 16:00:00 +0000</pubDate>
+      <description>The top-tier model is worth 10x on maybe a tenth of your calls. The trick is knowing which tenth — and it starts with what a wrong answer costs you.</description>
+    </item>
+    <item>
       <title>The boring parts of the AI product are the product</title>
       <link>https://frugal.sh/blog/boring-parts-are-the-product/</link>
       <guid>https://frugal.sh/blog/boring-parts-are-the-product/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/byok-agent-tooling/</guid>
       <pubDate>Tue, 23 Jun 2026 13:50:00 +0000</pubDate>
       <description>Every middleman reselling API calls adds margin and a second data controller. The case for bring-your-own-key as trust architecture, tradeoffs included.</description>
-    </item>
-    <item>
-      <title>Search is most of your agent&#39;s bill</title>
-      <link>https://frugal.sh/blog/deep-research-cost-teardown/</link>
-      <guid>https://frugal.sh/blog/deep-research-cost-teardown/</guid>
-      <pubDate>Thu, 18 Jun 2026 15:25:00 +0000</pubDate>
-      <description>Everyone budgets for tokens. Then a teardown shows search at 54% of task cost. The math behind why research agents multiply search spend.</description>
     </item>
   </channel>
 </rss>
