@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The hidden cost of retries — frugal blog</title>
+  <meta name="description" content="API retry cost is a multiplier on spend and tail latency. A playbook: retry budgets per task, when not to retry at all, jitter, and falling sideways." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/hidden-cost-of-retries/" />
+  <meta property="og:title" content="The hidden cost of retries — frugal blog" />
+  <meta property="og:description" content="API retry cost is a multiplier on spend and tail latency. A playbook: retry budgets per task, when not to retry at all, jitter, and falling sideways." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-08-20T14:45:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="The hidden cost of retries — frugal blog" />
+  <meta name="twitter:description" content="API retry cost is a multiplier on spend and tail latency. A playbook: retry budgets per task, when not to retry at all, jitter, and falling sideways." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/hidden-cost-of-retries/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-08-20T14:45:00Z","datePublished":"2026-08-20T14:45:00Z","description":"API retry cost is a multiplier on spend and tail latency. A playbook: retry budgets per task, when not to retry at all, jitter, and falling sideways.","headline":"The hidden cost of retries","keywords":"API retry cost","mainEntityOfPage":"https://frugal.sh/blog/hidden-cost-of-retries/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/hidden-cost-of-retries/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"The hidden cost of retries","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#routing">Routing</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">The hidden cost of retries</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h1>The hidden cost of retries</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-08-20">Aug 20, 2026</time>
+            · 6 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>A retry is a purchase. Same request, same rack rate, and strictly worse odds than the first attempt — because something already went wrong once. Most retry logic gets written in five minutes, wrapped around every call site, and never looked at again, which is how API retry cost becomes the quietest multiplier on an agent bill. Nobody decided to spend 3× on a failing provider. The loop decided.</p>
+<p>The arithmetic is unglamorous. Three attempts per call at $0.005 is $0.015 for one result — you've turned the priciest rung of the search ladder into something 3× pricier than its own rack rate. And an agent makes the problem recursive: a research task that fans out into 40 tool calls, each wrapped in retry-3, has a worst case of 120 paid attempts. The task budget you thought you set was never the real budget. The real budget was the retry policy, and nobody reviewed it.</p>
+<h2>Retries multiply spend and latency at the same time</h2>
+<p>The bill is only half the damage. A retry with backoff is a latency event too: attempt, wait, attempt, wait, attempt. Three tries with even modest backoff can turn a 2-second call into a 15-second one, and in a serial agent loop every downstream step inherits the delay. Your p50 won't show it. Your p99 is made of it.</p>
+<p>This is the nasty property of retries: they concentrate their cost in exactly the moments the system is delivering the least value. When a provider is healthy, the retry logic is dormant and free. When the provider degrades, every call starts paying the full retry tax at once — the multiplier kicks in fleet-wide, spend spikes, latency spikes, and throughput drops, all during the window when your results are at their worst. <a href="/blog/ai-agents-provider-outages/">Provider outages become invoices</a> precisely through this mechanism. The retry storm is the outage's billing arm.</p>
+<h2>Budget retries per task, not per call</h2>
+<p>The standard fix — cap retries at N per call — is better than nothing and still wrong, because the call is the wrong unit of account. A task that makes 40 calls with a per-call cap of 2 still has a worst case of 80 extra attempts. The cap you actually care about is on the task.</p>
+<p>So give the task a retry budget, the same way you give it a spend ceiling or a <a href="/blog/latency-budgets-agent-tool-calls/">latency budget</a>. Something like: this research run gets 5 retries, total, across all its tool calls. Each retry spends from the shared pool; when the pool is empty, failures become fallbacks or partial results instead of repurchases. Two properties fall out of this that per-call caps can't give you:</p>
+<ul>
+<li>The worst case is bounded at the level you actually pay at. 40 calls + 5 retries = 45 attempts, full stop, no multiplication.</li>
+<li>Retries get spent where they help. A transient blip early in the task can take two retries; a provider that's clearly down can't drain the pool one call site at a time, because the pool is visible to the whole task.</li>
+</ul>
+<p>Implementation is small: a counter in the task context, decremented on every retry, checked before each one. The hard part is only the decision that a failed task is acceptable output — which it is, because the alternative is an unbounded bill for the same failure.</p>
+<h2>When retrying is simply wrong</h2>
+<p>Before any backoff math, sort the failure. Retries are for transient faults. A surprising share of what agent loops retry is deterministic, and retrying a deterministic failure is paying to re-run a proof.</p>
+<p><strong>Zero hits is not a failure.</strong> A search that returns an empty result set succeeded — the answer is &quot;nothing matched.&quot; Retrying it re-asks a question that was already answered. I've written a whole post on <a href="/blog/zero-hits-empty-results/">zero-hit semantics</a>; the retry-relevant rule is the one Frugal's router enforces: a <em>free</em> provider returning zero hits falls through to the next rung, but a <em>paid</em> provider returning zero hits ends the chain. Don't pay a pricier provider to confirm no.</p>
+<p><strong>4xx is a message, not weather.</strong> A 400 says your request is malformed; it will be malformed on attempt two. A 401/403 says your key is bad; it will still be bad. A 404 says the thing isn't there. None of these improve with repetition. The one 4xx worth special-casing is 429 — and even that isn't &quot;retry,&quot; it's &quot;wait as instructed,&quot; honoring Retry-After, spending from the retry budget while it waits.</p>
+<p><strong>Deterministic failures generally.</strong> Same input, same code path, same provider state, same result. A parse error on the provider's response, an over-length input, a schema the endpoint doesn't accept — retrying these buys you an identical failure at full price. The retryable set is small and specific: timeouts, connection resets, 5xx, 429. Everything else, fail fast and route around.</p>
+<h2>If you retry, jitter — or you've built a stampede</h2>
+<p>For the failures that do merit a retry, immediate re-attempt is self-sabotage: you're hitting a struggling provider at the moment it's struggling. Exponential backoff fixes half of that. Jitter fixes the other half. Without it, every client that failed at 14:02:07 retries in lockstep at +1s, +2s, +4s — synchronized waves that re-create the overload that caused the failures. Full jitter (sleep a random duration between zero and the backoff ceiling) decorrelates the waves. It's one line, and it's the difference between backing off and taking turns stampeding.</p>
+<h2>Falling sideways beats trying again</h2>
+<p>Here's the option most retry logic never considers: don't re-ask the same provider — ask a different one. Retry-same-provider re-rolls the dice on whatever condition just failed. Fallback-to-a-different-provider changes the condition. If Serper is timing out, the second attempt against Serper inherits the timeout risk; the first attempt against a different rung doesn't.</p>
+<p>For agent tool calls this is usually strictly better, because the providers are substitutes: five ways to run a web search, several ways to extract a page. A <a href="/blog/provider-fallback-chains/">fallback chain</a> turns &quot;retry&quot; into &quot;next rung&quot; — and when the ladder is ordered cheapest-first, the fallback path is often <em>cheaper</em> than the failing one, not just healthier. A reasonable composite policy: one same-provider retry for genuinely transient faults (it preserves any cache or ranking affinity), then sideways. Never three attempts at the same closed door with two open ones adjacent.</p>
+<h2>Where to start</h2>
+<p>Read your retry config before touching code — every wrapper, SDK default, and hand-rolled loop. Most teams find at least one call path with nested retries: an SDK retrying 3× inside an application loop retrying 3×, a silent 9× multiplier that has been in production since day one. Then, in order: classify failures into retryable and not (kill retries on 4xx and paid-rung zero hits today), move the budget from per-call to per-task, add jitter, and put a fallback rung behind your most-retried provider.</p>
+<p>And log every attempt — not just the winning one — with cost and latency attached, because attempts you can't see are <a href="/blog/topics/ai-costs/">spend you can't audit</a>. The gap between attempts logged and results delivered is your retry tax, printed as a number. Most teams have never seen theirs.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the open routing layer for AI tools — an MCP server that routes agent tool calls per policy: cost, latency, pinning, failover. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-06-09">Jun 9, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/zero-hits-empty-results/">Zero hits is not an error</a></h3>
+          <p class="blog-card-excerpt">An empty result set arrives as a 200 and gets treated like a 500. The provider didn&#39;t fail — it answered. What you do next should depend on whether that answer cost money.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-05-26">May 26, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/provider-fallback-chains/">Fallback chains: designing a provider ladder that doesn&#39;t page you</a></h3>
+          <p class="blog-card-excerpt">A backup provider you&#39;ve never exercised is a config value, not a plan. The rules I use to order rungs, avoid paying twice, and break flapping providers out of the chain.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/reliability/">Reliability &amp; latency</a>
+            <time datetime="2026-04-30">Apr 30, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/ai-agents-provider-outages/">Designing AI agents that survive provider outages</a></h3>
+          <p class="blog-card-excerpt">Your agent is a distributed system with a single point of failure per dependency. The playbook for staying up when a provider doesn&#39;t.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>The open routing layer for AI tools.</h2>
+            <p>Frugal is one Go binary: every tool call routed per policy — cheapest by default — with the decision and <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

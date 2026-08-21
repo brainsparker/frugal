@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>The hidden cost of retries</title>
+      <link>https://frugal.sh/blog/hidden-cost-of-retries/</link>
+      <guid>https://frugal.sh/blog/hidden-cost-of-retries/</guid>
+      <pubDate>Thu, 20 Aug 2026 14:45:00 +0000</pubDate>
+      <description>Every retry is a repurchase at full price with worse odds than the first attempt. Here&#39;s the playbook: budgets per task, hard no-retry rules, and fallbacks.</description>
+    </item>
+    <item>
       <title>When a premium model is worth it (and when it&#39;s just expensive)</title>
       <link>https://frugal.sh/blog/when-premium-models-are-worth-it/</link>
       <guid>https://frugal.sh/blog/when-premium-models-are-worth-it/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/multi-tool-agent-orchestration/</guid>
       <pubDate>Thu, 25 Jun 2026 16:15:00 +0000</pubDate>
       <description>Pipeline, fan-out/fan-in, escalation ladder, verify loop. Each pattern has a signature failure: a place the bill or the latency hides until production.</description>
-    </item>
-    <item>
-      <title>BYOK is a feature, not a compromise</title>
-      <link>https://frugal.sh/blog/byok-agent-tooling/</link>
-      <guid>https://frugal.sh/blog/byok-agent-tooling/</guid>
-      <pubDate>Tue, 23 Jun 2026 13:50:00 +0000</pubDate>
-      <description>Every middleman reselling API calls adds margin and a second data controller. The case for bring-your-own-key as trust architecture, tradeoffs included.</description>
     </item>
   </channel>
 </rss>
