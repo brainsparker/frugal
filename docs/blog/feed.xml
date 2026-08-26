@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>Anatomy of a deep research agent</title>
+      <link>https://frugal.sh/blog/deep-research-agent-anatomy/</link>
+      <guid>https://frugal.sh/blog/deep-research-agent-anatomy/</guid>
+      <pubDate>Tue, 25 Aug 2026 15:15:00 +0000</pubDate>
+      <description>Log a research run and a shape appears: one plan, a burst of searches, a train of extractions, one long synthesis. Each phase costs differently. Route accordingly.</description>
+    </item>
+    <item>
       <title>The hidden cost of retries</title>
       <link>https://frugal.sh/blog/hidden-cost-of-retries/</link>
       <guid>https://frugal.sh/blog/hidden-cost-of-retries/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/agent-tool-chain-failure-modes/</guid>
       <pubDate>Tue, 30 Jun 2026 14:30:00 +0000</pubDate>
       <description>Your tool chain will break in exactly five ways. Here&#39;s what each one looks like in the logs, and what a chain that survives it does differently.</description>
-    </item>
-    <item>
-      <title>Orchestration patterns for multi-tool agents</title>
-      <link>https://frugal.sh/blog/multi-tool-agent-orchestration/</link>
-      <guid>https://frugal.sh/blog/multi-tool-agent-orchestration/</guid>
-      <pubDate>Thu, 25 Jun 2026 16:15:00 +0000</pubDate>
-      <description>Pipeline, fan-out/fan-in, escalation ladder, verify loop. Each pattern has a signature failure: a place the bill or the latency hides until production.</description>
     </item>
   </channel>
 </rss>

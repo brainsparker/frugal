@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Anatomy of a deep research agent — frugal blog</title>
+  <meta name="description" content="A deep research agent has five phases — plan, fan out, extract, verify, synthesize. The bill lives in the fan-out. Here&#39;s the anatomy, with numbers." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/deep-research-agent-anatomy/" />
+  <meta property="og:title" content="Anatomy of a deep research agent — frugal blog" />
+  <meta property="og:description" content="A deep research agent has five phases — plan, fan out, extract, verify, synthesize. The bill lives in the fan-out. Here&#39;s the anatomy, with numbers." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-08-25T15:15:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Anatomy of a deep research agent — frugal blog" />
+  <meta name="twitter:description" content="A deep research agent has five phases — plan, fan out, extract, verify, synthesize. The bill lives in the fan-out. Here&#39;s the anatomy, with numbers." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/deep-research-agent-anatomy/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-08-25T15:15:00Z","datePublished":"2026-08-25T15:15:00Z","description":"A deep research agent has five phases — plan, fan out, extract, verify, synthesize. The bill lives in the fan-out. Here's the anatomy, with numbers.","headline":"Anatomy of a deep research agent","keywords":"deep research agent","mainEntityOfPage":"https://frugal.sh/blog/deep-research-agent-anatomy/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/deep-research-agent-anatomy/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Anatomy of a deep research agent","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#routing">Routing</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Anatomy of a deep research agent</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/building-with-ai/">Building with AI</a>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h1>Anatomy of a deep research agent</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-08-25">Aug 25, 2026</time>
+            · 6 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Run a deep research agent with full logging on and the transcript has a shape. Not a vague one — a repeatable, almost anatomical structure that shows up across implementations, models, and topics. One planning call. A burst of parallel searches. A train of extractions. A scatter of follow-ups. One long synthesis at the end. If you're building or buying a deep research agent, this shape is worth understanding, because each phase has a different cost profile, a different latency profile, and a different tolerance for cheap substitutes. Treating the whole run as one undifferentiated blob of &quot;agent activity&quot; is how you end up optimizing the wrong phase.</p>
+<p>Here's the anatomy, phase by phase, and where the money and the minutes actually go.</p>
+<h2>Five phases, five different workloads</h2>
+<p><strong>Plan.</strong> One model call, sometimes two. The agent decomposes the question into sub-questions and drafts a search strategy. Token-light, call-light, but load-bearing: a bad decomposition sends the entire fan-out in the wrong direction, and no amount of downstream quality recovers a run that researched the wrong thing. This is the classic case for spending up — one call, whole-run blast radius.</p>
+<p><strong>Fan out.</strong> The burst. The plan turns into search queries — commonly 5 to 15 per sub-question — dispatched wide. This is where the run stops being a conversation and becomes a workload: dozens of tool calls, each individually cheap, collectively the dominant line item. More on that below, because the fan-out is the whole cost story.</p>
+<p><strong>Extract.</strong> For each search hit that survives triage, fetch the page and reduce it to text. Fewer calls than search, but heavier ones — full page fetches, occasionally a headless browser for the JavaScript-walled ones. Extraction also produces the tokens that every later model call must read, so its output size quietly sets the input cost of the rest of the run.</p>
+<p><strong>Verify.</strong> The most variable phase, and the one that separates good research agents from confident ones. Cross-checking a claim means <em>more searches and more extractions</em> — targeted this time, two or three sources aimed at one disputed fact. Verification is a second, smaller fan-out, which means skimping on it is invisible in the cost report and very visible in the output.</p>
+<p><strong>Synthesize.</strong> One or two long calls that read everything the run gathered and write the report. Few calls, enormous inputs — this is where the run's largest single model call lives, its size determined by how disciplined the extract phase was.</p>
+<p>Five phases, three fundamentally different workloads: a few high-stakes reasoning calls (plan, synthesize), a wide swarm of cheap retrieval calls (fan out, verify), and a middle band of fetch-and-reduce (extract). The <a href="/blog/multi-tool-agent-orchestration/">orchestration challenge</a> is that one loop has to run all three well.</p>
+<h2>The bill lives in the fan-out</h2>
+<p>Intuition says the model is the expensive part — the synthesis call alone reads a hundred thousand tokens. The logs say otherwise. In <a href="/blog/deep-research-cost-teardown/">one deep-research teardown I keep coming back to</a>, search alone was 54% of task cost. Not compute. Not synthesis. The searches.</p>
+<p>The reason is arithmetic, not mystery. A research run that explores 6 sub-questions at 10 queries each, plus a verification pass, lands somewhere around 70–80 search calls. At $0.005 per call — You.com's rung — that's roughly $0.40 of search before a single page is extracted or a single token is synthesized. The per-call price looks like a rounding error; the fan-out multiplies it into the headline. Extraction rides the same multiplication one step behind: every search that returns hits feeds 2–3 extractions, at ~$0.001 per page through Firecrawl if a paid extractor answers.</p>
+<p>This is the defining economic fact of the deep research agent as a workload: it is a <em>retrieval</em> workload with a reasoning garnish. Budget and optimize it like one.</p>
+<h2>Where routing and caching cut cost without cutting quality</h2>
+<p>The good news about a bill dominated by retrieval is that retrieval is the most substitutable thing in the stack. The same query can be answered at $0 or $0.005 depending on who answers it — and research fan-outs are unusually rich in queries the free rungs handle well.</p>
+<p>Look at what a fan-out actually contains: entity lookups (&quot;what is X,&quot; &quot;who founded Y&quot;) that Wikipedia answers at $0; longform and documentation queries where Marginalia is genuinely strong; and a hard core of fresh, commercial, or obscure queries that legitimately need a paid SERP. Routing cheapest-first with fall-through on zero hits — the ladder Frugal walks — lets each query find its cheapest competent answerer, and the paid rungs get only the residue. The quality cost is nothing, because fall-through means a free rung that can't answer doesn't answer; it steps aside. The honest caveat: free rungs are weak on news and product pages, so a fan-out heavy in those will and should ride the paid rungs.</p>
+<p>Caching is the other structural cut, because research runs are self-repetitive by construction. The verify phase re-visits sources the fan-out already found. Sub-questions overlap and re-ask near-identical queries. Multiple users research adjacent topics against the same canonical pages. A cache keyed on normalized query and URL, with even a short TTL, absorbs the second and later hits at $0 — and unlike most cost cuts, this one <em>improves</em> the product, because cache hits return in milliseconds. Extraction is the standout: a page fetched during fan-out has not changed by verification time. Serve it from disk.</p>
+<h2>The latency shape: wide is fast, deep is slow</h2>
+<p>Cost is one axis of the anatomy; latency is the other, and its shape is the inverse of what the call counts suggest. The fan-out — 70 calls — is the <em>fast</em> part when dispatched in parallel: wall-clock time is the slowest call in the batch, not the sum, so 70 searches cost roughly one search of waiting. The synthesis — one call — is the slow part, a single serial generation that can run minutes and parallelizes not at all.</p>
+<p>So the run's wall-clock profile is a short wide burst followed by a long thin tail, and the engineering follows from it. Parallelize the fan-out aggressively; sequential search loops are leaving 10× wall-clock on the table. Set <a href="/blog/latency-budgets-agent-tool-calls/">per-call latency budgets</a> inside the burst so one slow provider can't hold the whole batch hostage — in a parallel fan-out, p99 <em>is</em> your latency. And stream the synthesis, because it's the phase the user actually watches. Users forgive a two-minute research run; they don't forgive two minutes of spinner.</p>
+<h2>Where to start</h2>
+<p>If you operate a deep research agent, produce its anatomy from your own logs before changing anything: calls, cost, and wall-clock per phase, for a dozen representative runs. The 54% number is one teardown, not your teardown — but I'd be surprised if retrieval isn't your largest line. Then work the phases in order of leverage: route the fan-out down a price ladder, cache extraction, parallelize the burst, and spend your premium-model budget on the two calls — plan and synthesize — where it moves the output. The rest of my notes on agent construction live in the <a href="/blog/topics/building-with-ai/">building with AI</a> series.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the open routing layer for AI tools — an MCP server that routes agent tool calls per policy: cost, latency, pinning, failover. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-06-18">Jun 18, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/deep-research-cost-teardown/">Search is most of your agent&#39;s bill</a></h3>
+          <p class="blog-card-excerpt">Everyone budgets for tokens. Then a teardown shows search at 54% of task cost. The math behind why research agents multiply search spend.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/building-with-ai/">Building with AI</a>
+            <time datetime="2026-06-25">Jun 25, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/multi-tool-agent-orchestration/">Orchestration patterns for multi-tool agents</a></h3>
+          <p class="blog-card-excerpt">Pipeline, fan-out/fan-in, escalation ladder, verify loop. Each pattern has a signature failure: a place the bill or the latency hides until production.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-05-28">May 28, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/agent-cost-observability/">Cost observability for agents: put cost_usd on every result</a></h3>
+          <p class="blog-card-excerpt">Your invoice knows what you spent by provider and month. It has no idea what one agent run cost. Stamp the cost on the response envelope and the question answers itself.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>The open routing layer for AI tools.</h2>
+            <p>Frugal is one Go binary: every tool call routed per policy — cheapest by default — with the decision and <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
