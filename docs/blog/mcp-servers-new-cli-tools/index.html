@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MCP servers are the new CLI tools — frugal blog</title>
+  <meta name="description" content="MCP servers are this decade&#39;s CLI tools: small, single-purpose, composable by an agent instead of a shell. The analogy predicts where MCP goes next." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/mcp-servers-new-cli-tools/" />
+  <meta property="og:title" content="MCP servers are the new CLI tools — frugal blog" />
+  <meta property="og:description" content="MCP servers are this decade&#39;s CLI tools: small, single-purpose, composable by an agent instead of a shell. The analogy predicts where MCP goes next." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-08-27T13:55:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="MCP servers are the new CLI tools — frugal blog" />
+  <meta name="twitter:description" content="MCP servers are this decade&#39;s CLI tools: small, single-purpose, composable by an agent instead of a shell. The analogy predicts where MCP goes next." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/mcp-servers-new-cli-tools/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-08-27T13:55:00Z","datePublished":"2026-08-27T13:55:00Z","description":"MCP servers are this decade's CLI tools: small, single-purpose, composable by an agent instead of a shell. The analogy predicts where MCP goes next.","headline":"MCP servers are the new CLI tools","keywords":"MCP servers","mainEntityOfPage":"https://frugal.sh/blog/mcp-servers-new-cli-tools/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/mcp-servers-new-cli-tools/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"MCP servers are the new CLI tools","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#routing">Routing</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">MCP servers are the new CLI tools</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h1>MCP servers are the new CLI tools</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-08-27">Aug 27, 2026</time>
+            · 6 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>In 1978, the way to give your computer a new capability was to write a small program that read text, wrote text, did one thing well, and trusted something else to wire it together. In 2026, the way to give your agent a new capability is exactly that, plus a JSON-RPC handshake. MCP servers are the new CLI tools — not as a slogan, but as a structural claim about how this ecosystem works, and I think the analogy is precise enough to make predictions with. Including predictions about where it breaks.</p>
+<p>The Unix bet was that composition beats integration: many small tools, one universal interface (text streams), and a shell to combine them in ways no tool author anticipated. Nobody who wrote <code>grep</code> imagined every pipeline it would end up in. That's the point. The intelligence lived in the composer — a human at a shell — and the tools stayed simple because they could.</p>
+<p>Swap the human for a model and the shell for an agent loop, and you have the MCP ecosystem's actual architecture. The agent is the shell now. It reads your intent, picks tools, sequences them, pipes one tool's output into the next tool's input, and handles the failures. MCP servers are the coreutils: small, single-purpose, indifferent to what they're combined with.</p>
+<h2>What translates cleanly</h2>
+<p><strong>Do one thing well.</strong> The best MCP servers I've used are embarrassingly narrow — search, extract, one SaaS API, one database. The worst are the kitchen-sink servers exposing forty tools across unrelated domains, and they fail for a mechanical reason Unix never had to articulate: every tool description occupies context, and a bloated toolset taxes the agent's attention on <em>every</em> call, relevant or not. Unix tolerated bloated tools; the agent-as-shell actively punishes them. I keep a whole <a href="/blog/evaluate-mcp-server-checklist/">checklist for evaluating MCP servers</a>, and half of it is variations on &quot;does this do one thing.&quot;</p>
+<p><strong>Text as the universal interface.</strong> Unix tools compose because everything is a byte stream. MCP tools compose because everything is a JSON result a model can read. Same property, one level up: the format is universal enough that tools need no knowledge of each other. The tool that searches doesn't know about the tool that extracts. The agent glues them, the way the pipe glued <code>cat</code> to <code>sort</code>.</p>
+<p><strong>Composition the author never imagined.</strong> This is the test that matters. My own server exposes three tools — search, extract, browse — and agents chain them in orders I didn't design for, interleave them with other servers' tools, and occasionally use extract on things I'd have called a search problem. When users of your tool build pipelines you didn't anticipate, the composition model is working. That, more than any directory listing, is <a href="/blog/mcp-ecosystem-2026/">what the MCP ecosystem got right</a>.</p>
+<p><strong>Even the transport rhymes.</strong> stdio is literally the Unix inheritance — an MCP server on stdio is a child process reading stdin and writing stdout, closer to a filter than to a service. The <a href="/blog/mcp-transport-stdio-vs-http/">stdio-versus-HTTP split</a> is the old local-versus-network split with better framing.</p>
+<h2>What doesn't translate</h2>
+<p>The analogy earns its keep where it breaks, because each break marks work the ecosystem still has to do — work Unix never did.</p>
+<p><strong>Auth.</strong> <code>grep</code> never needed credentials. A useful MCP server usually fronts an API that does, which drags identity into a composition model that was designed without one. Whose key is it? The <a href="/blog/byok-agent-tooling/">BYOK answer</a> — your keys, held locally, no intermediary account — is the one I've bet on, but the ecosystem hasn't settled, and every unsettled option (server-held keys, OAuth flows, platform-brokered tokens) creates a different trust and billing topology. Pipes never had a login step.</p>
+<p><strong>Metering and cost.</strong> This is the deepest break. Composing Unix tools was free — once <code>awk</code> was on disk, running it a million times cost nothing you could see. Composing MCP tools spends money: a search rung costs $0 or $0.001 or $0.005 per call depending on the provider behind it, and the composer is a model with no innate price sense. A shell script that ran <code>grep</code> in a loop wasted nothing; an agent that loops a paid tool wastes real dollars. The Unix philosophy has no chapter on this because it never needed one — which is exactly why cost-awareness has to be built into the tool layer now. It's why Frugal stamps <code>cost_usd</code> on every result: if the shell is a spender, the tools owe it a receipt.</p>
+<p><strong>Trust.</strong> Unix tools were vetted by distribution maintainers and ran with your own eyeballs on the pipeline. MCP servers are installed from directories of varying rigor and composed by a model that reads — and obeys — text. A malicious tool description or a poisoned result is an injection channel with no <code>man page</code> review culture to catch it. The trust infrastructure that made <code>apt install</code> boring took two decades. MCP is in year three.</p>
+<p><strong>The shell doesn't read the man page — it <em>is</em> the man page's audience.</strong> A subtle inversion: Unix documentation was for humans; the program ignored it. An MCP tool description is <em>executed</em>, in the sense that the model conditions on it for every routing decision. Tool docs are now an interface, with all the compatibility and quality obligations interfaces carry.</p>
+<h2>What the analogy predicts</h2>
+<p>If MCP servers are the new CLI tools, the ecosystem's trajectory is legible from Unix history, with corrections for the breaks.</p>
+<p>Expect a coreutils moment: a small canon of servers — filesystem, search, browser, the top SaaS APIs — that everyone assumes present, the way every Unix box has <code>ls</code>. The long tail stays long, but defaults consolidate. Expect the pipefitters to matter more than the pipes: as servers commoditize into single-purpose filters, the value moves to whatever composes and governs them — the agent harness, the router, the policy layer. In Unix terms, the money was never in <code>cat</code>. And expect the missing chapters to get written as infrastructure, not convention: metering, auth brokering, and provenance will become layers that wrap servers, because the servers themselves should stay small. The Unix answer to a cross-cutting concern was never &quot;make every tool bigger.&quot;</p>
+<p>The prediction I hold with most conviction follows from the cost break: composition with a meter running selects for tools that are cheap by default. In a free-composition world, capability wins. In a metered one, the tool that answers at $0 gets composed first, and the $0.005 tool gets composed when it must — a selection pressure Unix never exerted and MCP exerts on every call.</p>
+<p>If you're writing an MCP server, the actionable version is old advice with a new addressee: do one thing, document it as if the doc were code (it is), stay cheap to call, and let the agent do the composing. If you're choosing servers, favor the small sharp ones and be suspicious of kitchen sinks. Forty-eight years on, the design pressure that produced the Unix toolbox is operating again — same forces, new shell, and this time the pipe has a price on it. More along these lines in the <a href="/blog/topics/mcp-ecosystem/">MCP ecosystem</a> series.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the open routing layer for AI tools — an MCP server that routes agent tool calls per policy: cost, latency, pinning, failover. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <time datetime="2026-05-05">May 5, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/mcp-ecosystem-2026/">The MCP ecosystem in 2026: what&#39;s actually getting used</a></h3>
+          <p class="blog-card-excerpt">Forget the spec tour. This is what MCP looks like from the inside of a server that runs every day: the parts that stuck and the parts that didn&#39;t.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <time datetime="2026-06-23">Jun 23, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/byok-agent-tooling/">BYOK is a feature, not a compromise</a></h3>
+          <p class="blog-card-excerpt">Every middleman reselling API calls adds margin and a second data controller. The case for bring-your-own-key as trust architecture, tradeoffs included.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <time datetime="2026-08-07">Aug 7, 2026</time>
+            <span class="blog-card-kind">List</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/evaluate-mcp-server-checklist/">How to evaluate an MCP server before you install it: a 10-point checklist</a></h3>
+          <p class="blog-card-excerpt">Installing an MCP server hands your agent new capabilities and someone else new visibility. Ten checks to run before it touches your config.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>The open routing layer for AI tools.</h2>
+            <p>Frugal is one Go binary: every tool call routed per policy — cheapest by default — with the decision and <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

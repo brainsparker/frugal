@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>MCP servers are the new CLI tools</title>
+      <link>https://frugal.sh/blog/mcp-servers-new-cli-tools/</link>
+      <guid>https://frugal.sh/blog/mcp-servers-new-cli-tools/</guid>
+      <pubDate>Thu, 27 Aug 2026 13:55:00 +0000</pubDate>
+      <description>Unix won with small tools composed by a shell. Swap the shell for an agent and the pattern repeats — except pipes were free, and tool calls have a meter.</description>
+    </item>
+    <item>
       <title>Anatomy of a deep research agent</title>
       <link>https://frugal.sh/blog/deep-research-agent-anatomy/</link>
       <guid>https://frugal.sh/blog/deep-research-agent-anatomy/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/latency-quality-cost-tradeoffs/</guid>
       <pubDate>Thu, 02 Jul 2026 15:55:00 +0000</pubDate>
       <description>Autocomplete, overnight reports, and research tasks live in different corners of the same triangle. Products that pick one corner for everything overpay in all three.</description>
-    </item>
-    <item>
-      <title>5 failure modes every agent tool chain should survive</title>
-      <link>https://frugal.sh/blog/agent-tool-chain-failure-modes/</link>
-      <guid>https://frugal.sh/blog/agent-tool-chain-failure-modes/</guid>
-      <pubDate>Tue, 30 Jun 2026 14:30:00 +0000</pubDate>
-      <description>Your tool chain will break in exactly five ways. Here&#39;s what each one looks like in the logs, and what a chain that survives it does differently.</description>
     </item>
   </channel>
 </rss>
