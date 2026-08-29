@@ -1,6 +1,9 @@
 package tools
 
 import (
+	"time"
+
+	"github.com/frugalsh/frugal/internal/cache"
 	"github.com/frugalsh/frugal/internal/routing"
 )
 
@@ -21,6 +24,13 @@ type toolOptions struct {
 	// enforcement call sites need no conditionals and the zero value keeps
 	// the historical behavior exactly.
 	guard *routing.Guard
+	// resultCache memoizes successful search / extract results so a
+	// repeated call inside the TTL costs nothing. Nil (the default)
+	// disables caching entirely; the cache methods are nil-safe, so the
+	// handlers consult it unconditionally. Browse is never cached.
+	resultCache *cache.Cache
+	searchTTL   time.Duration
+	extractTTL  time.Duration
 }
 
 // ToolOption configures a routed tool at registration time.
@@ -54,6 +64,19 @@ func WithLatencyLookupFor(f func(tool string) routing.LatencyLookup) ToolOption 
 // consults before each routed call. Nil (the default) disables both rails.
 func WithGuard(g *routing.Guard) ToolOption {
 	return func(o *toolOptions) { o.guard = g }
+}
+
+// WithResultCache supplies the exact-match result cache and its
+// per-capability TTLs. A nil cache or a TTL at or below zero disables
+// caching for the affected capability. The same *cache.Cache instance
+// should back every routed tool so frugal__execute and the direct
+// tools share entries.
+func WithResultCache(c *cache.Cache, searchTTL, extractTTL time.Duration) ToolOption {
+	return func(o *toolOptions) {
+		o.resultCache = c
+		o.searchTTL = searchTTL
+		o.extractTTL = extractTTL
+	}
 }
 
 func buildToolOptions(opts []ToolOption) toolOptions {

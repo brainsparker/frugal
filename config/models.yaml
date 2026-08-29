@@ -53,6 +53,20 @@
 #   routing:
 #     cooldown: 90s
 #
+# Result cache (optional, off by default). When enabled, repeated
+# identical search / extract calls inside the TTL are answered from
+# process memory at zero cost and marked cached: true in the response.
+# Browse is never cached. In-memory only: entries never touch disk and
+# never outlive the process. TTLs are Go durations; "0" disables that
+# capability's caching only. Invalid values warn and use the defaults
+# (search 5m, extract 15m, max_entries 512):
+#
+#   cache:
+#     enabled: true
+#     search_ttl: 5m
+#     extract_ttl: 15m
+#     max_entries: 512
+#
 # v1.0 ships only the search-tool layer. Chat-model routing and its
 # pricing tables come back in Phase 2 with the frugal__chat MCP tool.
 search_providers:
