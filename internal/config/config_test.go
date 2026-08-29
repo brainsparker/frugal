@@ -40,9 +40,6 @@ func TestLoad_MissingFile(t *testing.T) {
 }
 
 func TestLoad_IgnoresFrugalConfigEnv(t *testing.T) {
-	// Load is filesystem-pure: an ambient FRUGAL_CONFIG (e.g. from the
-	// curl installer's rc block on a dev machine) must not hijack the
-	// explicitly named path. Env resolution belongs to LoadAuto.
 	other := filepath.Join(t.TempDir(), "other.yaml")
 	if err := os.WriteFile(other, []byte("search_providers: {}\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -99,8 +96,6 @@ func TestValidate_RejectsNonFiniteCost(t *testing.T) {
 }
 
 func TestValidate_RejectsMissingAPIKeyAndBaseURL(t *testing.T) {
-	// Either an api_key_env (hosted) or a base_url / base_url_env
-	// (self-hosted) is required — without one we have no way to dispatch.
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cfg.yaml")
 	yaml := `search_providers:
@@ -185,8 +180,6 @@ search_providers:
 }
 
 func TestLoadAuto_BadEnvPathErrors(t *testing.T) {
-	// An explicit FRUGAL_CONFIG pointing nowhere is an operator mistake to
-	// surface, not a case to paper over with the embedded default.
 	t.Setenv("FRUGAL_CONFIG", "/does/not/exist.yaml")
 	if _, _, err := LoadAuto(); err == nil {
 		t.Fatalf("expected error for broken FRUGAL_CONFIG path")
@@ -194,12 +187,10 @@ func TestLoadAuto_BadEnvPathErrors(t *testing.T) {
 }
 
 func TestLoadAuto_FallsBackToEmbeddedDefault(t *testing.T) {
-	// No env, no checkout-relative file, no installer file → the embedded
-	// default keeps a bare binary (npm wrapper, GUI-spawned) bootable.
 	t.Setenv("FRUGAL_CONFIG", "")
 	home := t.TempDir()
-	t.Setenv("HOME", home)        // os.UserHomeDir on linux/darwin
-	t.Setenv("USERPROFILE", home) // …and on windows
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Chdir(t.TempDir())
 
 	cfg, src, err := LoadAuto()
@@ -243,8 +234,6 @@ search_providers:
 	if src != path {
 		t.Errorf("source = %q, want %q", src, path)
 	}
-	// The installer file's own entry survives as written — entry-level
-	// merge, so the embedded serper's base_url must not leak in.
 	sp, ok := cfg.SearchProviders["serper"]
 	if !ok {
 		t.Fatalf("expected the installer file's serper, got %+v", cfg.SearchProviders)
@@ -255,9 +244,6 @@ search_providers:
 }
 
 func TestLoadAuto_OverlaysMissingDefaults(t *testing.T) {
-	// A config written before a provider shipped must gain it on load:
-	// installs keep their file across upgrades, and the overlay is how
-	// the zero-key wikipedia rung reaches them.
 	t.Setenv("FRUGAL_CONFIG", "")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -288,14 +274,9 @@ search_providers:
 	if _, ok := cfg.SearchProviders["marginalia"]; !ok {
 		t.Errorf("marginalia should be defaulted in from the embedded models.yaml; got %+v", cfg.SearchProviders)
 	}
-	// Keyless in-process defaults fill omitted capability maps too.
 	if _, ok := cfg.ExtractProviders["goreadability"]; !ok {
 		t.Errorf("extract_providers should gain the keyless embedded defaults; got %+v", cfg.ExtractProviders)
 	}
-	// Keyed and operator-instance providers stay strictly opt-in: the
-	// overlay must never make `frugal mcp install` harvest a secret the
-	// operator's file didn't authorize, or point traffic at an instance
-	// they didn't name.
 	if _, ok := cfg.SearchProviders["youcom"]; ok {
 		t.Errorf("keyed youcom must NOT be defaulted in; got %+v", cfg.SearchProviders)
 	}
@@ -311,10 +292,6 @@ search_providers:
 }
 
 func TestParse_MisplacedEntriesFailFast(t *testing.T) {
-	// Endpoint-less entries naming a provider the section doesn't know are
-	// misplaced lines that would silently do nothing at runtime — a bare
-	// wikipedia under extract_providers, or a tombstone in the wrong map
-	// that fails to disable anything. Both must fail the load with a hint.
 	for _, y := range []string{
 		"extract_providers:\n    wikipedia: {}\n",
 		"extract_providers:\n    wikipedia:\n        enabled: false\n",
@@ -327,9 +304,6 @@ func TestParse_MisplacedEntriesFailFast(t *testing.T) {
 }
 
 func TestParse_BareTombstoneOfShippedKeyedProviderIsValid(t *testing.T) {
-	// `youcom: {enabled: false}` without endpoint fields is the exact form
-	// the overlay hint tells users to write; the scope ships youcom, so it
-	// must validate.
 	y := "search_providers:\n    youcom:\n        enabled: false\n"
 	if _, err := Parse([]byte(y)); err != nil {
 		t.Errorf("bare tombstone of a shipped provider should validate; got %v", err)
@@ -337,10 +311,6 @@ func TestParse_BareTombstoneOfShippedKeyedProviderIsValid(t *testing.T) {
 }
 
 func TestParse_BareKeylessEntryIsValid(t *testing.T) {
-	// A tombstone flipped back on (`wikipedia: {enabled: true}`) or a bare
-	// `marginalia:` entry has no endpoint fields — the drivers default
-	// their public base URL in code, so the config must load, not brick
-	// the server with a demand for api_key_env.
 	for _, y := range []string{
 		"search_providers:\n    wikipedia:\n        enabled: true\n",
 		"search_providers:\n    marginalia: {}\n",
@@ -352,8 +322,6 @@ func TestParse_BareKeylessEntryIsValid(t *testing.T) {
 }
 
 func TestLoadAuto_UserOverrideWins(t *testing.T) {
-	// An entry the operator's file names is theirs entirely; the overlay
-	// only fills absent entries.
 	t.Setenv("FRUGAL_CONFIG", "")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -389,9 +357,6 @@ search_providers:
 }
 
 func TestLoadAuto_DisabledTombstoneSurvivesOverlay(t *testing.T) {
-	// `enabled: false` is the durable opt-out: the entry is present, so
-	// the overlay must not replace it with the shipped default, and it
-	// needs no endpoint fields to validate.
 	t.Setenv("FRUGAL_CONFIG", "")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -428,8 +393,6 @@ search_providers:
 }
 
 func TestLoadAuto_EmbeddedPathIdenticalToDefaults(t *testing.T) {
-	// On the embedded-default path the overlay is a no-op: the loaded
-	// config must equal a straight parse of the embedded models.yaml.
 	t.Setenv("FRUGAL_CONFIG", "")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -453,8 +416,6 @@ func TestLoadAuto_EmbeddedPathIdenticalToDefaults(t *testing.T) {
 }
 
 func TestLoadTrusted_SkipsCwdConfig(t *testing.T) {
-	// A config/models.yaml in whatever directory install runs from must
-	// not get to choose which env vars are harvested into client configs.
 	t.Setenv("FRUGAL_CONFIG", "")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -476,7 +437,6 @@ search_providers:
 	}
 	t.Chdir(cwd)
 
-	// LoadAuto trusts the cwd candidate; LoadTrusted must skip it.
 	if _, src, err := LoadAuto(); err != nil || src != filepath.Join("config", "models.yaml") {
 		t.Fatalf("precondition: LoadAuto should pick the cwd file; got src=%q err=%v", src, err)
 	}
@@ -548,8 +508,6 @@ func TestParse_RoutingRejectsUnknownStrategy(t *testing.T) {
 }
 
 func TestParse_RoutingRejectsUnknownProvider(t *testing.T) {
-	// goreadability is an extract provider — naming it under
-	// routing.search is a misplaced line.
 	_, err := Parse([]byte("routing:\n  search:\n    deny: [goreadability]\n"))
 	if err == nil || !strings.Contains(err.Error(), "unknown provider") {
 		t.Fatalf("want unknown-provider error, got %v", err)
@@ -557,8 +515,6 @@ func TestParse_RoutingRejectsUnknownProvider(t *testing.T) {
 }
 
 func TestParse_RoutingAcceptsOperatorOwnProviders(t *testing.T) {
-	// A provider declared in the operator's own file is fair game for
-	// policy even if the shipped defaults don't know it.
 	_, err := Parse([]byte(`
 search_providers:
   mysearch:
@@ -614,7 +570,6 @@ search_providers:
 }
 
 func TestParse_DailyBudgetDefaultsToZero(t *testing.T) {
-	// An entry without daily_budget_usd means no cap (zero value).
 	cfg, err := Parse([]byte("search_providers:\n  wikipedia:\n    cost_per_call: 0\n"))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
@@ -638,9 +593,6 @@ search_providers:
 }
 
 func TestParse_CooldownRoundTrips(t *testing.T) {
-	// Cooldown is a top-level routing knob, not per capability. The
-	// string is stored as-is; parsing / validation of the duration
-	// happens at wiring time, so any string round-trips here.
 	cfg, err := Parse([]byte("routing:\n  cooldown: 90s\n"))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
@@ -675,12 +627,41 @@ func TestParse_ConfigWithoutLimitsIsUncapped(t *testing.T) {
 	if cfg.Limits != nil {
 		t.Fatalf("limits should be nil when absent, got %+v", cfg.Limits)
 	}
-	// Zero is the documented "no cap" spelling and must load.
 	cfg, err = Parse([]byte("limits:\n  max_chars: 0\n"))
 	if err != nil {
 		t.Fatalf("Parse zero: %v", err)
 	}
 	if cfg.Limits == nil || cfg.Limits.MaxChars != 0 {
 		t.Fatalf("limits = %+v", cfg.Limits)
+	}
+}
+
+func TestParse_CacheSectionRoundTrips(t *testing.T) {
+	y := "cache:\n    enabled: true\n    search_ttl: 2m\n    extract_ttl: 30m\n    max_entries: 128\n"
+	cfg, err := Parse([]byte(y))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Cache == nil || !cfg.Cache.Enabled {
+		t.Fatalf("cache section not parsed: %+v", cfg.Cache)
+	}
+	if cfg.Cache.SearchTTL != "2m" || cfg.Cache.ExtractTTL != "30m" || cfg.Cache.MaxEntries != 128 {
+		t.Fatalf("cache fields = %+v", cfg.Cache)
+	}
+}
+
+func TestParse_CacheAbsentIsNil(t *testing.T) {
+	cfg, err := Parse([]byte("search_providers:\n    wikipedia: {}\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Cache != nil {
+		t.Fatalf("absent cache section must stay nil, got %+v", cfg.Cache)
+	}
+}
+
+func TestParse_CacheRejectsNegativeMaxEntries(t *testing.T) {
+	if _, err := Parse([]byte("cache:\n    enabled: true\n    max_entries: -1\n")); err == nil {
+		t.Fatal("negative max_entries must fail validation")
 	}
 }

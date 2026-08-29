@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/frugalsh/frugal/internal/browse"
+	"github.com/frugalsh/frugal/internal/cache"
 	"github.com/frugalsh/frugal/internal/config"
 	"github.com/frugalsh/frugal/internal/extract"
 	"github.com/frugalsh/frugal/internal/install"
@@ -92,15 +93,11 @@ func runMCPServe(args []string) int {
 
 	cfg, cfgSrc, err := config.LoadAuto()
 	if err != nil {
-		// stdio mode keeps stdout free of non-JSON bytes — failure logs go to
-		// stderr, which is the contract every MCP client respects.
 		fmt.Fprintf(os.Stderr, "frugal mcp serve: load config: %v\n", err)
 		return 1
 	}
 	slog.Info("mcp serve: config loaded", "source", cfgSrc)
 
-	// stdio transport is single-session; logging to stderr is safe and
-	// preserves the MCP newline-delimited JSON-RPC contract on stdout.
 	srv := mcp.New("frugal", version(), slog.Default())
 
 	metrics := obs.NewMetrics()
@@ -116,9 +113,6 @@ func runMCPServe(args []string) int {
 			slog.Warn("mcp serve: usage ledger disabled — cannot resolve home dir", "err", lerr)
 		}
 	}
-	// Routing policies: absent config keeps the cheap default per
-	// capability. The latency lookup feeds the fast strategy from the
-	// local ledger; when the ledger is off, fast degrades to cost order.
 	latFor := func(string) routing.LatencyLookup { return nil }
 	if ledger.Enabled() {
 		if dir, lerr := ledger.Dir(); lerr == nil {
@@ -145,12 +139,6 @@ func runMCPServe(args []string) int {
 		}
 	}
 
-	// Spend-cap / cooldown guard: one instance shared across every
-	// capability, keyed "capability/provider" internally so the same
-	// provider name in two tables gets independent budgets. Built
-	// unconditionally — a Guard with no caps still enforces the cooldown,
-	// and a nil guard and an empty-caps guard are both no-ops on the spend
-	// rail, so there's no behavior difference for a budget-free config.
 	guard := buildGuard(cfg)
 
 	// Result-size default: the operator's character budget for page
@@ -162,10 +150,17 @@ func runMCPServe(args []string) int {
 		slog.Info("mcp serve: default result cap", "max_chars", maxChars)
 	}
 
+	// Result cache: one instance shared by every read tool so
+	// frugal__execute and the direct tools hit the same entries. Nil
+	// when the config leaves it off; every cache method is nil-safe,
+	// so the tool wiring below is unconditional.
+	resultCache, searchTTL, extractTTL := buildResultCache(cfg)
+	withCache := tools.WithResultCache(resultCache, searchTTL, extractTTL)
+
 	searchers := buildSearchers(cfg)
 	warnPolicyStrangers("search", policies["search"], searcherNames(searchers))
 	tools.RegisterSearch(srv.Inner, searchers, metrics,
-		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard), tools.WithMaxChars(maxChars))
+		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), withCache)
 	if len(searchers) == 0 {
 		slog.Warn("mcp serve: no search providers configured — frugal__search will not be advertised. " +
 			"Set SEARXNG_URL (free, self-hosted), SERPER_API_KEY, BRAVE_API_KEY, or YDC_API_KEY to enable.")
@@ -176,7 +171,7 @@ func runMCPServe(args []string) int {
 	extractors := buildExtractors(cfg)
 	warnPolicyStrangers("extract", policies["extract"], extractorNames(extractors))
 	tools.RegisterExtract(srv.Inner, extractors, metrics,
-		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")), tools.WithGuard(guard), tools.WithMaxChars(maxChars))
+		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), withCache)
 	if len(extractors) > 0 {
 		slog.Info("mcp serve: frugal__extract registered", "providers", extractorNames(extractors))
 	}
@@ -190,7 +185,7 @@ func runMCPServe(args []string) int {
 	}
 
 	tools.RegisterExecute(srv.Inner, searchers, extractors, browsers, metrics,
-		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor), tools.WithGuard(guard), tools.WithMaxChars(maxChars))
+		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor), tools.WithGuard(guard), tools.WithMaxChars(maxChars), withCache)
 	if len(searchers) > 0 {
 		slog.Info("mcp serve: frugal__execute registered",
 			"search", len(searchers), "extract", len(extractors), "browse", len(browsers))
@@ -199,8 +194,6 @@ func runMCPServe(args []string) int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// Periodic INFO dump of accumulated cost / latency / errors. Skipped
-	// on idle intervals so quiet sessions stay quiet.
 	go logMetricsPeriodically(ctx, metrics, 60*time.Second)
 
 	if *httpAddr != "" {
@@ -433,11 +426,50 @@ func buildGuard(cfg *config.Config) *routing.Guard {
 	return routing.NewGuard(caps, cooldown)
 }
 
+// Result-cache TTL defaults. Search results shift faster than article
+// bodies, so search gets the shorter window.
+const (
+	defaultSearchCacheTTL  = 5 * time.Minute
+	defaultExtractCacheTTL = 15 * time.Minute
+)
+
+// buildResultCache turns the optional cache config section into the
+// shared result cache plus per-capability TTLs. Returns a nil cache
+// when the section is absent or disabled; nil is a safe no-op for the
+// tool layer. Invalid TTLs warn and fall back to the defaults, same as
+// the routing cooldown: a typo should not brick a working config. An
+// explicit "0" is valid and disables that capability's caching only.
+func buildResultCache(cfg *config.Config) (*cache.Cache, time.Duration, time.Duration) {
+	if cfg.Cache == nil || !cfg.Cache.Enabled {
+		return nil, 0, 0
+	}
+	parseTTL := func(name, raw string, fallback time.Duration) time.Duration {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			return fallback
+		}
+		if raw == "0" {
+			return 0
+		}
+		d, err := time.ParseDuration(raw)
+		if err != nil || d < 0 {
+			slog.Warn("mcp serve: invalid cache ttl; using default",
+				"field", name, "value", raw, "default", fallback)
+			return fallback
+		}
+		return d
+	}
+	searchTTL := parseTTL("search_ttl", cfg.Cache.SearchTTL, defaultSearchCacheTTL)
+	extractTTL := parseTTL("extract_ttl", cfg.Cache.ExtractTTL, defaultExtractCacheTTL)
+	c := cache.New(cfg.Cache.MaxEntries)
+	slog.Info("mcp serve: result cache enabled",
+		"search_ttl", searchTTL, "extract_ttl", extractTTL,
+		"max_entries", cfg.Cache.MaxEntries)
+	return c, searchTTL, extractTTL
+}
+
 // warnPolicyStrangers flags policy order/deny entries that name no
-// registered provider. Config validation already rejected names foreign
-// to the capability; this catches the softer case — a provider that's
-// valid but didn't register (key unset, disabled) — which is worth a
-// startup note, not an error.
+// registered provider.
 func warnPolicyStrangers(capability string, p routing.Policy, registered []string) {
 	if len(p.Order) == 0 && len(p.Deny) == 0 {
 		return
@@ -460,7 +492,6 @@ func warnPolicyStrangers(capability string, p routing.Policy, registered []strin
 	}
 }
 
-// denyNames renders a deny set as a sorted slice for logging.
 func denyNames(deny map[string]bool) []string {
 	out := make([]string, 0, len(deny))
 	for n := range deny {
@@ -494,10 +525,7 @@ func browserNames(browsers []browse.Browser) []string {
 	return out
 }
 
-// latencyCache wraps ledger.LatencySnapshot behind a TTL so the fast
-// strategy doesn't re-read the ledger files on every tool call. Safe
-// for concurrent use; a snapshot failure is treated as "no data" and
-// retried after the TTL.
+// latencyCache wraps ledger.LatencySnapshot behind a TTL.
 type latencyCache struct {
 	dir string
 	ttl time.Duration
@@ -511,7 +539,6 @@ func newLatencyCache(dir string, ttl time.Duration) *latencyCache {
 	return &latencyCache{dir: dir, ttl: ttl}
 }
 
-// lookup returns the LatencyLookup for one capability's tool name.
 func (c *latencyCache) lookup(tool string) routing.LatencyLookup {
 	return func(provider string) (routing.LatencyStat, bool) {
 		c.mu.Lock()
@@ -530,37 +557,18 @@ func (c *latencyCache) lookup(tool string) routing.LatencyLookup {
 	}
 }
 
-// canonicalProviderOrder fixes the tie-break between same-cost providers:
-// self-hosted first (the operator stood that instance up deliberately),
-// then public-free, then paid by ascending list price. YAML maps don't
-// preserve file order, so this list — not the config file — is what makes
-// registration (and therefore OrderByCost's stable ties) deterministic.
-// Providers not listed here sort last, by name.
 var canonicalProviderOrder = []string{
-	"searxng", "marginalia", "wikipedia", "serper", "youcom", "brave", // search
-	"goreadability", "firecrawl", // extract
-	"browserless", // browse
+	"searxng", "marginalia", "wikipedia", "serper", "youcom", "brave",
+	"goreadability", "firecrawl",
+	"browserless",
 }
 
-// wireableProviders names the providers each buildX switch can actually
-// construct a driver for, per capability. Keep in sync with the switch
-// cases in buildSearchers / buildExtractors / buildBrowsers: rackRates
-// must not benchmark savings against a config entry the binary can never
-// dispatch to.
 var wireableProviders = map[string]map[string]bool{
 	"search":  {"searxng": true, "marginalia": true, "wikipedia": true, "serper": true, "youcom": true, "brave": true},
 	"extract": {"goreadability": true, "firecrawl": true},
 	"browse":  {"browserless": true},
 }
 
-// rackRates derives each capability's premium rack rate — the max
-// cost_per_call across the capability's configured providers — for the
-// usage ledger's savings counterfactual. LoadAuto returns every YAML
-// entry whether or not its API key is set, so rack rates work on a
-// keyless install too. Entries the operator disabled with
-// `enabled: false`, and entries naming providers the binary has no
-// driver for, don't count: a savings number benchmarked against a
-// provider that can never serve a call would be fiction.
 func rackRates(cfg *config.Config) map[string]float64 {
 	out := make(map[string]float64, 3)
 	add := func(tool string, providers map[string]config.SearchProviderConfig) {
@@ -579,7 +587,6 @@ func rackRates(cfg *config.Config) map[string]float64 {
 	return out
 }
 
-// sortedProviderNames returns the provider map's keys in canonical order.
 func sortedProviderNames(providers map[string]config.SearchProviderConfig) []string {
 	rank := make(map[string]int, len(canonicalProviderOrder))
 	for i, n := range canonicalProviderOrder {
@@ -606,21 +613,6 @@ func sortedProviderNames(providers map[string]config.SearchProviderConfig) []str
 	return names
 }
 
-// providerEnvVars collects the env vars the active config can consume —
-// every api_key_env / base_url_env on every provider — that are set in
-// the installer's environment. Claude Desktop and Cursor spawn MCP
-// servers without a login shell, so rc-file exports never reach them;
-// copying the values into each client's env block is the only way paid
-// fallback works there.
-//
-// The names come from config.LoadTrusted, NOT LoadAuto: a crafted
-// config/models.yaml in an untrusted cwd must not get to name arbitrary
-// secrets (AWS keys, GitHub tokens) for harvesting into client configs.
-//
-// FRUGAL_CONFIG itself is copied only when it demonstrably loads — and
-// as an absolute path, because GUI clients spawn the server from `/`,
-// where a checkout-relative value would silently recreate the
-// crash-on-launch that the embedded default exists to fix.
 func providerEnvVars() map[string]string {
 	env := map[string]string{}
 	cfg, _, err := config.LoadTrusted()
@@ -629,9 +621,6 @@ func providerEnvVars() map[string]string {
 			cfg.SearchProviders, cfg.ExtractProviders, cfg.BrowseProviders,
 		} {
 			for _, p := range providers {
-				// A provider tombstoned with `enabled: false` can never
-				// register — baking its secret into client configs would
-				// persist a credential for nothing.
 				if p.Disabled() {
 					continue
 				}
@@ -659,9 +648,6 @@ func providerEnvVars() map[string]string {
 	return env
 }
 
-// filterClients narrows the catalog down to the install targets per the
-// --client flag. "all" → every detected client. Specific ID → that one
-// client whether detected or not (operator override). Unknown ID → error.
 func filterClients(all []install.Client, want string) ([]install.Client, error) {
 	if want == "" || want == "all" {
 		var out []install.Client
@@ -684,8 +670,6 @@ func filterClients(all []install.Client, want string) ([]install.Client, error) 
 	return nil, fmt.Errorf("unknown client %q (known: %s | all)", want, strings.Join(known, " | "))
 }
 
-// confirm prompts on stdin for a Y/n answer. Returns true on Y / y /
-// empty (default Yes); false on n / N. Other input re-prompts.
 func confirm(question string) bool {
 	r := bufio.NewReader(os.Stdin)
 	for {
@@ -704,9 +688,6 @@ func confirm(question string) bool {
 	}
 }
 
-// logMetricsPeriodically dumps a Snapshot to slog every interval, but
-// skips intervals with no activity so a quiet stdio session doesn't spam
-// the log every minute. Stops when ctx is canceled.
 func logMetricsPeriodically(ctx context.Context, m *obs.Metrics, interval time.Duration) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
@@ -732,15 +713,6 @@ func logMetricsPeriodically(ctx context.Context, m *obs.Metrics, interval time.D
 	}
 }
 
-// buildSearchers instantiates one search.Searcher per search_providers
-// entry whose credentials/endpoint are present at startup. Hosted APIs
-// (You.com, Serper) gate on their api_key_env; self-hosted backends
-// (SearXNG) gate on a non-empty base URL — resolved from base_url_env
-// first, falling back to the static base_url. Entries marked
-// `enabled: false` are skipped — the operator's opt-out from the
-// config-load default overlay. Unknown provider names log a warning and
-// are skipped — operators can edit ~/.frugal/config/models.yaml to add
-// new providers, but driver wiring lives here in code.
 func buildSearchers(cfg *config.Config) []search.Searcher {
 	var out []search.Searcher
 	for _, name := range sortedProviderNames(cfg.SearchProviders) {
@@ -775,18 +747,12 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 			}
 			out = append(out, brave.New(key, base, sp.CostPerCall))
 		case "searxng":
-			// Self-hosted; gate on base URL (no API key).
 			if c := searxng.New(base); c != nil {
 				out = append(out, c)
 			}
 		case "marginalia":
-			// Public, donation-funded; no API key, no required URL —
-			// driver defaults to the public endpoint. Always registers
-			// if the YAML entry exists.
 			out = append(out, marginalia.New(base))
 		case "wikipedia":
-			// Public Wikimedia REST search; no API key, no required
-			// URL. Always registers if the YAML entry exists.
 			out = append(out, wikipedia.New(base))
 		default:
 			slog.Warn("mcp serve: unknown search provider in config; ignoring",
@@ -796,11 +762,6 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 	return out
 }
 
-// buildExtractors instantiates one extract.Extractor per extract_providers
-// entry whose credentials/endpoint are present at startup. goreadability
-// is in-process and always available when listed in the YAML; firecrawl
-// gates on FIRECRAWL_API_KEY. Entries marked `enabled: false` are
-// skipped. Unknown names log a warning and are skipped.
 func buildExtractors(cfg *config.Config) []extract.Extractor {
 	var out []extract.Extractor
 	for _, name := range sortedProviderNames(cfg.ExtractProviders) {
@@ -820,7 +781,6 @@ func buildExtractors(cfg *config.Config) []extract.Extractor {
 		}
 		switch name {
 		case "goreadability":
-			// Pure-in-process — no key, no URL, always available.
 			out = append(out, goreadability.New())
 		case "firecrawl":
 			if key == "" {
@@ -835,10 +795,6 @@ func buildExtractors(cfg *config.Config) []extract.Extractor {
 	return out
 }
 
-// buildBrowsers instantiates one browse.Browser per browse_providers
-// entry whose credentials/endpoint are present at startup. Entries
-// marked `enabled: false` are skipped. Currently only Browserless is
-// supported; local Playwright is deferred.
 func buildBrowsers(cfg *config.Config) []browse.Browser {
 	var out []browse.Browser
 	for _, name := range sortedProviderNames(cfg.BrowseProviders) {

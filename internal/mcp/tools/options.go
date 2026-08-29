@@ -1,6 +1,9 @@
 package tools
 
 import (
+	"time"
+
+	"github.com/frugalsh/frugal/internal/cache"
 	"github.com/frugalsh/frugal/internal/routing"
 )
 
@@ -27,6 +30,13 @@ type toolOptions struct {
 	// the historical payloads byte-for-byte. A per-call max_chars
 	// argument overrides it in either direction.
 	maxChars int
+	// resultCache memoizes successful search / extract results so a
+	// repeated call inside the TTL costs nothing. Nil (the default)
+	// disables caching entirely; the cache methods are nil-safe, so the
+	// handlers consult it unconditionally. Browse is never cached.
+	resultCache *cache.Cache
+	searchTTL   time.Duration
+	extractTTL  time.Duration
 }
 
 // ToolOption configures a routed tool at registration time.
@@ -82,6 +92,19 @@ func (o toolOptions) effectiveMaxChars(requested int) int {
 		return requested
 	}
 	return o.maxChars
+}
+
+// WithResultCache supplies the exact-match result cache and its
+// per-capability TTLs. A nil cache or a TTL at or below zero disables
+// caching for the affected capability. The same *cache.Cache instance
+// should back every routed tool so frugal__execute and the direct
+// tools share entries.
+func WithResultCache(c *cache.Cache, searchTTL, extractTTL time.Duration) ToolOption {
+	return func(o *toolOptions) {
+		o.resultCache = c
+		o.searchTTL = searchTTL
+		o.extractTTL = extractTTL
+	}
 }
 
 func buildToolOptions(opts []ToolOption) toolOptions {
