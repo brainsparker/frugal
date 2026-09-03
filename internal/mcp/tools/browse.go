@@ -9,6 +9,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/frugalsh/frugal/internal/browse"
+	"github.com/frugalsh/frugal/internal/limit"
 	"github.com/frugalsh/frugal/internal/obs"
 	"github.com/frugalsh/frugal/internal/routing"
 )
@@ -24,18 +25,26 @@ type BrowseInput struct {
 	// Provider pins the browse provider for this call. Empty / "auto"
 	// → the routing policy decides.
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: browserless | auto"`
+	// MaxChars caps the rendered content returned (text + html, shared).
+	// Zero falls back to the server's configured default.
+	MaxChars int `json:"max_chars,omitempty" jsonschema:"optional cap on returned content characters (text and html combined); the response reports truncated, chars_returned, and chars_total; 0 = server default"`
 }
 
 // BrowseOutput is the structured-content payload returned to the MCP
 // client. HTML is the primary read; Text is populated when Format ==
 // "text". CostUSD + ProviderUsed + LatencyMS make the routing decision
-// auditable.
+// auditable; the size footer makes the context cost auditable.
 type BrowseOutput struct {
 	HTML         string  `json:"html,omitempty"`
 	Text         string  `json:"text,omitempty"`
 	CostUSD      float64 `json:"cost_usd"`
 	ProviderUsed string  `json:"provider_used"`
 	LatencyMS    int64   `json:"latency_ms"`
+	// See ExtractOutput for the meaning of the size footer.
+	CharsReturned int  `json:"chars_returned"`
+	CharsTotal    int  `json:"chars_total"`
+	Truncated     bool `json:"truncated,omitempty"`
+	EstTokens     int  `json:"est_tokens"`
 }
 
 // RegisterBrowse wires frugal__browse onto the given MCP server.
@@ -83,6 +92,9 @@ func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics, o toolOp
 		if in.URL == "" {
 			return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: url is required")
 		}
+		if in.MaxChars < 0 {
+			return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: max_chars must be zero (server default) or positive")
+		}
 		q := browse.Query{URL: in.URL, WaitForMS: in.WaitMs, ReturnFormat: in.Format}
 		logger := slog.Default()
 
@@ -118,13 +130,19 @@ func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics, o toolOp
 			return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: %w", err)
 		}
 
-		return nil, BrowseOutput{
+		out := BrowseOutput{
 			HTML:         res.HTML,
 			Text:         res.Text,
 			CostUSD:      res.CostUSD,
 			ProviderUsed: used.Name(),
 			LatencyMS:    latency,
-		}, nil
+		}
+		// Text first when both are present: the stripped rendering is
+		// what a budget-conscious caller asked for, the DOM is the bulk.
+		rep := limit.Cap(o.effectiveMaxChars(in.MaxChars), &out.Text, &out.HTML)
+		out.CharsReturned, out.CharsTotal, out.Truncated = rep.CharsReturned, rep.CharsTotal, rep.Truncated
+		out.EstTokens = limit.EstTokens(rep.CharsReturned)
+		return nil, out, nil
 	}
 }
 

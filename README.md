@@ -141,6 +141,56 @@ When a guardrail skips a provider it is noted in the routing trace
 in a chain is over budget or cooling down, the call fails with a clear
 message rather than silently doing nothing.
 
+## Result size caps and the token receipt
+
+Dollars are one cost of a tool call. The other is the tokens its result
+occupies in your model's context for the rest of the session, and MCP
+clients enforce that ceiling blind: Claude Code rejects MCP results over
+25,000 tokens by default and spills anything past 50,000 characters to a
+file with a 2 KB preview, so a long page either fails the call or
+arrives cut off with nothing telling the model the tail is missing.
+
+Frugal moves that decision server-side and puts it on the receipt. Every
+`frugal__extract`, `frugal__browse`, and `frugal__execute` response
+reports `chars_returned`, `chars_total`, `est_tokens`, and (when they
+differ) `truncated: true`; `frugal__search` reports `est_tokens` for the
+result list. To cap what comes back, pass `max_chars` on the call or set
+a default in `models.yaml`:
+
+```yaml
+limits:
+  max_chars: 40000   # default page-content budget per call (about 10k tokens)
+```
+
+```
+frugal__extract {"url": "https://example.com/long-article", "max_chars": 8000}
+
+  result › {
+    "markdown": "...the first 8,000 characters, cut on a word boundary...
+                 [frugal: output truncated to 7996 of 61230 chars; pass a larger max_chars to see more]",
+    "provider_used": "goreadability",
+    "cost_usd": 0,
+    "chars_returned": 7996,
+    "chars_total": 61230,
+    "truncated": true,
+    "est_tokens": 1999
+  }
+```
+
+- The budget is shared across the content fields in priority order
+  (markdown, then text, then html), so the readable rendering survives
+  and raw HTML is the first thing to go.
+- The cut is rune-safe and backs off to the nearest word boundary. The
+  marker is appended to the shortened field so the truncation is
+  unmistakable even in clients that flatten structured output to text.
+- A per-call `max_chars` overrides the configured default in either
+  direction. Zero or absent means no cap, which is also the default: an
+  existing config returns results byte-for-byte as before.
+- Search results are measured, never truncated. `max_results` is the
+  size knob there, and `est_tokens` shows what a wide value costs.
+- `est_tokens` is `chars / 4`, rounded up: a planning figure, not a
+  bill. Real tokenizers run higher on dense HTML and lower on prose.
+
 ## Describe the job: `frugal__execute`
 
 Instead of picking a tool, an agent can state the intent and a priority.
