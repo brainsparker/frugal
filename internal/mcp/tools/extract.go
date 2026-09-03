@@ -9,6 +9,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/frugalsh/frugal/internal/extract"
+	"github.com/frugalsh/frugal/internal/limit"
 	"github.com/frugalsh/frugal/internal/obs"
 	"github.com/frugalsh/frugal/internal/routing"
 )
@@ -25,12 +26,18 @@ type ExtractInput struct {
 	// Provider pins the extract provider for this call ("goreadability",
 	// "firecrawl", …). Empty / "auto" → the routing policy decides.
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: goreadability | firecrawl | auto"`
+	// MaxChars caps the content returned (markdown + text + html,
+	// shared). Zero falls back to the server's configured default, which
+	// is unlimited unless the operator set limits.max_chars.
+	MaxChars int `json:"max_chars,omitempty" jsonschema:"optional cap on returned content characters (markdown, text, and html combined); the response reports truncated, chars_returned, and chars_total so you can re-call with a larger value; 0 = server default"`
 }
 
 // ExtractOutput is the structured-content payload returned to the MCP
 // client. Markdown is the primary read; HTML / Text / Title / Byline /
 // Links are populated when the driver supplies them. CostUSD +
-// ProviderUsed + LatencyMS make the routing decision auditable.
+// ProviderUsed + LatencyMS make the routing decision auditable, and
+// the size footer (CharsReturned / CharsTotal / Truncated / EstTokens)
+// makes the context cost auditable in the same breath.
 type ExtractOutput struct {
 	Markdown     string   `json:"markdown,omitempty"`
 	HTML         string   `json:"html,omitempty"`
@@ -41,6 +48,15 @@ type ExtractOutput struct {
 	CostUSD      float64  `json:"cost_usd"`
 	ProviderUsed string   `json:"provider_used"`
 	LatencyMS    int64    `json:"latency_ms"`
+	// CharsReturned / CharsTotal / Truncated report what the max_chars
+	// budget did: how much content is in this response, how much the
+	// provider produced, and whether the two differ. EstTokens is the
+	// approximate context cost of the returned content
+	// (limit.CharsPerToken characters per token).
+	CharsReturned int  `json:"chars_returned"`
+	CharsTotal    int  `json:"chars_total"`
+	Truncated     bool `json:"truncated,omitempty"`
+	EstTokens     int  `json:"est_tokens"`
 }
 
 // RegisterExtract wires frugal__extract onto the given MCP server.
@@ -90,6 +106,9 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 		if in.URL == "" {
 			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: url is required")
 		}
+		if in.MaxChars < 0 {
+			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: max_chars must be zero (server default) or positive")
+		}
 		q := extract.Query{URL: in.URL, Formats: in.Formats}
 		logger := slog.Default()
 
@@ -125,7 +144,7 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: %w", err)
 		}
 
-		return nil, ExtractOutput{
+		out := ExtractOutput{
 			Markdown:     res.Markdown,
 			HTML:         res.HTML,
 			Text:         res.Text,
@@ -135,7 +154,14 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 			CostUSD:      res.CostUSD,
 			ProviderUsed: used.Name(),
 			LatencyMS:    latency,
-		}, nil
+		}
+		// Markdown first: it is the rendering agents actually read. Raw
+		// HTML is the bulkiest and least useful, so it is the first to
+		// be dropped when the budget is tight.
+		rep := limit.Cap(o.effectiveMaxChars(in.MaxChars), &out.Markdown, &out.Text, &out.HTML)
+		out.CharsReturned, out.CharsTotal, out.Truncated = rep.CharsReturned, rep.CharsTotal, rep.Truncated
+		out.EstTokens = limit.EstTokens(rep.CharsReturned)
+		return nil, out, nil
 	}
 }
 

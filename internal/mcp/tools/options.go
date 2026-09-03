@@ -21,6 +21,12 @@ type toolOptions struct {
 	// enforcement call sites need no conditionals and the zero value keeps
 	// the historical behavior exactly.
 	guard *routing.Guard
+	// maxChars is the operator's default character budget for the
+	// content fields of extract / browse / execute results (see
+	// internal/limit). Zero, the default, means unlimited, which keeps
+	// the historical payloads byte-for-byte. A per-call max_chars
+	// argument overrides it in either direction.
+	maxChars int
 }
 
 // ToolOption configures a routed tool at registration time.
@@ -54,6 +60,28 @@ func WithLatencyLookupFor(f func(tool string) routing.LatencyLookup) ToolOption 
 // consults before each routed call. Nil (the default) disables both rails.
 func WithGuard(g *routing.Guard) ToolOption {
 	return func(o *toolOptions) { o.guard = g }
+}
+
+// WithMaxChars sets the default character budget applied to the content
+// of extract, browse, and execute results when the caller does not pass
+// max_chars. Zero or negative disables the default cap.
+func WithMaxChars(n int) ToolOption {
+	return func(o *toolOptions) {
+		if n < 0 {
+			n = 0
+		}
+		o.maxChars = n
+	}
+}
+
+// effectiveMaxChars resolves the budget for one call: the caller's
+// max_chars wins when set, otherwise the operator default, otherwise
+// unlimited (0).
+func (o toolOptions) effectiveMaxChars(requested int) int {
+	if requested > 0 {
+		return requested
+	}
+	return o.maxChars
 }
 
 func buildToolOptions(opts []ToolOption) toolOptions {

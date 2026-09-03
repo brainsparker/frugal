@@ -53,6 +53,18 @@
 #   routing:
 #     cooldown: 90s
 #
+# Result size cap (optional). Set limits.max_chars to cap the page
+# content (markdown + text + html, shared) that frugal__extract,
+# frugal__browse, and frugal__execute return per call. Over the cap the
+# tail is cut on a word boundary, a visible marker is appended, and the
+# response reports truncated: true with chars_returned / chars_total so
+# the agent can re-call with a larger per-call max_chars. Zero or absent
+# means results are returned whole. 40000 chars is roughly 10k tokens,
+# the point where Claude Code starts warning about MCP output size:
+#
+#   limits:
+#     max_chars: 40000
+#
 # v1.0 ships only the search-tool layer. Chat-model routing and its
 # pricing tables come back in Phase 2 with the frugal__chat MCP tool.
 search_providers:
