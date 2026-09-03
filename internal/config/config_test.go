@@ -644,3 +644,38 @@ func TestParse_CooldownRoundTrips(t *testing.T) {
 		t.Fatalf("routing.cooldown = %+v, want \"90s\"", cfg.Routing)
 	}
 }
+
+func TestParse_LimitsRoundTrips(t *testing.T) {
+	cfg, err := Parse([]byte("limits:\n  max_chars: 40000\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Limits == nil || cfg.Limits.MaxChars != 40000 {
+		t.Fatalf("limits = %+v, want max_chars 40000", cfg.Limits)
+	}
+}
+
+func TestParse_LimitsRejectsNegativeMaxChars(t *testing.T) {
+	_, err := Parse([]byte("limits:\n  max_chars: -1\n"))
+	if err == nil || !strings.Contains(err.Error(), "limits.max_chars") {
+		t.Fatalf("expected a limits.max_chars error, got %v", err)
+	}
+}
+
+func TestParse_ConfigWithoutLimitsIsUncapped(t *testing.T) {
+	cfg, err := Parse([]byte("search_providers:\n  wikipedia:\n    cost_per_call: 0\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Limits != nil {
+		t.Fatalf("limits should be nil when absent, got %+v", cfg.Limits)
+	}
+	// Zero is the documented "no cap" spelling and must load.
+	cfg, err = Parse([]byte("limits:\n  max_chars: 0\n"))
+	if err != nil {
+		t.Fatalf("Parse zero: %v", err)
+	}
+	if cfg.Limits == nil || cfg.Limits.MaxChars != 0 {
+		t.Fatalf("limits = %+v", cfg.Limits)
+	}
+}
