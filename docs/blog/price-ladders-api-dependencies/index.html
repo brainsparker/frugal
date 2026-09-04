@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Price ladders: a mental model for every API dependency — frugal blog</title>
+  <meta name="description" content="API cost optimization starts with a price ladder: a free floor, priced rungs, and fall-through rules. How to build one for any dependency." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/price-ladders-api-dependencies/" />
+  <meta property="og:title" content="Price ladders: a mental model for every API dependency — frugal blog" />
+  <meta property="og:description" content="API cost optimization starts with a price ladder: a free floor, priced rungs, and fall-through rules. How to build one for any dependency." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-09-03T14:10:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Price ladders: a mental model for every API dependency — frugal blog" />
+  <meta name="twitter:description" content="API cost optimization starts with a price ladder: a free floor, priced rungs, and fall-through rules. How to build one for any dependency." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/price-ladders-api-dependencies/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-09-03T14:10:00Z","datePublished":"2026-09-03T14:10:00Z","description":"API cost optimization starts with a price ladder: a free floor, priced rungs, and fall-through rules. How to build one for any dependency.","headline":"Price ladders: a mental model for every API dependency","keywords":"API cost optimization","mainEntityOfPage":"https://frugal.sh/blog/price-ladders-api-dependencies/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/price-ladders-api-dependencies/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Price ladders: a mental model for every API dependency","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#routing">Routing</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Price ladders: a mental model for every API dependency</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h1>Price ladders: a mental model for every API dependency</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-09-03">Sep 3, 2026</time>
+            · 6 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Search taught me the pattern, but the pattern was never about search. Every API dependency an agent has — every capability you rent by the call — comes in three grades: a free floor, a cheap middle, and a premium top. Once you see one dependency that way, you can't unsee the rest, and API cost optimization stops being a quarterly vendor negotiation and becomes a data structure: a ladder, walked cheapest-first, with rules for when to climb.</p>
+<p>I've spent enough posts on the search version — <a href="/blog/rack-rate-gap-web-search-costs/">the same query prices at $0 or $0.005</a> depending on who answers. This post is about generalizing it. The ladder is a mental model for any dependency, and building one takes about an afternoon.</p>
+<h2>The shape repeats everywhere</h2>
+<p>Here are the ladders I either run today or have priced out for capabilities on my planned list. Frugal routes search, extraction, and browse now; the last three rows are market rates I've collected while scoping what comes next.</p>
+<table>
+<thead>
+<tr>
+<th>Dependency</th>
+<th>Free floor</th>
+<th>Middle rung</th>
+<th>Premium rung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Web search</td>
+<td>Wikipedia, Marginalia, self-hosted SearXNG ($0)</td>
+<td>Serper ($0.001/call)</td>
+<td>You.com ($0.005/call)</td>
+</tr>
+<tr>
+<td>Page extraction</td>
+<td>go-readability, local ($0)</td>
+<td>Firecrawl (~$0.001/page)</td>
+<td>headless browse, ~$0.002/30s via Browserless</td>
+</tr>
+<tr>
+<td>Transcription</td>
+<td>whisper.cpp, local ($0)</td>
+<td>Deepgram (~$0.0043/min)</td>
+<td>Whisper API ($0.006/min)</td>
+</tr>
+<tr>
+<td>Embeddings</td>
+<td>local nomic or bge ($0)</td>
+<td>text-embedding-3-small ($0.02/1M tok)</td>
+<td>Voyage, Cohere</td>
+</tr>
+<tr>
+<td>Code execution</td>
+<td>local Docker ($0)</td>
+<td>E2B (~$0.10/hr)</td>
+<td>Modal (~$0.14/hr)</td>
+</tr>
+</tbody>
+</table>
+<p>Five different capabilities, five different unit types — per call, per page, per minute, per million tokens, per hour — and the same three-grade structure in every row. That's not a coincidence. It's what a market looks like when compute is cheap, open source is good, and a managed SLA is the thing actually being sold at the top. The free floor exists because someone open-sourced the core capability. The premium rung exists because someone wrapped it in reliability and coverage. The middle rung arbitrages between them.</p>
+<p>Most teams buy one row of this table at the premium rung and never look at the other two columns. The ladder model says: buy the whole column, per call.</p>
+<h2>Building a ladder for any dependency</h2>
+<p>Three steps. None of them require new infrastructure — they require looking things up and writing down rules.</p>
+<h3>Find the free floor</h3>
+<p>There is almost always one: a local library, a public API, a self-hostable service. go-readability extracts articles locally. whisper.cpp transcribes on your own CPU. A local embedding model handles the bulk of retrieval workloads. The floor is real, but you have to be honest about its edges — I say this constantly about my own free rungs. Marginalia is genuinely good for essays and documentation and genuinely weak on news and product pages. Wikipedia covers entities and stops there. Self-hosted SearXNG works, but it is not a Google-grade SERP. A ladder built on a dishonest floor collapses in production; a ladder built on an honestly-scoped floor absorbs a surprising share of traffic at $0. I've made the fuller argument for <a href="/blog/free-first-default-provider/">free-first defaults</a> separately — the short version is that the floor should be the default precisely because its failure mode is falling through, not failing silently.</p>
+<h3>Price the rungs</h3>
+<p>Write down the actual rates, in the provider's native unit, side by side. This step feels trivial and almost nobody does it, because the rates live in five different pricing pages and the invoice arrives pre-aggregated. The moment the rates sit in one table, the gaps get loud. Deepgram to Whisper API is a 40% jump per minute. Serper to You.com is 5×. E2B to Modal is 40%. Those spreads are the budget for your routing logic: every call the cheaper rung handles correctly is the spread, banked.</p>
+<h3>Define the fall-through rules</h3>
+<p>This is the step that turns a rate table into a ladder. A ladder needs an explicit answer to: what counts as this rung failing, and what happens next?</p>
+<p>For search, my rules are asymmetric and worth stealing. A free provider returning zero hits falls through to the next rung — the miss cost nothing, so trying again is free upside. A paid provider returning zero hits ends the chain — the query has no hits, and paying a pricier provider to confirm that is burning money on a second opinion. Errors and timeouts fall through everywhere, which is the reliability half of the story and the reason <a href="/blog/provider-fallback-chains/">fallback chains</a> exist at all.</p>
+<p>Every dependency needs its own version of &quot;zero hits.&quot; For extraction it might be &quot;fewer than N characters of body text.&quot; For transcription, a confidence score below threshold. For code execution, a sandbox that fails to start. The rule doesn't have to be perfect; it has to be written down, because an unwritten fall-through rule means every engineer implements a different one in every call site.</p>
+<h2>The ladder is procurement policy, compiled</h2>
+<p>Here's the reframe that made this click for me. In a normal company, procurement is an annual event: someone evaluates vendors, negotiates a contract, and the whole org inherits one answer for a year. The ladder is the same activity — evaluate options, set the order of preference, define acceptance criteria — but encoded in code and executed per call, thousands of times a day.</p>
+<p>That changes what &quot;switching vendors&quot; means. With contract-time procurement, switching is a migration project: rewrite the integration, re-test, coordinate the cutover. With a ladder, switching is reordering rungs — or adding one and watching the ledger to see what share of traffic it wins. The vendor relationship becomes revocable at the granularity of a single call, which is exactly the granularity at which quality and price actually vary.</p>
+<p>It also changes who enforces the policy. A procurement policy in a PDF gets violated by every engineer who hardcodes their favorite API. A ladder in the router can't be violated, because the router is the only code path that talks to providers. The receipt on every result — provider used, cost incurred — is the audit trail, generated for free.</p>
+<h2>Where to start</h2>
+<p>Pick your second-biggest API dependency — the biggest one probably has politics attached. Spend an hour finding its free floor and pricing its rungs into a table like the one above. Then write the fall-through rule as a single sentence and put it somewhere the code can enforce it. You now have a ladder for one dependency, and the next one goes faster because the shape is always the same: floor, rungs, rules.</p>
+<p>The generalization from one ladder to a routing habit is the subject of most of what I write — there's more on <a href="/blog/topics/provider-routing/">provider routing</a> if you want the search-specific machinery. But the model stands on its own. Every dependency is a column of three prices, and the question is never &quot;which one do we pick.&quot; It's &quot;in what order, and when do we climb.&quot;</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the open routing layer for AI tools — an MCP server that routes agent tool calls per policy: cost, latency, pinning, failover. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-04-21">Apr 21, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/provider-routing-for-ai-agents/">Provider routing for AI agents: the complete guide</a></h3>
+          <p class="blog-card-excerpt">Agents pick providers by what got wired in, not by price. Here&#39;s how a routing layer walks every tool call down a ladder — free first, paid as fallback.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-04-23">Apr 23, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/rack-rate-gap-web-search-costs/">The rack-rate gap: why the same web search costs $0 or $0.005</a></h3>
+          <p class="blog-card-excerpt">Five providers, one capability, a price range from free to half a cent. An analysis of what you&#39;re actually paying for when your agent searches the web.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/provider-routing/">Provider routing</a>
+            <time datetime="2026-06-16">Jun 16, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/free-first-default-provider/">Free-first: why your default provider should cost $0</a></h3>
+          <p class="blog-card-excerpt">Paid providers should be the fallback, not the default. The case for making your agent&#39;s first call free, with the failure modes stated honestly.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>The open routing layer for AI tools.</h2>
+            <p>Frugal is one Go binary: every tool call routed per policy — cheapest by default — with the decision and <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>Price ladders: a mental model for every API dependency</title>
+      <link>https://frugal.sh/blog/price-ladders-api-dependencies/</link>
+      <guid>https://frugal.sh/blog/price-ladders-api-dependencies/</guid>
+      <pubDate>Thu, 03 Sep 2026 14:10:00 +0000</pubDate>
+      <description>The free-cheap-premium ladder isn&#39;t a search trick. Extraction, transcription, embeddings, and code execution all have the same shape — here&#39;s how to build the ladder.</description>
+    </item>
+    <item>
       <title>Why we log latency_ms on every response</title>
       <link>https://frugal.sh/blog/why-log-latency-ms/</link>
       <guid>https://frugal.sh/blog/why-log-latency-ms/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/tool-prices-didnt-fall/</guid>
       <pubDate>Thu, 09 Jul 2026 16:25:00 +0000</pubDate>
       <description>Inference got an order of magnitude cheaper and everyone noticed. The per-call price of search, scrape, and browse barely moved, and almost nobody did.</description>
-    </item>
-    <item>
-      <title>Inside Frugal&#39;s router: how a search call picks its provider</title>
-      <link>https://frugal.sh/blog/inside-frugals-router/</link>
-      <guid>https://frugal.sh/blog/inside-frugals-router/</guid>
-      <pubDate>Tue, 07 Jul 2026 13:40:00 +0000</pubDate>
-      <description>One captured run, walked rung by rung: 0 hits in 529ms, a fall-through, 3 hits at $0, and exactly what lands in the ledger afterward.</description>
     </item>
   </channel>
 </rss>
