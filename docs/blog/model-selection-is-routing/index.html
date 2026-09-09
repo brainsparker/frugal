@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Model selection is a routing problem — frugal blog</title>
+  <meta name="description" content="Model routing reframes &#39;which model should we standardize on&#39; as a per-call policy. Why call-time selection beats contract-time committees." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/model-selection-is-routing/" />
+  <meta property="og:title" content="Model selection is a routing problem — frugal blog" />
+  <meta property="og:description" content="Model routing reframes &#39;which model should we standardize on&#39; as a per-call policy. Why call-time selection beats contract-time committees." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-09-08T15:40:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Model selection is a routing problem — frugal blog" />
+  <meta name="twitter:description" content="Model routing reframes &#39;which model should we standardize on&#39; as a per-call policy. Why call-time selection beats contract-time committees." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/model-selection-is-routing/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-09-08T15:40:00Z","datePublished":"2026-09-08T15:40:00Z","description":"Model routing reframes 'which model should we standardize on' as a per-call policy. Why call-time selection beats contract-time committees.","headline":"Model selection is a routing problem","keywords":"model routing","mainEntityOfPage":"https://frugal.sh/blog/model-selection-is-routing/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/model-selection-is-routing/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Model selection is a routing problem","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#routing">Routing</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Model selection is a routing problem</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h1>Model selection is a routing problem</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-09-08">Sep 8, 2026</time>
+            · 5 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>&quot;Which model should we standardize on?&quot; is the wrong question wearing a reasonable suit. It sounds like engineering diligence. It's actually procurement thinking — the assumption that a capability bought by the call should be chosen by the year, by a committee, for everyone. Model routing is the alternative: the model is selected at call time, by policy, based on what the call needs. One is a contract. The other is a function.</p>
+<p>I've spent two years watching this exact mistake play out with search APIs, where teams pick one provider in week one and bill every trivial lookup at the premium rack rate forever. The model version of the mistake is bigger, because model spend is usually the largest line on the bill and because the quality spread between calls is wider. Some calls in your workload need frontier reasoning. Most need a competent small model. A standardization decision prices them identically. A routing decision doesn't.</p>
+<h2>Standardization answers a call-time question at contract time</h2>
+<p>Look at what &quot;standardize on model X&quot; actually claims: that one point on the quality-cost-latency surface is right for every call your product will make this year. That claim is almost never examined, because it's not stated that way. It's stated as &quot;we evaluated the top models and X won our benchmark.&quot;</p>
+<p>But your workload isn't a benchmark; it's a distribution. Classification calls, extraction calls, short rewrites, long multi-step reasoning, judgment calls with money attached. The spread in difficulty across that distribution is enormous, and the price spread between the smallest viable model and the frontier is routinely an order of magnitude or more. Standardization collapses the whole distribution to a single point — and to be safe, committees collapse it upward. Nobody gets blamed for picking the expensive model. The result is the model-spend version of a pattern I've written about elsewhere: every easy call subsidizing a contract sized for the hard ones.</p>
+<p>The difficulty varies per call. Therefore the decision belongs per call. Everything else in this essay is elaboration.</p>
+<h2>You already believe the pieces</h2>
+<p>Here's what convinced me this framing is right: the individually-accepted best practices for model selection are all fragments of one routing policy. Three of them, and I've written about each.</p>
+<p><strong>Escalation.</strong> <a href="/blog/small-models-first/">Start with small models</a> and escalate when the small model fails or signals low confidence. That's a fallback chain — walk the ladder cheapest-first, climb on failure. Nobody calls it routing, but it's routing: the rung order is the policy, the escalation trigger is the fall-through rule.</p>
+<p><strong>Premium criteria.</strong> <a href="/blog/when-premium-models-are-worth-it/">Premium models are worth it</a> for specific, nameable call types — when the cost of a wrong answer dwarfs the cost of the call, when the task genuinely needs long-horizon reasoning. Notice the shape of that sentence: it's a predicate over calls, not a verdict over vendors. &quot;Use the premium model when condition C holds&quot; is a routing rule. It cannot be expressed as a standardization decision at all.</p>
+<p><strong>Eval gates.</strong> <a href="/blog/evaluate-models-own-traffic/">Evaluate models on your own traffic</a>, not on public benchmarks, and let those evals decide what's allowed to serve which call class. That's the admission-control half of routing: a rung gets added to the ladder for a query class only after it passes the gate on real traffic from that class.</p>
+<p>Escalation says climb on failure. Premium criteria say some calls start high. Eval gates say measure before you reorder. Separately, each reads as a tip. Together, they're a complete model routing policy: per call class, an ordered list of models, entry criteria for each rung, and evidence requirements for changing the order. The committee question — &quot;which model?&quot; — dissolves, because the honest answer was always &quot;it depends on the call,&quot; and a router is just &quot;it depends&quot; made executable.</p>
+<h2>What the committee is actually protecting</h2>
+<p>Standardization persists for reasons that deserve answers rather than mockery, so here are the three I hear most.</p>
+<p><strong>&quot;We need consistency.&quot;</strong> You need consistency of <em>outcome</em>, which is what eval gates enforce — every rung serving a call class has passed the same bar on the same traffic. Consistency of <em>vendor</em> is a proxy, and a bad one: model versions change under you within a single vendor anyway.</p>
+<p><strong>&quot;We can't evaluate everything.&quot;</strong> You can't evaluate everything at contract time, which is exactly the argument against deciding everything at contract time. A router plus a ledger evaluates continuously as a side effect of operating: every call records which model served it, what it cost, and — with eval sampling — whether the output held up. The committee runs a bake-off once. The router runs one forever.</p>
+<p><strong>&quot;Who's accountable when it breaks?&quot;</strong> With standardization, accountability is clear and useless: the committee chose the model, eighteen months ago, based on a benchmark that didn't include your traffic. With routing, accountability attaches to the policy — a readable, versioned artifact that says which calls go where and why. Policies can be reviewed, diffed, and rolled back. Committee decisions can only be relitigated.</p>
+<h2>The policy is smaller than you think</h2>
+<p>The phrase &quot;routing policy&quot; suggests infrastructure. In practice a first policy is embarrassingly short: classify calls into a handful of classes, assign each class an ordered list of two or three models, define what failure means for each class, log every decision. The classifier can start as a switch statement on call site. I route tool calls this way in Frugal — the same walk-the-ladder, stamp-the-receipt loop — and the mechanics transfer almost unchanged; the differences between routing tool calls and routing model calls are real but narrower than they look, and I've <a href="/blog/routing-tool-calls-vs-model-calls/">compared the two directly</a>.</p>
+<p>What you get for that modest effort is optionality with receipts. New model ships? It's a candidate rung — run it through the gate, add it to one class, watch the ledger. Vendor raises prices? Demote, don't migrate. The org never again faces a big-bang model migration, because no call was ever married to a model in the first place.</p>
+<h2>Where to start</h2>
+<p>Take one call class — your highest-volume, most boring one — and write its ladder: the model it uses today, one cheaper candidate, and the failure rule that would trigger escalation. Gate the cheap candidate on a sample of real traffic. If it passes, reorder. You've now made your first call-time model decision, and the interesting thing is what happens to the committee question afterward: it stops being &quot;which model do we standardize on&quot; and becomes &quot;what does the policy say, and what would change it.&quot; That's a better question, and there's more like it on the <a href="/blog/topics/model-selection/">model selection</a> hub.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the open routing layer for AI tools — an MCP server that routes agent tool calls per policy: cost, latency, pinning, failover. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <time datetime="2026-05-21">May 21, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/small-models-first/">Small models first: the case for escalation</a></h3>
+          <p class="blog-card-excerpt">Escalation isn&#39;t a cost hack, it&#39;s an architecture: the cheap model handles the bulk, the expensive one earns its rung. The same ladder logic that works for tool calls.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <time datetime="2026-08-18">Aug 18, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/when-premium-models-are-worth-it/">When a premium model is worth it (and when it&#39;s just expensive)</a></h3>
+          <p class="blog-card-excerpt">The top-tier model is worth 10x on maybe a tenth of your calls. The trick is knowing which tenth — and it starts with what a wrong answer costs you.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/model-selection/">Model selection</a>
+            <time datetime="2026-07-23">Jul 23, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/evaluate-models-own-traffic/">Benchmarks lie: evaluate models on your own traffic</a></h3>
+          <p class="blog-card-excerpt">A model&#39;s leaderboard position tells you how it does on the leaderboard&#39;s distribution, not yours. Fifty queries from your own logs beat it every time.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>The open routing layer for AI tools.</h2>
+            <p>Frugal is one Go binary: every tool call routed per policy — cheapest by default — with the decision and <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

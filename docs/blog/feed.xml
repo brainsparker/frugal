@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>Model selection is a routing problem</title>
+      <link>https://frugal.sh/blog/model-selection-is-routing/</link>
+      <guid>https://frugal.sh/blog/model-selection-is-routing/</guid>
+      <pubDate>Tue, 08 Sep 2026 15:40:00 +0000</pubDate>
+      <description>&#39;Which model do we standardize on&#39; is procurement thinking applied to a per-call decision. Escalation rules, premium criteria, and eval gates are one framework wearing three hats.</description>
+    </item>
+    <item>
       <title>Price ladders: a mental model for every API dependency</title>
       <link>https://frugal.sh/blog/price-ladders-api-dependencies/</link>
       <guid>https://frugal.sh/blog/price-ladders-api-dependencies/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/instrumenting-ai-agents-logging/</guid>
       <pubDate>Tue, 14 Jul 2026 14:15:00 +0000</pubDate>
       <description>Six fields, one JSONL file, first deploy. The instrumentation playbook that answers every question you&#39;ll be asked about your agent in month three.</description>
-    </item>
-    <item>
-      <title>Token prices fell 90%. Tool prices didn&#39;t.</title>
-      <link>https://frugal.sh/blog/tool-prices-didnt-fall/</link>
-      <guid>https://frugal.sh/blog/tool-prices-didnt-fall/</guid>
-      <pubDate>Thu, 09 Jul 2026 16:25:00 +0000</pubDate>
-      <description>Inference got an order of magnitude cheaper and everyone noticed. The per-call price of search, scrape, and browse barely moved, and almost nobody did.</description>
     </item>
   </channel>
 </rss>
