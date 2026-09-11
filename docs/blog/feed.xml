@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>A receipt for every agent run</title>
+      <link>https://frugal.sh/blog/receipt-for-every-agent-run/</link>
+      <guid>https://frugal.sh/blog/receipt-for-every-agent-run/</guid>
+      <pubDate>Thu, 10 Sep 2026 13:35:00 +0000</pubDate>
+      <description>Dashboards tell you what the month cost. A receipt tells you what this run cost, which provider earned it, and what the same result would have cost at rack rate.</description>
+    </item>
+    <item>
       <title>Model selection is a routing problem</title>
       <link>https://frugal.sh/blog/model-selection-is-routing/</link>
       <guid>https://frugal.sh/blog/model-selection-is-routing/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/hardening-mcp-http-transport/</guid>
       <pubDate>Tue, 21 Jul 2026 14:30:00 +0000</pubDate>
       <description>The moment an MCP server leaves stdio for HTTP, it becomes a network service with everything that implies. The hardening playbook I actually run.</description>
-    </item>
-    <item>
-      <title>Instrumenting an agent: what to log from day one</title>
-      <link>https://frugal.sh/blog/instrumenting-ai-agents-logging/</link>
-      <guid>https://frugal.sh/blog/instrumenting-ai-agents-logging/</guid>
-      <pubDate>Tue, 14 Jul 2026 14:15:00 +0000</pubDate>
-      <description>Six fields, one JSONL file, first deploy. The instrumentation playbook that answers every question you&#39;ll be asked about your agent in month three.</description>
     </item>
   </channel>
 </rss>
