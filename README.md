@@ -211,6 +211,7 @@ environment and only registers tools whose providers are configured:
 # Search — frugal__search
 export SEARXNG_URL=...           # free, self-hosted (Marginalia + Wikipedia need no key)
 export SERPER_API_KEY=...        # cheap paid
+export BRAVE_API_KEY=...         # independent index (Brave Search), $5/mo credit
 export YDC_API_KEY=...           # premium paid (You.com)
 
 # Extract — frugal__extract (goreadability is free, no key)
@@ -230,7 +231,7 @@ is 5× Serper at $0.001/call. SearXNG, running on your own machine, is free.
 
 | Capability | Free / local | Cheap paid | Premium paid | Status |
 |---|---|---|---|---|
-| Search | **SearXNG** · **Marginalia** · **Wikipedia** | **Serper** $0.001/call | **You.com** $0.005/call | **shipping** |
+| Search | **SearXNG** · **Marginalia** · **Wikipedia** | **Serper** $0.001/call | **You.com** $0.005/call · **Brave** $0.005/call | **shipping** |
 | Extract | **go-readability** (local) | — | **Firecrawl** $0.001/page | **shipping** |
 | Browse | local Playwright *(deferred)* | **Browserless** $0.002/render | Browserbase *(planned)* | *partial* |
 | Code exec | local Docker | E2B ~$0.10/hr (2 vCPU) | Modal | planned |
@@ -244,7 +245,7 @@ one with a receipt.
 
 ## What ships today
 
-One MCP server, four tools, eight providers:
+One MCP server, four tools, nine providers:
 
 - **`frugal__execute`** — **shipping**. Describe the job (`intent`,
   optional `priority`); heuristic classification onto a capability, then
@@ -252,7 +253,10 @@ One MCP server, four tools, eight providers:
   `provider_used`, `cost_usd`, `reason`).
 - **`frugal__search`** — **shipping**. Routed across **SearXNG** (free,
   self-hosted), **Marginalia** (free, public), **Wikipedia** (free,
-  public), **Serper** (`$0.001/call`), and **You.com** (`$0.005/call`).
+  public), **Serper** (`$0.001/call`), **You.com** (`$0.005/call`), and
+  **Brave Search** (`$0.005/call`, Brave's own independent index; every
+  plan carries $5 of monthly credit, so `daily_budget_usd: 0.16` keeps
+  light use inside it).
   When a free provider returns zero hits the chain falls through to the
   next rung; a paid provider returning zero hits ends the chain (the
   query has no hits — no point paying a pricier provider to confirm).

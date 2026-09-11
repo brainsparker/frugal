@@ -23,6 +23,11 @@ func TestLoad_StarterModelsYAMLLoads(t *testing.T) {
 	if _, ok := cfg.SearchProviders["youcom"]; !ok {
 		t.Errorf("expected 'youcom' in SearchProviders, got %+v", cfg.SearchProviders)
 	}
+	if sp, ok := cfg.SearchProviders["brave"]; !ok {
+		t.Errorf("expected 'brave' in SearchProviders, got %+v", cfg.SearchProviders)
+	} else if sp.APIKeyEnv != "BRAVE_API_KEY" || sp.CostPerCall != 0.005 {
+		t.Errorf("brave should be keyed on BRAVE_API_KEY at the $0.005 list price, got %+v", sp)
+	}
 	if _, ok := cfg.SearchProviders["serper"]; !ok {
 		t.Errorf("expected 'serper' in SearchProviders, got %+v", cfg.SearchProviders)
 	}
