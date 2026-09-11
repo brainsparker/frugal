@@ -98,3 +98,34 @@ func TestPolicyFor_MapsYAMLOntoRoutingPolicy(t *testing.T) {
 		t.Errorf("nil routing policy = %+v, want zero value", p)
 	}
 }
+
+func TestBuildSearchers_BraveGatesOnKeyAndSortsAfterYoucom(t *testing.T) {
+	// Brave is a keyed provider: without BRAVE_API_KEY in the environment
+	// the entry must not register (an unset paid rung is deliberate, and
+	// an empty token would only buy a 401). With the key set it registers
+	// under the stable name "brave" and, because it ties You.com on list
+	// price, the canonical order keeps You.com first so existing chains
+	// don't reorder when an operator adds a Brave key.
+	cfg := &config.Config{
+		SearchProviders: map[string]config.SearchProviderConfig{
+			"brave":  {APIKeyEnv: "FRUGAL_TEST_BRAVE_KEY", CostPerCall: 0.005},
+			"youcom": {APIKeyEnv: "FRUGAL_TEST_YDC_KEY", CostPerCall: 0.005},
+		},
+	}
+
+	t.Setenv("FRUGAL_TEST_BRAVE_KEY", "")
+	t.Setenv("FRUGAL_TEST_YDC_KEY", "")
+	if got := buildSearchers(cfg); len(got) != 0 {
+		t.Fatalf("keyless brave/youcom must not register; got %v", searcherNames(got))
+	}
+
+	t.Setenv("FRUGAL_TEST_BRAVE_KEY", "brave-token")
+	t.Setenv("FRUGAL_TEST_YDC_KEY", "ydc-token")
+	names := searcherNames(buildSearchers(cfg))
+	if len(names) != 2 || names[0] != "youcom" || names[1] != "brave" {
+		t.Fatalf("expected [youcom brave] (canonical tie-break at equal price); got %v", names)
+	}
+	if !wireableProviders["search"]["brave"] {
+		t.Errorf("brave must be wireable so rack rates and policy warnings recognize it")
+	}
+}

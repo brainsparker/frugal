@@ -32,10 +32,10 @@ type SearchInput struct {
 	MaxResults int    `json:"max_results,omitempty" jsonschema:"max results to return (default 5, clamped to 20)"`
 	Freshness  string `json:"freshness,omitempty" jsonschema:"optional time window: day | week | month"`
 	// Provider pins the search provider for this call ("searxng", "serper",
-	// "youcom", …). When empty or "auto", the configured routing policy
-	// picks (cheapest-first by default). Use a pin when a specific
+	// "youcom", "brave", …). When empty or "auto", the configured routing
+	// policy picks (cheapest-first by default). Use a pin when a specific
 	// provider is known to have materially better recall for this call.
-	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: searxng | marginalia | wikipedia | serper | youcom | auto"`
+	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: searxng | marginalia | wikipedia | serper | youcom | brave | auto"`
 }
 
 // SearchOutput is the structured-content payload returned to the MCP
