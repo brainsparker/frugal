@@ -644,3 +644,33 @@ func TestParse_CooldownRoundTrips(t *testing.T) {
 		t.Fatalf("routing.cooldown = %+v, want \"90s\"", cfg.Routing)
 	}
 }
+
+func TestParse_CacheSectionRoundTrips(t *testing.T) {
+	y := "cache:\n    enabled: true\n    search_ttl: 2m\n    extract_ttl: 30m\n    max_entries: 128\n"
+	cfg, err := Parse([]byte(y))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Cache == nil || !cfg.Cache.Enabled {
+		t.Fatalf("cache section not parsed: %+v", cfg.Cache)
+	}
+	if cfg.Cache.SearchTTL != "2m" || cfg.Cache.ExtractTTL != "30m" || cfg.Cache.MaxEntries != 128 {
+		t.Fatalf("cache fields = %+v", cfg.Cache)
+	}
+}
+
+func TestParse_CacheAbsentIsNil(t *testing.T) {
+	cfg, err := Parse([]byte("search_providers:\n    wikipedia: {}\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Cache != nil {
+		t.Fatalf("absent cache section must stay nil, got %+v", cfg.Cache)
+	}
+}
+
+func TestParse_CacheRejectsNegativeMaxEntries(t *testing.T) {
+	if _, err := Parse([]byte("cache:\n    enabled: true\n    max_entries: -1\n")); err == nil {
+		t.Fatal("negative max_entries must fail validation")
+	}
+}

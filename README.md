@@ -141,6 +141,41 @@ When a guardrail skips a provider it is noted in the routing trace
 in a chain is over budget or cooling down, the call fails with a clear
 message rather than silently doing nothing.
 
+## Result cache
+
+Off by default. When enabled, a repeated identical `frugal__search` or
+`frugal__extract` call inside the TTL is answered from process memory
+instead of a provider, at zero cost. Agents repeat themselves
+constantly: retry loops, sibling subagents issuing the same query,
+follow-up questions about the same page. With the cache on, only the
+first call pays.
+
+```yaml
+cache:
+  enabled: true
+  search_ttl: 5m      # default 5m; "0" turns search caching off
+  extract_ttl: 15m    # default 15m; "0" turns extract caching off
+  max_entries: 512    # LRU eviction past this bound (default 512)
+```
+
+- Hits are labeled in the response: `cached: true`, `cache_age_ms`, and
+  `cost_usd: 0`, with `provider_used` still naming the provider that
+  produced the original result. Nothing is silently stale: the agent
+  can always see it got a cached answer and how old it is.
+- Exact-match by design: the key covers the query or URL plus every
+  argument that changes what a provider would return (`max_results`,
+  `freshness`, `formats`, a provider pin). The Phase 3 semantic cache
+  builds on top of this layer; it does not replace it.
+- `frugal__execute` shares entries with the direct tools, so
+  `frugal__execute("search python docs")` is a hit after
+  `frugal__search("python docs")` and vice versa. An explicit
+  `priority: cheap` or `premium` on execute bypasses the cache, since
+  the caller asked for a specific routing outcome.
+- `frugal__browse` is never cached: rendering a page is exactly the
+  case where the caller wants the live DOM.
+- In-memory only, per process. Cached provider payloads never touch
+  disk and never outlive the server.
+
 ## Describe the job: `frugal__execute`
 
 Instead of picking a tool, an agent can state the intent and a priority.

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/frugalsh/frugal/internal/browse"
+	"github.com/frugalsh/frugal/internal/cache"
 	"github.com/frugalsh/frugal/internal/config"
 	"github.com/frugalsh/frugal/internal/extract"
 	"github.com/frugalsh/frugal/internal/install"
@@ -152,10 +153,17 @@ func runMCPServe(args []string) int {
 	// rail, so there's no behavior difference for a budget-free config.
 	guard := buildGuard(cfg)
 
+	// Result cache: one instance shared by every read tool so
+	// frugal__execute and the direct tools hit the same entries. Nil
+	// when the config leaves it off; every cache method is nil-safe,
+	// so the tool wiring below is unconditional.
+	resultCache, searchTTL, extractTTL := buildResultCache(cfg)
+	withCache := tools.WithResultCache(resultCache, searchTTL, extractTTL)
+
 	searchers := buildSearchers(cfg)
 	warnPolicyStrangers("search", policies["search"], searcherNames(searchers))
 	tools.RegisterSearch(srv.Inner, searchers, metrics,
-		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard))
+		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard), withCache)
 	if len(searchers) == 0 {
 		slog.Warn("mcp serve: no search providers configured — frugal__search will not be advertised. " +
 			"Set SEARXNG_URL (free, self-hosted), SERPER_API_KEY, or YDC_API_KEY to enable.")
@@ -166,7 +174,7 @@ func runMCPServe(args []string) int {
 	extractors := buildExtractors(cfg)
 	warnPolicyStrangers("extract", policies["extract"], extractorNames(extractors))
 	tools.RegisterExtract(srv.Inner, extractors, metrics,
-		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")), tools.WithGuard(guard))
+		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")), tools.WithGuard(guard), withCache)
 	if len(extractors) > 0 {
 		slog.Info("mcp serve: frugal__extract registered", "providers", extractorNames(extractors))
 	}
@@ -180,7 +188,7 @@ func runMCPServe(args []string) int {
 	}
 
 	tools.RegisterExecute(srv.Inner, searchers, extractors, browsers, metrics,
-		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor), tools.WithGuard(guard))
+		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor), tools.WithGuard(guard), withCache)
 	if len(searchers) > 0 {
 		slog.Info("mcp serve: frugal__execute registered",
 			"search", len(searchers), "extract", len(extractors), "browse", len(browsers))
@@ -387,6 +395,48 @@ func policyFor(rc *config.RoutingConfig, capability string) routing.Policy {
 // the same style as the "routing policy" lines. An invalid cooldown
 // string warns and falls back to the routing package's default rather
 // than failing startup: a mistyped duration shouldn't stop the server.
+// Result-cache TTL defaults. Search results shift faster than article
+// bodies, so search gets the shorter window.
+const (
+	defaultSearchCacheTTL  = 5 * time.Minute
+	defaultExtractCacheTTL = 15 * time.Minute
+)
+
+// buildResultCache turns the optional cache config section into the
+// shared result cache plus per-capability TTLs. Returns a nil cache
+// when the section is absent or disabled; nil is a safe no-op for the
+// tool layer. Invalid TTLs warn and fall back to the defaults, same as
+// the routing cooldown: a typo should not brick a working config. An
+// explicit "0" is valid and disables that capability's caching only.
+func buildResultCache(cfg *config.Config) (*cache.Cache, time.Duration, time.Duration) {
+	if cfg.Cache == nil || !cfg.Cache.Enabled {
+		return nil, 0, 0
+	}
+	parseTTL := func(name, raw string, fallback time.Duration) time.Duration {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			return fallback
+		}
+		if raw == "0" {
+			return 0
+		}
+		d, err := time.ParseDuration(raw)
+		if err != nil || d < 0 {
+			slog.Warn("mcp serve: invalid cache ttl; using default",
+				"field", name, "value", raw, "default", fallback)
+			return fallback
+		}
+		return d
+	}
+	searchTTL := parseTTL("search_ttl", cfg.Cache.SearchTTL, defaultSearchCacheTTL)
+	extractTTL := parseTTL("extract_ttl", cfg.Cache.ExtractTTL, defaultExtractCacheTTL)
+	c := cache.New(cfg.Cache.MaxEntries)
+	slog.Info("mcp serve: result cache enabled",
+		"search_ttl", searchTTL, "extract_ttl", extractTTL,
+		"max_entries", cfg.Cache.MaxEntries)
+	return c, searchTTL, extractTTL
+}
+
 func buildGuard(cfg *config.Config) *routing.Guard {
 	caps := map[string]float64{}
 	add := func(capability string, providers map[string]config.SearchProviderConfig) {

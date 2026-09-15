@@ -8,10 +8,19 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/frugalsh/frugal/internal/cache"
 	"github.com/frugalsh/frugal/internal/extract"
 	"github.com/frugalsh/frugal/internal/obs"
 	"github.com/frugalsh/frugal/internal/routing"
 )
+
+// cachedExtract is the cache entry the extract-capable tools share.
+// It carries the full extract.Result so a frugal__extract hit loses no
+// fields (byline, links) regardless of which tool stored the entry.
+type cachedExtract struct {
+	Res      extract.Result
+	Provider string
+}
 
 // ExtractInput is the JSON-schema-generating shape for frugal__extract.
 // Field tags drive the schema the MCP client sees — keep names + descriptions
@@ -41,6 +50,10 @@ type ExtractOutput struct {
 	CostUSD      float64  `json:"cost_usd"`
 	ProviderUsed string   `json:"provider_used"`
 	LatencyMS    int64    `json:"latency_ms"`
+	// Cached / CacheAgeMS report when the response came from the local
+	// result cache instead of a provider call. cost_usd is 0 on a hit.
+	Cached     bool  `json:"cached,omitempty" jsonschema:"true when served from the local result cache without a provider call"`
+	CacheAgeMS int64 `json:"cache_age_ms,omitempty" jsonschema:"age of the cached result in milliseconds (cache hits only)"`
 }
 
 // RegisterExtract wires frugal__extract onto the given MCP server.
@@ -92,14 +105,36 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 		}
 		q := extract.Query{URL: in.URL, Formats: in.Formats}
 		logger := slog.Default()
+		provider := normalizeProvider(in.Provider)
 
 		start := time.Now()
+
+		// Result cache: same URL, formats, and pin inside the TTL is
+		// answered from memory. Nil cache is a no-op.
+		key := cache.ExtractKey(provider, in.URL, in.Formats)
+		if v, age, ok := o.resultCache.Get(key); ok {
+			if hit, isExtract := v.(cachedExtract); isExtract {
+				return nil, ExtractOutput{
+					Markdown:     hit.Res.Markdown,
+					HTML:         hit.Res.HTML,
+					Text:         hit.Res.Text,
+					Title:        hit.Res.Title,
+					Byline:       hit.Res.Byline,
+					Links:        hit.Res.Links,
+					CostUSD:      0,
+					ProviderUsed: hit.Provider,
+					LatencyMS:    time.Since(start).Milliseconds(),
+					Cached:       true,
+					CacheAgeMS:   age.Milliseconds(),
+				}, nil
+			}
+		}
+
 		var (
 			used extract.Extractor
 			res  extract.Result
 			err  error
 		)
-		provider := normalizeProvider(in.Provider)
 		if isAuto(provider) {
 			ordered, reason := routing.Apply(extractors, o.policy, o.lat, time.Now())
 			if len(ordered) == 0 {
@@ -124,6 +159,8 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 		if err != nil {
 			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: %w", err)
 		}
+
+		o.resultCache.Put(key, cachedExtract{Res: res, Provider: used.Name()}, res.CostUSD, o.extractTTL)
 
 		return nil, ExtractOutput{
 			Markdown:     res.Markdown,

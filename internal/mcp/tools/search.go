@@ -19,10 +19,21 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/frugalsh/frugal/internal/cache"
 	"github.com/frugalsh/frugal/internal/obs"
 	"github.com/frugalsh/frugal/internal/routing"
 	"github.com/frugalsh/frugal/internal/search"
 )
+
+// cachedSearch is the cache entry the search-capable tools share:
+// frugal__search and frugal__execute write and read the same shape, so
+// a repeat of the same query through either tool is a hit.
+type cachedSearch struct {
+	Items    []search.Item
+	Warnings []string
+	Provider string
+	CostUSD  float64
+}
 
 // SearchInput is the JSON-schema-generating shape for frugal__search.
 // Field tags drive the schema the MCP client sees — keep names + descriptions
@@ -52,6 +63,12 @@ type SearchOutput struct {
 	// so the agent can react (re-query pinned to serper/youcom) instead of
 	// mistaking best-effort results for exact ones.
 	Warnings []string `json:"warnings,omitempty" jsonschema:"degraded-service notes, e.g. a provider that ignored the freshness window"`
+	// Cached / CacheAgeMS report when the response came from the local
+	// result cache instead of a provider call. cost_usd is 0 on a hit:
+	// nothing was paid for this call. provider_used still names the
+	// provider that produced the original result.
+	Cached     bool  `json:"cached,omitempty" jsonschema:"true when served from the local result cache without a provider call"`
+	CacheAgeMS int64 `json:"cache_age_ms,omitempty" jsonschema:"age of the cached result in milliseconds (cache hits only)"`
 }
 
 // RegisterSearch wires frugal__search onto the given MCP server. searchers
@@ -125,6 +142,25 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 
 		provider := normalizeProvider(in.Provider)
 		start := time.Now()
+
+		// Result cache: an identical call inside the TTL is answered
+		// from memory, costing nothing. Key covers every argument that
+		// changes what a provider would return. Nil cache is a no-op.
+		key := cache.SearchKey(provider, in.Query, in.MaxResults, freshness)
+		if v, age, ok := o.resultCache.Get(key); ok {
+			if hit, isSearch := v.(cachedSearch); isSearch {
+				return nil, SearchOutput{
+					Results:      hit.Items,
+					CostUSD:      0,
+					ProviderUsed: hit.Provider,
+					LatencyMS:    time.Since(start).Milliseconds(),
+					Warnings:     hit.Warnings,
+					Cached:       true,
+					CacheAgeMS:   age.Milliseconds(),
+				}, nil
+			}
+		}
+
 		var (
 			used      search.Searcher
 			res       search.Results
@@ -155,6 +191,13 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 		if searchErr != nil {
 			return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", searchErr)
 		}
+
+		o.resultCache.Put(key, cachedSearch{
+			Items:    res.Items,
+			Warnings: res.Warnings,
+			Provider: used.Name(),
+			CostUSD:  res.CostUSD,
+		}, res.CostUSD, o.searchTTL)
 
 		out := SearchOutput{
 			Results:      res.Items,

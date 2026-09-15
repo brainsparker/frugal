@@ -30,6 +30,31 @@ type Config struct {
 	// Routing is the optional per-capability routing policy. Absent means
 	// every capability routes cheapest-first — the historical default.
 	Routing *RoutingConfig `yaml:"routing,omitempty"`
+	// Cache is the optional exact-match result cache. Absent or
+	// enabled: false means every call goes to a provider, the
+	// historical behavior.
+	Cache *CacheConfig `yaml:"cache,omitempty"`
+}
+
+// CacheConfig declares the exact-match result cache for the read
+// capabilities. Opt-in: repeated identical search / extract calls
+// inside the TTL are answered from process memory at zero cost, with
+// the response marked cached: true. Browse is never cached, and the
+// cache is in-memory only, so entries never outlive the process.
+type CacheConfig struct {
+	// Enabled turns the cache on. False or absent keeps the historical
+	// call-every-time behavior.
+	Enabled bool `yaml:"enabled,omitempty"`
+	// SearchTTL / ExtractTTL are Go duration strings ("30s", "5m").
+	// Empty falls back to the defaults (search 5m, extract 15m);
+	// invalid values warn at wiring time and fall back the same way, a
+	// mistyped TTL should not brick an otherwise-good config. An
+	// explicit "0" disables caching for that capability only.
+	SearchTTL  string `yaml:"search_ttl,omitempty"`
+	ExtractTTL string `yaml:"extract_ttl,omitempty"`
+	// MaxEntries bounds the cache (LRU eviction past the bound).
+	// Zero or absent means the default (512).
+	MaxEntries int `yaml:"max_entries,omitempty"`
 }
 
 // RoutingConfig declares routing policy per capability. Each entry is
@@ -266,6 +291,9 @@ func validate(cfg *Config) error {
 	}
 	if err := validateProviders("browse_providers", cfg.BrowseProviders); err != nil {
 		return err
+	}
+	if cfg.Cache != nil && cfg.Cache.MaxEntries < 0 {
+		return fmt.Errorf("cache: max_entries must not be negative (got %d)", cfg.Cache.MaxEntries)
 	}
 	return validateRouting(cfg)
 }
