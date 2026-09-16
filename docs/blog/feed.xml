@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>How small teams ship AI products without a platform team</title>
+      <link>https://frugal.sh/blog/small-teams-ai-products/</link>
+      <guid>https://frugal.sh/blog/small-teams-ai-products/</guid>
+      <pubDate>Tue, 15 Sep 2026 16:15:00 +0000</pubDate>
+      <description>You don&#39;t need an ML platform group to ship an AI feature. You need readable pieces, defaults that can&#39;t surprise you on cost, and four honest weeks.</description>
+    </item>
+    <item>
       <title>A receipt for every agent run</title>
       <link>https://frugal.sh/blog/receipt-for-every-agent-run/</link>
       <guid>https://frugal.sh/blog/receipt-for-every-agent-run/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/evaluate-models-own-traffic/</guid>
       <pubDate>Thu, 23 Jul 2026 15:20:00 +0000</pubDate>
       <description>A model&#39;s leaderboard position tells you how it does on the leaderboard&#39;s distribution, not yours. Fifty queries from your own logs beat it every time.</description>
-    </item>
-    <item>
-      <title>Hardening an MCP server&#39;s HTTP transport</title>
-      <link>https://frugal.sh/blog/hardening-mcp-http-transport/</link>
-      <guid>https://frugal.sh/blog/hardening-mcp-http-transport/</guid>
-      <pubDate>Tue, 21 Jul 2026 14:30:00 +0000</pubDate>
-      <description>The moment an MCP server leaves stdio for HTTP, it becomes a network service with everything that implies. The hardening playbook I actually run.</description>
     </item>
   </channel>
 </rss>
