@@ -49,6 +49,7 @@ Common environment:
   FRUGAL_LOG_LEVEL                debug | info | warn | error
   FRUGAL_LOG_FORMAT               text | json
   SERPER_API_KEY                  Cheap-paid web search (Serper)
+  BRAVE_API_KEY                   Independent-index web search (Brave Search)
   YDC_API_KEY                     Premium web search (You.com)
   FIRECRAWL_API_KEY               Premium extract (Firecrawl)
   BROWSERLESS_TOKEN               Headless browse (Browserless)

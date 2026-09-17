@@ -29,7 +29,7 @@ No account.
 | Tool | Purpose | Provider chain (default cheap policy) |
 |---|---|---|
 | `frugal__execute` | Describe the job; Frugal classifies and routes it | routes across the capability chains below |
-| `frugal__search` | Web search | SearXNG ($0) → Marginalia ($0) → Wikipedia ($0) → Serper ($0.001) → You.com ($0.005) |
+| `frugal__search` | Web search | SearXNG ($0) → Marginalia ($0) → Wikipedia ($0) → Serper ($0.001) → You.com ($0.005) → Brave ($0.005) |
 | `frugal__extract` | Page → clean text | go-readability ($0) → Firecrawl ($0.001) |
 | `frugal__browse` | Headless JS render | Browserless ($0.002) |
 
