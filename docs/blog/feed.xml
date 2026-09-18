@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>Rate limits, retries, and the thundering herd</title>
+      <link>https://frugal.sh/blog/rate-limits-thundering-herd/</link>
+      <guid>https://frugal.sh/blog/rate-limits-thundering-herd/</guid>
+      <pubDate>Thu, 17 Sep 2026 14:25:00 +0000</pubDate>
+      <description>When one rung fails, every agent in your fleet fails over to the same next rung in the same second. The stampede is self-inflicted. Here&#39;s how to break it up.</description>
+    </item>
+    <item>
       <title>How small teams ship AI products without a platform team</title>
       <link>https://frugal.sh/blog/small-teams-ai-products/</link>
       <guid>https://frugal.sh/blog/small-teams-ai-products/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/frugal-open-routing-layer/</guid>
       <pubDate>Thu, 23 Jul 2026 16:00:00 +0000</pubDate>
       <description>Cost was the wedge. Routing is the product. What&#39;s shipping, what changed, and what Frugal Cloud will add.</description>
-    </item>
-    <item>
-      <title>Benchmarks lie: evaluate models on your own traffic</title>
-      <link>https://frugal.sh/blog/evaluate-models-own-traffic/</link>
-      <guid>https://frugal.sh/blog/evaluate-models-own-traffic/</guid>
-      <pubDate>Thu, 23 Jul 2026 15:20:00 +0000</pubDate>
-      <description>A model&#39;s leaderboard position tells you how it does on the leaderboard&#39;s distribution, not yours. Fifty queries from your own logs beat it every time.</description>
     </item>
   </channel>
 </rss>
