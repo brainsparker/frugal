@@ -4,8 +4,8 @@
 # when the tool is called without an explicit `provider` argument.
 #
 # Free, keyless providers missing from an operator's copy of this file
-# (wikipedia, marginalia, goreadability — entries with no api_key_env /
-# base_url_env) are filled in from the defaults embedded in the binary at
+# (wikipedia, marginalia, goreadability, jina — entries with no
+# api_key_env / base_url_env) are filled in from the defaults embedded in the binary at
 # load time, so upgrades that ship a new zero-key provider reach existing
 # installs without a config rewrite. Keyed and self-hosted providers are
 # never defaulted in: an omitted paid provider is treated as deliberate,
@@ -110,6 +110,21 @@ extract_providers:
     # pass. Returns Permanent on empty content (JS-rendered pages),
     # which lets the router fall through to a paid driver.
     goreadability:
+        cost_per_call: 0.0
+    # Free / hosted: Jina Reader (https://jina.ai/reader) renders the
+    # page in a headless browser server-side and returns clean Markdown,
+    # so a JS-rendered page that go-readability sees as empty is served
+    # here at $0 instead of falling straight to a paid scraper. Keyless
+    # tier: 20 requests/minute per IP. Sits after goreadability in the
+    # canonical order (local first, hosted second), so a static page
+    # never leaves your machine for Jina. To use a free Jina API key for
+    # the 500 requests/minute tier, add `api_key_env: JINA_API_KEY` to
+    # this entry; the key is optional and the rung stays registered
+    # keyless when the variable is unset. Sends the target URL to a
+    # third party: tombstone with `enabled: false` (or deny it under
+    # routing.extract) to keep extraction fully local.
+    jina:
+        base_url: https://r.jina.ai
         cost_per_call: 0.0
     # Premium paid: handles JS-rendered pages, anti-bot defenses, and
     # PDF / binary content. Operators set FIRECRAWL_API_KEY to enable.
