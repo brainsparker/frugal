@@ -44,6 +44,61 @@ func TestBuildExtractors_SkipsDisabledProviders(t *testing.T) {
 	}
 }
 
+func TestBuildExtractors_JinaRegistersKeylessAndKeyed(t *testing.T) {
+	// jina is a keyless hosted rung: unlike firecrawl it must register
+	// with no key at all, and a set api_key_env upgrades the same driver
+	// to the keyed tier rather than gating registration.
+	t.Setenv("JINA_TEST_KEY", "")
+	cfg := &config.Config{
+		ExtractProviders: map[string]config.SearchProviderConfig{
+			"jina": {BaseURL: "https://r.jina.ai"},
+		},
+	}
+	got := buildExtractors(cfg)
+	if len(got) != 1 || got[0].Name() != "jina" {
+		t.Fatalf("keyless jina must register; got %d extractors", len(got))
+	}
+	if got[0].CostPerCall() != 0 {
+		t.Errorf("shipped jina entry is free; CostPerCall = %v", got[0].CostPerCall())
+	}
+
+	cfg.ExtractProviders["jina"] = config.SearchProviderConfig{APIKeyEnv: "JINA_TEST_KEY"}
+	if got := buildExtractors(cfg); len(got) != 1 {
+		t.Fatalf("jina with an UNSET api_key_env must still register keyless; got %d", len(got))
+	}
+
+	t.Setenv("JINA_TEST_KEY", "jina_abc")
+	got = buildExtractors(cfg)
+	if len(got) != 1 {
+		t.Fatalf("jina with a set api_key_env must register; got %d", len(got))
+	}
+	type keyed interface{ Keyed() bool }
+	k, ok := got[0].(keyed)
+	if !ok || !k.Keyed() {
+		t.Errorf("jina should report the keyed tier when its api_key_env is set")
+	}
+}
+
+func TestBuildExtractors_CanonicalOrderKeepsLocalBeforeHosted(t *testing.T) {
+	// Same-cost ties resolve by canonical registration order: the local
+	// Readability pass must come before the hosted Jina render so a
+	// static page never leaves the machine.
+	cfg := &config.Config{
+		ExtractProviders: map[string]config.SearchProviderConfig{
+			"jina":          {BaseURL: "https://r.jina.ai"},
+			"goreadability": {},
+		},
+	}
+	got := buildExtractors(cfg)
+	if len(got) != 2 || got[0].Name() != "goreadability" || got[1].Name() != "jina" {
+		names := make([]string, 0, len(got))
+		for _, e := range got {
+			names = append(names, e.Name())
+		}
+		t.Errorf("extract order = %v, want [goreadability jina]", names)
+	}
+}
+
 func TestRackRates_SkipsDisabledAndUnwireable(t *testing.T) {
 	no := false
 	cfg := &config.Config{
