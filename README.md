@@ -50,10 +50,11 @@ and register it as a `streamable` server instead.
 
 Search and extract work out of the box: **Marginalia** (free index of the
 indie / non-commercial web), **Wikipedia** (free Wikimedia REST search),
-and **go-readability** (free, pure-Go local extractor) ship enabled with
-zero configuration. This is the default `cheap` policy at work — free and
-local rungs first, failover when a provider comes up empty. Captured from
-a live zero-key run:
+**go-readability** (free, pure-Go local extractor), and **Jina Reader**
+(free hosted render for pages that paint their content with JavaScript)
+ship enabled with zero configuration. This is the default `cheap` policy
+at work — free and local rungs first, failover when a provider comes up
+empty. Captured from a live zero-key run:
 
 ```
 frugal__search {"query": "AI agent framework comparison", "max_results": 3}
@@ -213,8 +214,10 @@ export SEARXNG_URL=...           # free, self-hosted (Marginalia + Wikipedia nee
 export SERPER_API_KEY=...        # cheap paid
 export YDC_API_KEY=...           # premium paid (You.com)
 
-# Extract — frugal__extract (goreadability is free, no key)
-export FIRECRAWL_API_KEY=...     # premium paid (JS-rendered pages)
+# Extract — frugal__extract (goreadability + Jina Reader are free, no key)
+export JINA_API_KEY=...          # optional: lifts Jina Reader from 20 to 500 requests/min
+                                 # (also add api_key_env: JINA_API_KEY to the jina entry)
+export FIRECRAWL_API_KEY=...     # premium paid (anti-bot pages, PDFs)
 
 # Browse — frugal__browse
 export BROWSERLESS_TOKEN=...     # headless render
@@ -231,7 +234,7 @@ is 5× Serper at $0.001/call. SearXNG, running on your own machine, is free.
 | Capability | Free / local | Cheap paid | Premium paid | Status |
 |---|---|---|---|---|
 | Search | **SearXNG** · **Marginalia** · **Wikipedia** | **Serper** $0.001/call | **You.com** $0.005/call | **shipping** |
-| Extract | **go-readability** (local) | — | **Firecrawl** $0.001/page | **shipping** |
+| Extract | **go-readability** (local) · **Jina Reader** (hosted JS render) | — | **Firecrawl** $0.001/page | **shipping** |
 | Browse | local Playwright *(deferred)* | **Browserless** $0.002/render | Browserbase *(planned)* | *partial* |
 | Code exec | local Docker | E2B ~$0.10/hr (2 vCPU) | Modal | planned |
 | Embeddings | nomic-embed-text, bge-large | text-embedding-3-small $0.02/1M tok | 3-large, Voyage-3, Cohere | planned |
@@ -244,7 +247,7 @@ one with a receipt.
 
 ## What ships today
 
-One MCP server, four tools, eight providers:
+One MCP server, four tools, nine providers:
 
 - **`frugal__execute`** — **shipping**. Describe the job (`intent`,
   optional `priority`); heuristic classification onto a capability, then
@@ -257,8 +260,15 @@ One MCP server, four tools, eight providers:
   next rung; a paid provider returning zero hits ends the chain (the
   query has no hits — no point paying a pricier provider to confirm).
 - **`frugal__extract`** — **shipping**. Routed across **go-readability**
-  (free, pure-Go local Readability) and **Firecrawl** (`~$0.001/page`,
-  JS-rendered).
+  (free, pure-Go local Readability), **Jina Reader** (free, hosted
+  headless render: 20 requests/min keyless, 500 with a free `JINA_API_KEY`),
+  and **Firecrawl** (`~$0.001/page`, anti-bot defenses and PDFs). The
+  local pass runs first, so a static page never leaves your machine;
+  only a page that renders its content with JavaScript reaches the
+  hosted rung, and only when that also comes up empty does the chain
+  spend a paid scrape. Jina receives the target URL, nothing else; set
+  `jina: {enabled: false}` under `extract_providers` to keep extraction
+  fully local.
 - **`frugal__browse`** — *partial*. **Browserless** (`~$0.002/render`,
   headless Chrome) shipping; local Playwright deferred.
 - **Routing policies** — **shipping**. Per-capability `strategy`

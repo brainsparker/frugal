@@ -287,6 +287,14 @@ search_providers:
 	if _, ok := cfg.ExtractProviders["goreadability"]; !ok {
 		t.Errorf("extract_providers should gain the keyless embedded defaults; got %+v", cfg.ExtractProviders)
 	}
+	// The keyless hosted Jina Reader rung ships the same way: an install
+	// whose config predates it gains the free JS-render fallback on the
+	// next start without a config rewrite.
+	if sp, ok := cfg.ExtractProviders["jina"]; !ok {
+		t.Errorf("jina should be defaulted in from the embedded models.yaml; got %+v", cfg.ExtractProviders)
+	} else if sp.APIKeyEnv != "" || sp.CostPerCall != 0 {
+		t.Errorf("shipped jina default must be keyless and free; got %+v", sp)
+	}
 	// Keyed and operator-instance providers stay strictly opt-in: the
 	// overlay must never make `frugal mcp install` harvest a secret the
 	// operator's file didn't authorize, or point traffic at an instance
@@ -314,6 +322,7 @@ func TestParse_MisplacedEntriesFailFast(t *testing.T) {
 		"extract_providers:\n    wikipedia: {}\n",
 		"extract_providers:\n    wikipedia:\n        enabled: false\n",
 		"search_providers:\n    goreadability: {}\n",
+		"search_providers:\n    jina: {}\n",
 	} {
 		if _, err := Parse([]byte(y)); err == nil {
 			t.Errorf("misplaced entry should fail validation (yaml: %q)", y)
@@ -339,6 +348,8 @@ func TestParse_BareKeylessEntryIsValid(t *testing.T) {
 	for _, y := range []string{
 		"search_providers:\n    wikipedia:\n        enabled: true\n",
 		"search_providers:\n    marginalia: {}\n",
+		"extract_providers:\n    jina: {}\n",
+		"extract_providers:\n    jina:\n        api_key_env: JINA_API_KEY\n",
 	} {
 		if _, err := Parse([]byte(y)); err != nil {
 			t.Errorf("bare keyless entry should validate; got %v (yaml: %q)", err, y)

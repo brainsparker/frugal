@@ -191,7 +191,7 @@ func resolveSource(trustCwd bool) (*Config, string, error) {
 // to the shipped config reach installs whose config file predates it —
 // but ONLY free, keyless, secret-free providers (no api_key_env, no
 // base_url_env in the default entry: wikipedia, marginalia,
-// goreadability). Keyed providers stay strictly opt-in: silently adding
+// goreadability, jina). Keyed providers stay strictly opt-in: silently adding
 // a youcom entry would make `frugal mcp install` harvest YDC_API_KEY
 // from the shell into GUI client configs the operator's file never
 // authorized, and an omitted paid provider is far more likely deliberate
@@ -330,13 +330,13 @@ func validateRouting(cfg *Config) error {
 
 // keylessDefaults names the providers whose drivers need no endpoint
 // config, PER capability scope: goreadability is pure in-process, and
-// marginalia / wikipedia default their public base URL in code. The
+// marginalia / wikipedia / jina default their public base URL in code. The
 // scoping matters — a bare `wikipedia:` under extract_providers is a
 // misplaced entry that would silently do nothing at runtime, so it must
 // fail validation there, not slide through a scope-blind whitelist.
 var keylessDefaults = map[string]map[string]bool{
 	"search_providers":  {"marginalia": true, "wikipedia": true},
-	"extract_providers": {"goreadability": true},
+	"extract_providers": {"goreadability": true, "jina": true},
 }
 
 // defaultScopeNames lists the provider names the embedded default
