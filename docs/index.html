@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>frugal — the open routing layer for AI tools</title>
   <meta name="description" content="Frugal is the open routing layer for AI tools: an MCP server that routes agent tool calls across providers per policy — cost, latency, pinning, deny lists — with automatic failover and the routing decision on every result. One Go binary, BYOK, no account. Source-available." />
-  <meta name="theme-color" content="#ffffff" />
-  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#101114" />
+  <meta name="color-scheme" content="dark" />
 
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://frugal.sh/" />
@@ -20,122 +20,35 @@
 
   <link rel="canonical" href="https://frugal.sh/" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="stylesheet" href="/home.css" />
+  <link rel="stylesheet" href="/home.css?v=20260920" />
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
 
-  <div class="above-fold">
+  <header class="site-header">
+    <h1><a class="brand" href="/"><span class="mark" aria-hidden="true">🎺</span> frugal</a></h1>
+    <p class="tagline">The open routing layer for AI tools — your keys, your policies, no account.</p>
     <nav class="top" aria-label="Primary">
-      <div class="nav-left">
-        <a class="brand" href="/"><span class="mark" aria-hidden="true">🎺</span>frugal</a>
-        <a class="nav-link" href="#policies">policies</a>
-        <a class="nav-link" href="#routing">routing</a>
-        <a class="nav-link" href="#cloud">cloud</a>
-        <a class="nav-link" href="/blog/">blog</a>
-      </div>
-      <div class="nav-right">
-        <a class="nav-link" href="https://github.com/brainsparker/frugal" rel="noopener">github →</a>
-      </div>
+      <a href="#agent">get started</a>
+      <a href="#policies">policies</a>
+      <a href="#routing">routing</a>
+      <a href="https://github.com/brainsparker/frugal#readme">docs</a>
+      <a href="/blog/">blog</a>
+      <a href="/.well-known/agent-skills/frugal/SKILL.md">skill.md</a>
+      <a href="https://github.com/brainsparker/frugal">github</a>
     </nav>
+    <p class="intro">One Go binary. Search, extract, and browse across providers, with automatic failover and a receipt for every call.</p>
+  </header>
 
-    <main id="main">
-      <section class="hero">
-        <div>
-          <h1 class="hero-title">curl -fsSL frugal.sh/install | bash</h1>
-          <p class="hero-tagline">The open routing layer for AI tools.</p>
-          <p class="hero-sub">source-available · byok · any model · no account</p>
-        </div>
-
-        <div id="term-player" aria-label="Real captured CLI sessions"></div>
-        <script type="application/json" id="term-recordings">
-[
-  {
-    "title": "install",
-    "events": [
-      {"t":"cmd","s":"curl -fsSL frugal.sh/install | bash"},
-      {"t":"wait","ms":350},
-      {"t":"out","s":"==> installing frugal.sh — the open routing layer for AI tools","c":"m"},
-      {"t":"out","s":"==> tool calls routed per policy, decision on every result. any model. BYOK.","c":"m"},
-      {"t":"out","s":" ✓  detected platform: darwin-arm64","c":"g"},
-      {"t":"out","s":"==> resolving version...","c":"m"},
-      {"t":"wait","ms":300},
-      {"t":"out","s":" ✓  target version: v0.1.1","c":"g"},
-      {"t":"out","s":"==> downloading frugal-darwin-arm64...","c":"m"},
-      {"t":"wait","ms":500},
-      {"t":"out","s":" ✓  checksum verified","c":"g"},
-      {"t":"out","s":" ✓  installed frugal v0.1.1 to ~/.frugal/bin/frugal","c":"g"},
-      {"t":"out","s":" ✓  default config saved to ~/.frugal/config/models.yaml","c":"g"},
-      {"t":"out","s":" ✓  shell config updated: ~/.zshrc","c":"g"},
-      {"t":"out","s":" ✓  smoke test: frugal --version OK","c":"g"},
-      {"t":"out","s":"==> detecting search-provider config...","c":"m"},
-      {"t":"out","s":" ✓  Marginalia (free, public — always on)","c":"g"},
-      {"t":"wait","ms":400},
-      {"t":"out","s":""},
-      {"t":"out","s":"  ✓  frugal.sh installed  ·  v0.1.1  ·  darwin-arm64","c":"g"}
-    ]
-  },
-  {
-    "title": "wire in",
-    "events": [
-      {"t":"cmd","s":"frugal mcp install"},
-      {"t":"wait","ms":300},
-      {"t":"out","s":"detected agent clients:"},
-      {"t":"out","s":"  ✓ Claude Desktop  config dir present at ~/Library/Application Support/Claude","c":"g"},
-      {"t":"out","s":"  ✓ Cursor          config dir present at ~/.cursor","c":"g"},
-      {"t":"wait","ms":450},
-      {"t":"out","s":""},
-      {"t":"out","s":"✓ Claude Desktop: wrote ~/Library/Application Support/Claude/claude_desktop_config.json","c":"g"},
-      {"t":"out","s":"✓ Cursor: wrote ~/.cursor/mcp.json","c":"g"},
-      {"t":"wait","ms":400},
-      {"t":"out","s":""},
-      {"t":"out","s":"next steps:","c":"m"},
-      {"t":"out","s":"  2. restart the agent client to pick up the new MCP server","c":"m"},
-      {"t":"out","s":"  3. look for the 'frugal__search' tool in the agent's tool picker","c":"m"}
-    ]
-  },
-  {
-    "title": "route a call",
-    "events": [
-      {"t":"call","s":"frugal__execute \"search for MCP server security best practices\""},
-      {"t":"wait","ms":400},
-      {"t":"out","s":""},
-      {"t":"out","s":"marginalia   0 hits · $0 · 273ms → falling back","c":"m"},
-      {"t":"wait","ms":350},
-      {"t":"out","s":"wikipedia    5 hits · $0 ✓ · 650ms","c":"g"},
-      {"t":"wait","ms":450},
-      {"t":"out","s":""},
-      {"t":"out","s":"reason: \"routed to a web search; policy=cheap: effective","c":"m"},
-      {"t":"out","s":"  cost ascending; provider=wikipedia won on attempt 2\"","c":"m"}
-    ]
-  },
-  {
-    "title": "receipt",
-    "events": [
-      {"t":"cmd","s":"frugal stats"},
-      {"t":"wait","ms":350},
-      {"t":"out","s":""},
-      {"t":"out","s":"frugal receipt · July 2026 (UTC)"},
-      {"t":"out","s":"────────────────────────────────────────────────","c":"m"},
-      {"t":"out","s":"tool      provider            calls         paid"},
-      {"t":"out","s":"search    marginalia              1      $0.0000"},
-      {"t":"out","s":"search    wikipedia               1      $0.0000"},
-      {"t":"out","s":"extract   goreadability           1      $0.0000"},
-      {"t":"out","s":"────────────────────────────────────────────────","c":"m"},
-      {"t":"out","s":"total                             3      $0.0000"},
-      {"t":"out","s":""},
-      {"t":"out","s":"same calls at premium rack rate*         $0.0060"},
-      {"t":"out","s":"you paid                                 $0.0000"},
-      {"t":"wait","ms":400},
-      {"t":"out","s":"you saved                      $0.0060   (100%)","c":"g"}
-    ]
-  }
-]
-        </script>
-        <p class="tp-note">every session above is a real captured run, unedited except path shortening</p>
-      </section>
-    </main>
-  </div>
+  <main id="main">
+    <section class="prompt-card" id="agent" aria-labelledby="agent-h">
+      <h2 id="agent-h">Give your agent this prompt</h2>
+      <p>Paste it into your coding agent to set up Frugal and start routing tool calls. Free providers work without API keys.</p>
+      <pre class="prompt-text" id="setup-prompt">Set up Frugal using https://frugal.sh/.well-known/agent-skills/frugal/SKILL.md. Follow its installation instructions, connect Frugal to my agent, and verify that its tools are available. Use the default cheapest-first routing policy.</pre>
+      <button class="copy primary-copy" type="button" data-copy-target="setup-prompt"><span aria-hidden="true">⧉ </span>Copy prompt</button>
+      <span class="copy-status" role="status" aria-live="polite"></span>
+      <p class="prompt-note">Works with MCP-compatible agents. <a href="#install">Prefer to install it yourself?</a></p>
+    </section>
 
   <section class="block" id="policies" aria-labelledby="policies-h">
     <h2 id="policies-h">It's just a router.</h2>
@@ -183,7 +96,7 @@
           <tr><th>capability</th><th>free / local</th><th>cheap paid</th><th>premium paid</th><th></th></tr>
         </thead>
         <tbody>
-          <tr><td>search</td><td>SearXNG · Marginalia · Wikipedia</td><td>Serper $0.001</td><td>You.com $0.005</td><td class="st ship">shipping</td></tr>
+          <tr><td>search</td><td>SearXNG · Marginalia · Wikipedia</td><td>Serper $0.001</td><td>You.com $0.005 · Brave $0.005</td><td class="st ship">shipping</td></tr>
           <tr><td>extract</td><td>go-readability (local)</td><td>—</td><td>Firecrawl $0.001/pg</td><td class="st ship">shipping</td></tr>
           <tr><td>browse</td><td>Playwright (planned)</td><td>Browserless $0.002</td><td>Browserbase (planned)</td><td class="st">partial</td></tr>
           <tr><td>code exec</td><td>local Docker</td><td>E2B ~$0.10/hr</td><td>Modal</td><td class="st">planned</td></tr>
@@ -213,8 +126,9 @@
 frugal mcp install</code><button class="copy" type="button" data-copy="curl -fsSL https://frugal.sh/install | bash
 frugal mcp install" aria-label="Copy install commands">copy</button></pre>
     <p>
-      Add <code>SERPER_API_KEY</code>, <code>YDC_API_KEY</code>,
-      <code>FIRECRAWL_API_KEY</code>, <code>BROWSERLESS_TOKEN</code>, or
+      Add <code>SERPER_API_KEY</code>, <code>BRAVE_API_KEY</code>,
+      <code>YDC_API_KEY</code>, <code>FIRECRAWL_API_KEY</code>,
+      <code>BROWSERLESS_TOKEN</code>, or
       <code>SEARXNG_URL</code> to unlock the paid and self-hosted rungs —
       only tools whose providers are configured get registered.
     </p>
@@ -245,6 +159,8 @@ frugal mcp install" aria-label="Copy install commands">copy</button></pre>
     </div>
   </section>
 
+  </main>
+
   <footer class="bottom">
     <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
     <span class="sep">•</span>
@@ -258,29 +174,6 @@ frugal mcp install" aria-label="Copy install commands">copy</button></pre>
     <p class="byline">🎺 frugal.sh · created by <a href="/author/brian-sparker/">Brian Sparker</a></p>
   </footer>
 
-  <script src="/term-player.js"></script>
-  <script>
-    // Copy-to-clipboard for every button[data-copy].
-    document.querySelectorAll('button.copy[data-copy]').forEach(function (btn) {
-      btn.addEventListener('click', async function () {
-        var text = btn.dataset.copy;
-        try {
-          await navigator.clipboard.writeText(text);
-        } catch (_) {
-          var ta = document.createElement('textarea');
-          ta.value = text; document.body.appendChild(ta); ta.select();
-          try { document.execCommand('copy'); } catch (_) {}
-          document.body.removeChild(ta);
-        }
-        var orig = btn.textContent;
-        btn.textContent = 'copied';
-        btn.classList.add('copied');
-        setTimeout(function () {
-          btn.textContent = orig;
-          btn.classList.remove('copied');
-        }, 1400);
-      });
-    });
-  </script>
+  <script src="/home.js" defer></script>
 </body>
 </html>
