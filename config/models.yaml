@@ -72,6 +72,21 @@ search_providers:
     marginalia:
         base_url: https://api.marginalia.nu
         cost_per_call: 0.0
+    # Free / public: You.com's hosted MCP endpoint on its keyless free
+    # profile (?profile=free, appended by the driver). Same major web
+    # index as the keyed youcom provider below, search only, about 100
+    # queries per day per IP with no key and no account. This is the
+    # zero-key chain's general-SERP rung and leads the public-free tier
+    # in the canonical order (after a self-hosted SearXNG): Marginalia
+    # and Wikipedia are narrower indexes and take over when the daily
+    # allowance is spent. On exhaustion the endpoint rate-limits; the
+    # router cools it down and falls through. A deny on `youcom` does
+    # not cover this entry (different tier, different quota): set
+    # `enabled: false` here, or deny both, to keep every query off
+    # You.com.
+    youcom-free:
+        base_url: https://api.you.com/mcp
+        cost_per_call: 0.0
     # Free / public: Wikimedia REST search. No API key required; the
     # driver identifies itself via User-Agent per the Wikimedia robot
     # policy. Covers the mainstream entity / reference queries

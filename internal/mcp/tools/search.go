@@ -35,7 +35,7 @@ type SearchInput struct {
 	// "youcom", …). When empty or "auto", the configured routing policy
 	// picks (cheapest-first by default). Use a pin when a specific
 	// provider is known to have materially better recall for this call.
-	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: searxng | marginalia | wikipedia | serper | youcom | auto"`
+	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: searxng | marginalia | youcom-free | wikipedia | serper | youcom | auto"`
 }
 
 // SearchOutput is the structured-content payload returned to the MCP
