@@ -330,12 +330,13 @@ func validateRouting(cfg *Config) error {
 
 // keylessDefaults names the providers whose drivers need no endpoint
 // config, PER capability scope: goreadability is pure in-process, and
-// marginalia / wikipedia default their public base URL in code. The
-// scoping matters — a bare `wikipedia:` under extract_providers is a
-// misplaced entry that would silently do nothing at runtime, so it must
-// fail validation there, not slide through a scope-blind whitelist.
+// marginalia / youcom-free / wikipedia default their public base URL in
+// code. The scoping matters: a bare `wikipedia:` under
+// extract_providers is a misplaced entry that would silently do nothing
+// at runtime, so it must fail validation there, not slide through a
+// scope-blind whitelist.
 var keylessDefaults = map[string]map[string]bool{
-	"search_providers":  {"marginalia": true, "wikipedia": true},
+	"search_providers":  {"marginalia": true, "youcom-free": true, "wikipedia": true},
 	"extract_providers": {"goreadability": true},
 }
 
