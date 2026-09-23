@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>Single-provider agents are a liability</title>
+      <link>https://frugal.sh/blog/single-provider-liability/</link>
+      <guid>https://frugal.sh/blog/single-provider-liability/</guid>
+      <pubDate>Tue, 22 Sep 2026 15:05:00 +0000</pubDate>
+      <description>Outages are the risk everyone plans for and the least likely one to hurt you. Quality drift, repricing, and quota cuts arrive without status pages.</description>
+    </item>
+    <item>
       <title>Rate limits, retries, and the thundering herd</title>
       <link>https://frugal.sh/blog/rate-limits-thundering-herd/</link>
       <guid>https://frugal.sh/blog/rate-limits-thundering-herd/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/routing-tool-calls-vs-model-calls/</guid>
       <pubDate>Tue, 28 Jul 2026 13:45:00 +0000</pubDate>
       <description>The same ladder idea, two different physics. Why a router that treats search results and model completions identically gets both of them wrong.</description>
-    </item>
-    <item>
-      <title>Frugal is the open routing layer for AI tools</title>
-      <link>https://frugal.sh/blog/frugal-open-routing-layer/</link>
-      <guid>https://frugal.sh/blog/frugal-open-routing-layer/</guid>
-      <pubDate>Thu, 23 Jul 2026 16:00:00 +0000</pubDate>
-      <description>Cost was the wedge. Routing is the product. What&#39;s shipping, what changed, and what Frugal Cloud will add.</description>
     </item>
   </channel>
 </rss>
