@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agent discovery: server cards, skills, and the .well-known web — frugal blog</title>
+  <meta name="description" content="Agent discovery is becoming the new SEO: server cards under .well-known, skills indexes, and robots.txt signals — what to publish and why it matters." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/agent-discovery-well-known/" />
+  <meta property="og:title" content="Agent discovery: server cards, skills, and the .well-known web — frugal blog" />
+  <meta property="og:description" content="Agent discovery is becoming the new SEO: server cards under .well-known, skills indexes, and robots.txt signals — what to publish and why it matters." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-09-24T13:50:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Agent discovery: server cards, skills, and the .well-known web — frugal blog" />
+  <meta name="twitter:description" content="Agent discovery is becoming the new SEO: server cards under .well-known, skills indexes, and robots.txt signals — what to publish and why it matters." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/agent-discovery-well-known/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-09-24T13:50:00Z","datePublished":"2026-09-24T13:50:00Z","description":"Agent discovery is becoming the new SEO: server cards under .well-known, skills indexes, and robots.txt signals — what to publish and why it matters.","headline":"Agent discovery: server cards, skills, and the .well-known web","keywords":"agent discovery","mainEntityOfPage":"https://frugal.sh/blog/agent-discovery-well-known/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/agent-discovery-well-known/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"Agent discovery: server cards, skills, and the .well-known web","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#routing">Routing</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">Agent discovery: server cards, skills, and the .well-known web</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h1>Agent discovery: server cards, skills, and the .well-known web</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-09-24">Sep 24, 2026</time>
+            · 5 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>Every MCP server in production today was installed by a human pasting a config block. That's the current state of agent discovery: there isn't any. An agent's tool surface is decided at setup time, by a person, reading a README — and everything downstream, including which providers get paid, flows from that moment. I've written before about how <a href="/blog/mcp-ecosystem-2026/">the provider that's easiest to wire in wins by default</a>; discovery is the layer where that fight actually happens, and it's starting to grow real, machine-readable infrastructure.</p>
+<p>The shape it's taking will look familiar to anyone who remembers how the human web solved the same problem: metadata files at predictable paths. The <code>.well-known</code> convention, skills indexes, crawler signals. I publish these surfaces for frugal.sh, so I'll use it as the concrete example — with the caveat, up front, that this is early. Conventions are unsettled and adoption is thin. What follows is what the surfaces are, why I bother, and why I think this becomes the new SEO whether or not the current file formats survive.</p>
+<h2>The configuration wall</h2>
+<p>Start with the problem. An agent that needs a capability it doesn't have — say, structured extraction from a page — currently has no move. It can't search a registry, evaluate candidates, and connect; it improvises with the tools it was given or fails. The human operator, meanwhile, discovers tools the way humans discover anything: word of mouth, directories of wildly varying quality, a search that surfaces a GitHub README.</p>
+<p>That wall shapes the whole ecosystem. Being <em>findable and legible to agents</em> is worth nothing today, so nobody optimizes for it, so the tooling stays human-mediated. But every platform shift has a moment where the audience changes — and <a href="/blog/mcp-servers-new-cli-tools/">agents are becoming the primary consumers of a lot of infrastructure</a> that used to serve humans first. When your next user is a crawler working on behalf of an agent, your README is invisible. Your metadata is your storefront.</p>
+<h2>Server cards: /.well-known as the front door</h2>
+<p>The <code>.well-known</code> path convention is twenty-plus years of web plumbing — it's how sites already publish security contacts, password-change URLs, and identity metadata at predictable locations. The emerging move is to do the same for MCP: a server card, a JSON document at a path like <code>/.well-known/mcp/server-card.json</code>, describing the server — what tools it exposes, what transports it speaks, how to authenticate, where the endpoint lives.</p>
+<p>The point of a server card is that connection stops requiring a README. A client — or a directory, or a crawler building an index — can fetch one URL and know, mechanically, that frugal.sh serves <code>frugal__search</code>, <code>frugal__extract</code>, and <code>frugal__browse</code> over Streamable HTTP with bearer-token auth, and stdio if you run the binary yourself. Everything a human currently transcribes into a config block, published where software can read it.</p>
+<p>Publishing one costs an afternoon. It's a static JSON file. There is no meaningful downside, which is why I find &quot;adoption is thin&quot; more an observation about incentives than about difficulty: the crawlers that would reward the effort are only starting to exist. The calculation is the same as early sitemap adoption — you publish before the consumer arrives, because the cost is trivial and the option value isn't.</p>
+<h2>Skills indexes and robots.txt signals</h2>
+<p>Server cards describe connection. Two adjacent surfaces describe <em>use</em>.</p>
+<p>An agent-skills index is documentation aimed at models instead of people: task-shaped guidance — here's how to do research cheaply, here's when to extract versus browse — published as structured files an agent can pull into context. The distinction from API docs matters. A server card says &quot;there is a search tool with these parameters.&quot; A skill says &quot;walk the ladder cheapest-first, and treat a paid provider's zero hits as the end of the chain.&quot; Judgment, not just schema. When I evaluate other people's servers, <a href="/blog/evaluate-mcp-server-checklist/">docs written for the model</a> are one of the strongest quality signals, and skills indexes are that idea formalized.</p>
+<p>And then there's <code>robots.txt</code> — the oldest agent-signaling file on the web, quietly getting a second life. It was always a message to non-human readers; the new wrinkle is content signals aimed at AI crawlers and agents specifically: what may be crawled, what may be used for what purpose, and pointers to the machine-readable surfaces above. The details are contested and the semantics are still being argued out, so I'd treat today's syntax as provisional. But directionally it's the same statement: this site expects non-human visitors and has opinions about serving them.</p>
+<h2>Discovery metadata is the new SEO</h2>
+<p>Here's the analysis part. For two decades, &quot;be findable&quot; meant optimizing pages for search engines that ranked them for humans. The pipeline was crawl → index → rank → human clicks. Agents insert a new pipeline next to it: crawl → index → <em>connect</em>. The asset being ranked is no longer a page. It's a capability.</p>
+<p>Every SEO dynamic gets an analogue. Structured metadata beats prose, the way schema markup beat keyword stuffing. There will be directories, then aggregators, then spam, then trust signals to fight the spam — reputation for tool servers is going to be a real problem, because a tool description is an instruction an agent tends to follow. Ranking will happen somewhere, and whoever operates the index will hold the same power over tool traffic that search engines held over web traffic. If anything, the stakes are sharper: an agent picks <em>one</em> server and calls it, rack rates and all. Position zero, but for infrastructure.</p>
+<p>That's also the uncomfortable part. The open-web version of this future is servers publishing standard metadata that any client can read. The captured version is discovery happening inside a handful of proprietary registries. The <code>.well-known</code> approach is the open bet, and publishing to it is a small vote for that outcome.</p>
+<h2>Early days — publish anyway</h2>
+<p>Being honest about where this stands as I write: no dominant convention, no killer crawler, no measurable traffic from any of these surfaces. I publish them for <a href="/">frugal.sh</a> anyway, for three reasons. The files are static and cost nothing to maintain. Whatever format wins will be close enough to migrate to in an hour. And when discovery agents do arrive, they'll index what exists — being present in the first crawl of a new web has historically been worth a lot more than the effort it took.</p>
+<p>The practical version, if you run an MCP server: put a server card at a <code>.well-known</code> path, write one skills file for your most common workflow, and state your crawling posture in robots.txt. A static afternoon's work, next to everything else in the <a href="/blog/topics/mcp-ecosystem/">MCP ecosystem</a> you're already maintaining. The web spent twenty years learning that being legible to machines is a competitive position. The machines are different this time. The lesson isn't.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the open routing layer for AI tools — an MCP server that routes agent tool calls per policy: cost, latency, pinning, failover. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <time datetime="2026-05-05">May 5, 2026</time>
+            <span class="blog-card-kind">Analysis</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/mcp-ecosystem-2026/">The MCP ecosystem in 2026: what&#39;s actually getting used</a></h3>
+          <p class="blog-card-excerpt">Forget the spec tour. This is what MCP looks like from the inside of a server that runs every day: the parts that stuck and the parts that didn&#39;t.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <time datetime="2026-08-27">Aug 27, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/mcp-servers-new-cli-tools/">MCP servers are the new CLI tools</a></h3>
+          <p class="blog-card-excerpt">Unix won with small tools composed by a shell. Swap the shell for an agent and the pattern repeats — except pipes were free, and tool calls have a meter.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/mcp-ecosystem/">MCP &amp; agent tooling</a>
+            <time datetime="2026-08-07">Aug 7, 2026</time>
+            <span class="blog-card-kind">List</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/evaluate-mcp-server-checklist/">How to evaluate an MCP server before you install it: a 10-point checklist</a></h3>
+          <p class="blog-card-excerpt">Installing an MCP server hands your agent new capabilities and someone else new visibility. Ten checks to run before it touches your config.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>The open routing layer for AI tools.</h2>
+            <p>Frugal is one Go binary: every tool call routed per policy — cheapest by default — with the decision and <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

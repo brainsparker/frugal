@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>Agent discovery: server cards, skills, and the .well-known web</title>
+      <link>https://frugal.sh/blog/agent-discovery-well-known/</link>
+      <guid>https://frugal.sh/blog/agent-discovery-well-known/</guid>
+      <pubDate>Thu, 24 Sep 2026 13:50:00 +0000</pubDate>
+      <description>Agents can&#39;t use tools they can&#39;t find, and today they find tools through humans pasting configs. The machine-readable alternative is taking shape.</description>
+    </item>
+    <item>
       <title>Single-provider agents are a liability</title>
       <link>https://frugal.sh/blog/single-provider-liability/</link>
       <guid>https://frugal.sh/blog/single-provider-liability/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/timeouts-product-decision/</guid>
       <pubDate>Thu, 30 Jul 2026 16:05:00 +0000</pubDate>
       <description>Somewhere in your config is a number deciding how long users stare at a spinner for an answer that may never come. Nobody senior chose it.</description>
-    </item>
-    <item>
-      <title>Routing tool calls vs routing model calls</title>
-      <link>https://frugal.sh/blog/routing-tool-calls-vs-model-calls/</link>
-      <guid>https://frugal.sh/blog/routing-tool-calls-vs-model-calls/</guid>
-      <pubDate>Tue, 28 Jul 2026 13:45:00 +0000</pubDate>
-      <description>The same ladder idea, two different physics. Why a router that treats search results and model completions identically gets both of them wrong.</description>
     </item>
   </channel>
 </rss>
