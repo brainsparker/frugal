@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>What makes a good MCP tool description: 7 patterns</title>
+      <link>https://frugal.sh/blog/mcp-tool-descriptions/</link>
+      <guid>https://frugal.sh/blog/mcp-tool-descriptions/</guid>
+      <pubDate>Fri, 25 Sep 2026 16:30:00 +0000</pubDate>
+      <description>The tool description is the only documentation the model will ever read, and most are written like marketing copy. Seven patterns from operating three tools in production.</description>
+    </item>
+    <item>
       <title>Agent discovery: server cards, skills, and the .well-known web</title>
       <link>https://frugal.sh/blog/agent-discovery-well-known/</link>
       <guid>https://frugal.sh/blog/agent-discovery-well-known/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/local-models-underrated/</guid>
       <pubDate>Fri, 31 Jul 2026 14:55:00 +0000</pubDate>
       <description>Everyone prices the model ladder from cheap-API up. There&#39;s a rung below that: weights on hardware you already own, at a marginal cost of zero.</description>
-    </item>
-    <item>
-      <title>Timeouts are a product decision</title>
-      <link>https://frugal.sh/blog/timeouts-product-decision/</link>
-      <guid>https://frugal.sh/blog/timeouts-product-decision/</guid>
-      <pubDate>Thu, 30 Jul 2026 16:05:00 +0000</pubDate>
-      <description>Somewhere in your config is a number deciding how long users stare at a spinner for an answer that may never come. Nobody senior chose it.</description>
     </item>
   </channel>
 </rss>
