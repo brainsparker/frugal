@@ -21,6 +21,10 @@ type toolOptions struct {
 	// enforcement call sites need no conditionals and the zero value keeps
 	// the historical behavior exactly.
 	guard *routing.Guard
+	// domains is the operator's allow / deny rule for fetch targets.
+	// Consulted before routing on every URL-taking call and applied to
+	// search result lists. Nil allows everything.
+	domains *routing.DomainPolicy
 }
 
 // ToolOption configures a routed tool at registration time.
@@ -54,6 +58,12 @@ func WithLatencyLookupFor(f func(tool string) routing.LatencyLookup) ToolOption 
 // consults before each routed call. Nil (the default) disables both rails.
 func WithGuard(g *routing.Guard) ToolOption {
 	return func(o *toolOptions) { o.guard = g }
+}
+
+// WithDomainPolicy supplies the fetch-target allow / deny policy. Nil
+// (the default) leaves every host fetchable.
+func WithDomainPolicy(p *routing.DomainPolicy) ToolOption {
+	return func(o *toolOptions) { o.domains = p }
 }
 
 func buildToolOptions(opts []ToolOption) toolOptions {

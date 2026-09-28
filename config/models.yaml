@@ -53,6 +53,21 @@
 #   routing:
 #     cooldown: 90s
 #
+# Domain policy (optional). Which hosts may be fetched at all, checked
+# before any provider is called on frugal__extract, frugal__browse, and
+# the URL intents of frugal__execute, and applied to frugal__search
+# result lists. Rules are bare hosts; example.com covers the apex and
+# every subdomain, *.example.com covers subdomains only. deny wins over
+# allow; deny_private refuses loopback, private, link-local (cloud
+# metadata), and CGNAT literals plus localhost / .local / .internal /
+# .home.arpa names. Absent means every host is fetchable:
+#
+#   routing:
+#     domains:
+#       allow: [docs.python.org, github.com]
+#       deny: [gist.github.com]
+#       deny_private: true
+#
 # v1.0 ships only the search-tool layer. Chat-model routing and its
 # pricing tables come back in Phase 2 with the frugal__chat MCP tool.
 search_providers:
