@@ -166,6 +166,14 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 		}
 
 		logger := slog.Default()
+		// Domain policy runs before dispatch for URL intents: a refused
+		// target never reaches a provider, and the extract-to-browse fall
+		// forward reuses the same URL so one check covers both chains.
+		if it.URL != "" {
+			if err := checkDomain(o.domains, "frugal__execute", it.URL, logger); err != nil {
+				return nil, ExecuteOutput{}, err
+			}
+		}
 		start := time.Now()
 
 		// Result cache. Keys match the ones frugal__search and
@@ -220,6 +228,14 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 		out, err := dispatchIntent(ctx, it, polOf, latOf, provider, searchers, extractors, browsers, metrics, o.guard, logger, co)
 		if err != nil {
 			return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: %w", err)
+		}
+		if out.Capability == "search" {
+			items, dropped := filterItems(o.domains, out.Results)
+			if dropped > 0 {
+				logger.Warn("domain policy: search results dropped", "tool", "frugal__execute", "dropped", dropped)
+				out.Results = items
+				out.Warnings = append(append([]string(nil), out.Warnings...), domainDropWarning(dropped))
+			}
 		}
 		out.LatencyMS = time.Since(start).Milliseconds()
 		applySizeFooter(&out, o.effectiveMaxChars(in.MaxChars))

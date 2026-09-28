@@ -253,6 +253,50 @@ cache:
 - In-memory only, per process. Cached provider payloads never touch
   disk and never outlive the server.
 
+## Domain policy: which hosts may be fetched
+
+Routing policies decide which provider does a job. The domain policy
+decides which hosts a job may touch at all, and it runs before any
+provider is called, so a refused target costs nothing and never leaves
+your machine:
+
+```yaml
+routing:
+  domains:
+    allow: [docs.python.org, github.com]   # only these hosts (and subdomains) may be fetched
+    deny: [gist.github.com, "*.internal"]  # never fetched, even when allow would admit them
+    deny_private: true                     # refuse loopback, LAN, link-local, and CGNAT targets
+```
+
+- **allow**, when set, is a whitelist: `frugal__extract`, `frugal__browse`,
+  and the URL intents of `frugal__execute` refuse any host not under it.
+  Absent means every host is fetchable, the historical behavior.
+- **deny** always wins, including over a matching allow rule and over a
+  call that pins a provider by name. The refusal names the rule.
+- **deny_private** refuses loopback, RFC 1918, link-local (which covers
+  cloud metadata endpoints such as 169.254.169.254), carrier-grade NAT,
+  and unspecified IP literals, plus `localhost`, `.local`, `.internal`,
+  and `.home.arpa` names. Meant for a `frugal mcp serve --http` instance
+  that agents reach over the network: a page an agent was steered onto
+  cannot use it to read your LAN.
+- Rules are bare hosts, case-insensitive, no scheme, port, or path.
+  `example.com` matches the apex and every subdomain; `*.example.com`
+  matches subdomains only. A malformed rule fails the config load with
+  the reason instead of silently matching nothing.
+- `frugal__search` applies the same rule to its result list and reports
+  what it removed in `warnings` (`domain policy dropped 2 results ...`),
+  so an agent is never handed a link it will then be refused.
+
+Every refusal is logged at Warn with the tool and URL. A burst of them is
+the signal that an agent is being steered somewhere it should not go,
+which is the point: fetched web content is the main prompt-injection
+ingest in an agent stack, and this is the knob that fences it.
+
+Honest limits: matching is by the URL as written. Hostnames are not
+resolved, so a public name that points at a private address is not
+caught by `deny_private`, and redirects a provider follows are not
+re-checked. It is a policy rail, not a network sandbox.
+
 ## Describe the job: `frugal__execute`
 
 Instead of picking a tool, an agent can state the intent and a priority.
@@ -387,6 +431,9 @@ One MCP server, four tools, nine providers:
   headless Chrome) shipping; local Playwright deferred.
 - **Routing policies** — **shipping**. Per-capability `strategy`
   (cheap / fast / premium), explicit `order`, `deny` lists.
+- **Domain policy** — **shipping**. `allow` / `deny` host lists and
+  `deny_private` for every fetch, enforced before a provider is called
+  and applied to search results.
 - **`frugal stats`** — the local savings receipt (see above).
 - Stdio + Streamable HTTP transports.
 - HTTP transport supports bearer-token auth (`FRUGAL_AUTH_TOKEN`),

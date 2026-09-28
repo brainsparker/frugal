@@ -159,10 +159,16 @@ func runMCPServe(args []string) int {
 	resultCache, searchTTL, extractTTL := buildResultCache(cfg)
 	withCache := tools.WithResultCache(resultCache, searchTTL, extractTTL)
 
+	// Domain policy: which hosts may be fetched at all. Config validation
+	// already rejected malformed rules, so a build error here is a bug,
+	// not an operator mistake; log it and run without the rail rather
+	// than refusing to serve.
+	domains := buildDomainPolicy(cfg)
 	searchers := buildSearchers(cfg)
 	warnPolicyStrangers("search", policies["search"], searcherNames(searchers))
 	tools.RegisterSearch(srv.Inner, searchers, metrics,
-		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), withCache)
+		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), withCache,
+		tools.WithDomainPolicy(domains))
 	if len(searchers) == 0 {
 		slog.Warn("mcp serve: no search providers configured — frugal__search will not be advertised. " +
 			"Set SEARXNG_URL (free, self-hosted), SERPER_API_KEY, BRAVE_API_KEY, or YDC_API_KEY to enable.")
@@ -173,7 +179,8 @@ func runMCPServe(args []string) int {
 	extractors := buildExtractors(cfg)
 	warnPolicyStrangers("extract", policies["extract"], extractorNames(extractors))
 	tools.RegisterExtract(srv.Inner, extractors, metrics,
-		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), withCache)
+		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), withCache,
+		tools.WithDomainPolicy(domains))
 	if len(extractors) > 0 {
 		slog.Info("mcp serve: frugal__extract registered", "providers", extractorNames(extractors))
 	}
@@ -181,13 +188,15 @@ func runMCPServe(args []string) int {
 	browsers := buildBrowsers(cfg)
 	warnPolicyStrangers("browse", policies["browse"], browserNames(browsers))
 	tools.RegisterBrowse(srv.Inner, browsers, metrics,
-		tools.WithPolicy(policies["browse"]), tools.WithLatencyLookup(latFor("browse")), tools.WithGuard(guard), tools.WithMaxChars(maxChars))
+		tools.WithPolicy(policies["browse"]), tools.WithLatencyLookup(latFor("browse")), tools.WithGuard(guard), tools.WithMaxChars(maxChars),
+		tools.WithDomainPolicy(domains))
 	if len(browsers) > 0 {
 		slog.Info("mcp serve: frugal__browse registered", "providers", browserNames(browsers))
 	}
 
 	tools.RegisterExecute(srv.Inner, searchers, extractors, browsers, metrics,
-		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor), tools.WithGuard(guard), tools.WithMaxChars(maxChars), withCache)
+		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor), tools.WithGuard(guard), tools.WithMaxChars(maxChars), withCache,
+		tools.WithDomainPolicy(domains))
 	if len(searchers) > 0 {
 		slog.Info("mcp serve: frugal__execute registered",
 			"search", len(searchers), "extract", len(extractors), "browse", len(browsers))
@@ -495,6 +504,27 @@ func warnPolicyStrangers(capability string, p routing.Policy, registered []strin
 	}
 }
 
+// buildDomainPolicy turns the optional routing.domains block into the
+// fetch-target policy every tool consults. Nil when nothing is
+// configured. Logged at Info when active so an operator can see from the
+// startup log that fetches are fenced, and which way.
+func buildDomainPolicy(cfg *config.Config) *routing.DomainPolicy {
+	if cfg.Routing == nil || cfg.Routing.Domains == nil {
+		return nil
+	}
+	d := cfg.Routing.Domains
+	p, err := routing.NewDomainPolicy(d.Allow, d.Deny, d.DenyPrivate)
+	if err != nil {
+		slog.Error("mcp serve: routing.domains could not be applied; running without a domain policy", "err", err)
+		return nil
+	}
+	if p.Enabled() {
+		slog.Info("mcp serve: domain policy", "rules", p.Describe())
+	}
+	return p
+}
+
+// denyNames renders a deny set as a sorted slice for logging.
 func denyNames(deny map[string]bool) []string {
 	out := make([]string, 0, len(deny))
 	for n := range deny {

@@ -124,6 +124,11 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 		}
 		q := extract.Query{URL: in.URL, Formats: in.Formats}
 		logger := slog.Default()
+
+		if err := checkDomain(o.domains, "frugal__extract", in.URL, logger); err != nil {
+			return nil, ExtractOutput{}, err
+		}
+
 		provider := normalizeProvider(in.Provider)
 
 		start := time.Now()

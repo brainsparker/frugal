@@ -37,6 +37,11 @@ type toolOptions struct {
 	resultCache *cache.Cache
 	searchTTL   time.Duration
 	extractTTL  time.Duration
+
+	// domains is the operator's allow / deny rule for fetch targets.
+	// Consulted before routing on every URL-taking call and applied to
+	// search result lists. Nil allows everything.
+	domains *routing.DomainPolicy
 }
 
 // ToolOption configures a routed tool at registration time.
@@ -105,6 +110,12 @@ func WithResultCache(c *cache.Cache, searchTTL, extractTTL time.Duration) ToolOp
 		o.searchTTL = searchTTL
 		o.extractTTL = extractTTL
 	}
+}
+
+// WithDomainPolicy supplies the fetch-target allow / deny policy. Nil
+// (the default) leaves every host fetchable.
+func WithDomainPolicy(p *routing.DomainPolicy) ToolOption {
+	return func(o *toolOptions) { o.domains = p }
 }
 
 func buildToolOptions(opts []ToolOption) toolOptions {

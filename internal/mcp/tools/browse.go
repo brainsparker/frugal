@@ -97,6 +97,9 @@ func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics, o toolOp
 		}
 		q := browse.Query{URL: in.URL, WaitForMS: in.WaitMs, ReturnFormat: in.Format}
 		logger := slog.Default()
+		if err := checkDomain(o.domains, "frugal__browse", in.URL, logger); err != nil {
+			return nil, BrowseOutput{}, err
+		}
 
 		start := time.Now()
 		var (

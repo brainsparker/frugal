@@ -689,3 +689,57 @@ func TestParse_CacheRejectsNegativeMaxEntries(t *testing.T) {
 		t.Fatal("negative max_entries must fail validation")
 	}
 }
+
+func TestParse_RoutingDomainsRoundTrip(t *testing.T) {
+	cfg, err := Parse([]byte(`
+routing:
+  domains:
+    allow: [docs.python.org, "*.github.com"]
+    deny: [gist.github.com]
+    deny_private: true
+`))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Routing == nil || cfg.Routing.Domains == nil {
+		t.Fatal("routing.domains missing after parse")
+	}
+	d := cfg.Routing.Domains
+	if len(d.Allow) != 2 || d.Allow[1] != "*.github.com" || len(d.Deny) != 1 || !d.DenyPrivate {
+		t.Errorf("routing.domains = %+v", d)
+	}
+}
+
+func TestParse_RoutingDomainsRejectsMalformedRules(t *testing.T) {
+	for raw, want := range map[string]string{
+		"routing:\n  domains:\n    deny: [\"https://example.com\"]\n": "routing.domains.deny",
+		"routing:\n  domains:\n    allow: [\"example.com/docs\"]\n":   "routing.domains.allow",
+		"routing:\n  domains:\n    allow: [\"example.com:443\"]\n":    "port",
+		"routing:\n  domains:\n    deny: [\"\"]\n":                    "empty",
+	} {
+		_, err := Parse([]byte(raw))
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: want error mentioning %q, got %v", raw, want, err)
+		}
+	}
+}
+
+func TestParse_RoutingDomainsRejectsDuplicatesAndOverlap(t *testing.T) {
+	_, err := Parse([]byte("routing:\n  domains:\n    deny: [Example.com, example.com.]\n"))
+	if err == nil || !strings.Contains(err.Error(), "listed twice") {
+		t.Fatalf("want duplicate error (case and trailing dot normalized), got %v", err)
+	}
+	_, err = Parse([]byte("routing:\n  domains:\n    allow: [example.com]\n    deny: [example.com]\n"))
+	if err == nil || !strings.Contains(err.Error(), "both allow and deny") {
+		t.Fatalf("want overlap error, got %v", err)
+	}
+}
+
+func TestParse_RoutingDomainsRejectsUnknownKeys(t *testing.T) {
+	// KnownFields is on for the whole document; a typo like allowed:
+	// must fail rather than silently leaving every host fetchable.
+	_, err := Parse([]byte("routing:\n  domains:\n    allowed: [example.com]\n"))
+	if err == nil {
+		t.Fatal("unknown key under routing.domains should fail the load")
+	}
+}
