@@ -6,6 +6,13 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>The agent cost audit: 8 numbers to pull this quarter</title>
+      <link>https://frugal.sh/blog/agent-cost-audit/</link>
+      <guid>https://frugal.sh/blog/agent-cost-audit/</guid>
+      <pubDate>Tue, 29 Sep 2026 14:35:00 +0000</pubDate>
+      <description>Not a dashboard project. Eight numbers you can compute from a call log in an afternoon, and the specific fix each bad number points at.</description>
+    </item>
+    <item>
       <title>What makes a good MCP tool description: 7 patterns</title>
       <link>https://frugal.sh/blog/mcp-tool-descriptions/</link>
       <guid>https://frugal.sh/blog/mcp-tool-descriptions/</guid>
@@ -137,13 +144,6 @@
       <guid>https://frugal.sh/blog/ai-product-unit-economics/</guid>
       <pubDate>Tue, 04 Aug 2026 15:35:00 +0000</pubDate>
       <description>One click becomes forty API calls before anyone looks up. The budgeting discipline that survives that fan-out, worked through with real search rates.</description>
-    </item>
-    <item>
-      <title>Local models are underrated infrastructure</title>
-      <link>https://frugal.sh/blog/local-models-underrated/</link>
-      <guid>https://frugal.sh/blog/local-models-underrated/</guid>
-      <pubDate>Fri, 31 Jul 2026 14:55:00 +0000</pubDate>
-      <description>Everyone prices the model ladder from cheap-API up. There&#39;s a rung below that: weights on hardware you already own, at a marginal cost of zero.</description>
     </item>
   </channel>
 </rss>

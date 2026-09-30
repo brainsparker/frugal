@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The agent cost audit: 8 numbers to pull this quarter — frugal blog</title>
+  <meta name="description" content="An AI cost audit in 8 numbers: cost per task, paid-call share, fallback and zero-hit rates, retry spend — how to pull each one from your logs." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/agent-cost-audit/" />
+  <meta property="og:title" content="The agent cost audit: 8 numbers to pull this quarter — frugal blog" />
+  <meta property="og:description" content="An AI cost audit in 8 numbers: cost per task, paid-call share, fallback and zero-hit rates, retry spend — how to pull each one from your logs." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-09-29T14:35:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="The agent cost audit: 8 numbers to pull this quarter — frugal blog" />
+  <meta name="twitter:description" content="An AI cost audit in 8 numbers: cost per task, paid-call share, fallback and zero-hit rates, retry spend — how to pull each one from your logs." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/agent-cost-audit/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-09-29T14:35:00Z","datePublished":"2026-09-29T14:35:00Z","description":"An AI cost audit in 8 numbers: cost per task, paid-call share, fallback and zero-hit rates, retry spend — how to pull each one from your logs.","headline":"The agent cost audit: 8 numbers to pull this quarter","keywords":"AI cost audit","mainEntityOfPage":"https://frugal.sh/blog/agent-cost-audit/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/agent-cost-audit/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"The agent cost audit: 8 numbers to pull this quarter","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#routing">Routing</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">The agent cost audit: 8 numbers to pull this quarter</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <span class="blog-card-kind">List</span>
+          </div>
+          <h1>The agent cost audit: 8 numbers to pull this quarter</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-09-29">Sep 29, 2026</time>
+            · 6 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>An AI cost audit doesn't need a vendor, a dashboard, or a quarter of engineering time. It needs a call log and eight queries. If you've been logging every external call with a provider, a price, a latency, and a task ID — the setup I described in <a href="/blog/agent-cost-observability/">agent cost observability</a> — each number below is a few lines of scripting against a JSONL file. If you haven't, that's finding number zero, and the fix is a week of instrumentation before the audit can start.</p>
+<p>Each number comes with two things: how to compute it, and what a bad value tells you to fix. That second half is the point. A metric that doesn't name its own remedy is decoration.</p>
+<h2>1. Cost per task</h2>
+<p>Sum <code>cost_usd</code> over every call sharing a task ID; average and distribution across tasks. This is the audit's anchor — the number that turns &quot;our API bill went up&quot; into &quot;research tasks cost $0.31 and tripled since June.&quot;</p>
+<p>Look at the distribution, not just the mean. A fat right tail — a few tasks costing 20× the median — usually means runaway loops or pathological inputs, and trimming the tail is cheaper than optimizing the middle. If you can't compute this number because calls don't carry task IDs, stop here and fix that first. Every remaining number is this one, sliced.</p>
+<h2>2. Cost per successful result</h2>
+<p>Same numerator, stricter denominator: total spend divided by tasks that <em>succeeded</em> — by whatever definition your product already uses. Failed tasks cost money too, and this number makes them show up in the unit economics instead of hiding in the average.</p>
+<p>The gap between numbers 1 and 2 is the interesting part. If cost per task is $0.20 and cost per successful result is $0.55, you're not overpaying per call — you're paying full price for a 36% success rate, and the fix is reliability work, not rate shopping. This is the number I'd put in front of anyone pricing a feature, for reasons I covered in <a href="/blog/receipt-for-every-agent-run/">a receipt for every agent run</a>.</p>
+<h2>3. Paid-call share</h2>
+<p>Of all tool calls, what fraction had <code>cost_usd &gt; 0</code>? Group by tool: paid share of searches, of extractions, of browses.</p>
+<p>If you run a free-first ladder, this is the ladder's report card — my own searches resolve at $0 most of the time, because Wikipedia and Marginalia catch the long tail of entity and documentation lookups. A paid share near 100% means either your ladder has no free rungs (add them: the spread between free and premium search is $0 versus $0.005 per call) or the free rungs never answer (check that fall-through actually works — a misconfigured free rung that always errors makes the ladder a decoration).</p>
+<h2>4. Fallback rate</h2>
+<p>How often did the first rung fail to answer, forcing the chain to a later rung? Compute from <code>provider_used</code>: any result carrying a provider other than rung one is a fall-through. Split by reason if your logs allow it — error versus zero hits behave differently.</p>
+<p>A high fallback rate isn't automatically bad; it's the ladder doing its job. But a <em>rising</em> one is drift: a free index degrading, a query mix shifting toward news the free rungs can't cover, a quota quietly shrinking upstream. Fallbacks also carry a latency toll — the chain pays for each rung it walks — so this number moves your tail latency too.</p>
+<h2>5. Zero-hit rate</h2>
+<p>What fraction of search calls returned nothing, per provider? Free rungs will show a healthy nonzero rate; that's their partial indexes talking, and fall-through handles it. The number to interrogate is paid zero hits, because those cost real money to learn &quot;nothing.&quot;</p>
+<p>A paid zero-hit rate climbing past a few percent usually means malformed queries — over-long conversational strings, hallucinated site: filters, dates that don't exist. The remedy typically lives in the prompt or the tool description, not the provider. And check the semantics while you're here: if your chain pays a <em>pricier</em> provider to confirm a cheaper paid provider's zero hits, you've found the purest waste in the whole system. Zero is an answer.</p>
+<h2>6. Retry share of spend</h2>
+<p>Of total <code>cost_usd</code>, what fraction was spent on calls that were retries of a previous call? Tag retries explicitly in the log; inferring them later from timing and matching arguments is miserable.</p>
+<p>Single digits is normal weather. North of 10% means some provider had a bad month and your agents paid for it — go read <a href="/blog/hidden-cost-of-retries/">the hidden cost of retries</a> — or your backoff is retrying things that can't succeed, like 4xx responses or paid zero hits. Cross-reference with number 4: a retry spike plus a fallback spike on the same dates is the signature of a stampede, where a rung's failure sent the whole fleet thundering into the next one.</p>
+<h2>7. p95 latency per rung</h2>
+<p>For each provider, the 95th percentile of <code>latency_ms</code>. Cost audits that ignore latency get vetoed by whoever owns the user experience, and they're right to veto: a rung that saves $0.001 and costs 3 seconds at p95 isn't cheap, it's slow with a discount.</p>
+<p>This number is what makes ladder-ordering decisions honest. Median tells you the happy path; p95 tells you what the chain adds when it walks. My captured runs put Marginalia's misses around 529ms and Wikipedia's answers under a second — a fall-through that costs half a second and zero dollars is a fine trade for most workloads, but that's a decision to make with the number in hand. The case for logging it at all is one I've <a href="/blog/why-log-latency-ms/">made at length</a>.</p>
+<h2>8. The rack-rate counterfactual</h2>
+<p>Take every call that got answered, price it at your premium provider's list rate, and sum. That's what the same quarter would have cost with no ladder, no caching, no discipline — the counterfactual bill. My ledger computes this continuously; <code>frugal stats</code> prints it as a monthly receipt where only the rung that produced the result earns rack credit.</p>
+<p>This is the audit's political number. &quot;We spent $412&quot; gets a shrug. &quot;We spent $412 on traffic that lists at $2,650&quot; gets the routing work funded for another year. And if the two numbers are nearly equal, the audit just told you where next quarter goes: every call is paying list price, which means the ladder — the thing every other number here measures — doesn't exist yet.</p>
+<h2>Where to start</h2>
+<p>Pull numbers 1 and 3 this week; they take an hour each against any log with prices and task IDs, and together they tell you whether your problem is volume, rate, or reliability. Schedule the rest across the quarter. Then keep the queries — an audit you run once is archaeology, and one you run monthly is a control system. More in this vein on the <a href="/blog/topics/ai-costs/">AI costs</a> hub, but the whole discipline compresses to one habit: stamp every call with what it cost, and the audit becomes eight greps instead of a project.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the open routing layer for AI tools — an MCP server that routes agent tool calls per policy: cost, latency, pinning, failover. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-05-28">May 28, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/agent-cost-observability/">Cost observability for agents: put cost_usd on every result</a></h3>
+          <p class="blog-card-excerpt">Your invoice knows what you spent by provider and month. It has no idea what one agent run cost. Stamp the cost on the response envelope and the question answers itself.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-09-10">Sep 10, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/receipt-for-every-agent-run/">A receipt for every agent run</a></h3>
+          <p class="blog-card-excerpt">Dashboards tell you what the month cost. A receipt tells you what this run cost, which provider earned it, and what the same result would have cost at rack rate.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/ai-costs/">AI tool costs</a>
+            <time datetime="2026-08-20">Aug 20, 2026</time>
+            <span class="blog-card-kind">Playbook</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/hidden-cost-of-retries/">The hidden cost of retries</a></h3>
+          <p class="blog-card-excerpt">Every retry is a repurchase at full price with worse odds than the first attempt. Here&#39;s the playbook: budgets per task, hard no-retry rules, and fallbacks.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>The open routing layer for AI tools.</h2>
+            <p>Frugal is one Go binary: every tool call routed per policy — cheapest by default — with the decision and <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
