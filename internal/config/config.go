@@ -20,6 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	defaults "github.com/frugalsh/frugal/config"
+	"github.com/frugalsh/frugal/internal/routing"
 )
 
 // Config is the on-disk model.yaml decoded.
@@ -47,6 +48,34 @@ type RoutingConfig struct {
 	// level, not per capability: a provider's rate limit is a fact about
 	// the provider, not about which capability called it.
 	Cooldown string `yaml:"cooldown,omitempty"`
+	// Domains is the optional allow / deny rule for the hosts Frugal will
+	// fetch: enforced on frugal__extract, frugal__browse, and the URL
+	// intents of frugal__execute before any provider is called, and
+	// applied to frugal__search result lists. Top level, not per
+	// capability: whether a host may be read is a fact about the host.
+	// Absent means every host is fetchable, the historical behavior.
+	Domains *DomainsConfig `yaml:"domains,omitempty"`
+}
+
+// DomainsConfig declares which hosts may be fetched.
+//
+//   - allow: when non-empty, only these hosts (and their subdomains) may
+//     be fetched; everything else is refused.
+//   - deny: these hosts (and their subdomains) are never fetched, even
+//     when an allow rule would admit them. Deny wins.
+//   - deny_private: refuse loopback, private-range, link-local, and
+//     carrier-grade NAT IP literals plus localhost / .local / .internal
+//     / .home.arpa names. Cloud metadata endpoints fall under link-local.
+//     Matching is by the URL as written; hostnames are not resolved.
+//
+// Rules are bare hosts (example.com), case-insensitive, no scheme, port,
+// or path. "*.example.com" matches subdomains only; "example.com"
+// matches the apex and every subdomain. Validation rejects anything
+// else so a typo fails the load instead of silently matching nothing.
+type DomainsConfig struct {
+	Allow       []string `yaml:"allow,omitempty"`
+	Deny        []string `yaml:"deny,omitempty"`
+	DenyPrivate bool     `yaml:"deny_private,omitempty"`
 }
 
 // RoutePolicy is one capability's routing rule.
@@ -284,6 +313,9 @@ func validateRouting(cfg *Config) error {
 	if cfg.Routing == nil {
 		return nil
 	}
+	if err := validateDomains(cfg.Routing.Domains); err != nil {
+		return err
+	}
 	for _, c := range []struct {
 		capability string
 		scope      string
@@ -323,6 +355,36 @@ func validateRouting(cfg *Config) error {
 				}
 				seen[name] = list.field
 			}
+		}
+	}
+	return nil
+}
+
+// validateDomains checks the optional routing.domains block: every rule
+// must be a bare host the matcher understands, no rule may repeat within
+// a list, and no host may sit in both allow and deny (deny would win, so
+// allowing it is a contradiction worth surfacing at load time).
+func validateDomains(d *DomainsConfig) error {
+	if d == nil {
+		return nil
+	}
+	seen := map[string]string{} // canonical rule → "allow" | "deny"
+	for _, list := range []struct {
+		field string
+		rules []string
+	}{{"allow", d.Allow}, {"deny", d.Deny}} {
+		for _, raw := range list.rules {
+			canon, err := routing.NormalizeDomainRule(raw)
+			if err != nil {
+				return fmt.Errorf("routing.domains.%s: %w", list.field, err)
+			}
+			if prev, dup := seen[canon]; dup {
+				if prev == list.field {
+					return fmt.Errorf("routing.domains.%s: rule %q listed twice", list.field, canon)
+				}
+				return fmt.Errorf("routing.domains: %q appears in both allow and deny (deny always wins, so drop it from one list)", canon)
+			}
+			seen[canon] = list.field
 		}
 	}
 	return nil

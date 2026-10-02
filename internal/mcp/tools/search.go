@@ -156,12 +156,18 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 			return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", searchErr)
 		}
 
+		items, dropped := filterItems(o.domains, res.Items)
+		warnings := res.Warnings
+		if dropped > 0 {
+			logger.Warn("domain policy: search results dropped", "tool", "frugal__search", "dropped", dropped)
+			warnings = append(append([]string(nil), warnings...), domainDropWarning(dropped))
+		}
 		out := SearchOutput{
-			Results:      res.Items,
+			Results:      items,
 			CostUSD:      res.CostUSD,
 			ProviderUsed: used.Name(),
 			LatencyMS:    latency,
-			Warnings:     res.Warnings,
+			Warnings:     warnings,
 		}
 		return nil, out, nil
 	}
