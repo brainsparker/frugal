@@ -283,6 +283,14 @@ search_providers:
 	if _, ok := cfg.SearchProviders["marginalia"]; !ok {
 		t.Errorf("marginalia should be defaulted in from the embedded models.yaml; got %+v", cfg.SearchProviders)
 	}
+	// youcom-free has a static base_url and no key or env var, so it
+	// rides the same overlay: an install that predates it gains the
+	// zero-key major-index rung on upgrade.
+	if sp, ok := cfg.SearchProviders["youcom-free"]; !ok {
+		t.Errorf("youcom-free should be defaulted in from the embedded models.yaml; got %+v", cfg.SearchProviders)
+	} else if sp.CostPerCall != 0 || sp.APIKeyEnv != "" {
+		t.Errorf("youcom-free default must be keyless and free; got %+v", sp)
+	}
 	// Keyless in-process defaults fill omitted capability maps too.
 	if _, ok := cfg.ExtractProviders["goreadability"]; !ok {
 		t.Errorf("extract_providers should gain the keyless embedded defaults; got %+v", cfg.ExtractProviders)
@@ -339,6 +347,8 @@ func TestParse_BareKeylessEntryIsValid(t *testing.T) {
 	for _, y := range []string{
 		"search_providers:\n    wikipedia:\n        enabled: true\n",
 		"search_providers:\n    marginalia: {}\n",
+		"search_providers:\n    youcom-free: {}\n",
+		"search_providers:\n    youcom-free:\n        enabled: false\n",
 	} {
 		if _, err := Parse([]byte(y)); err != nil {
 			t.Errorf("bare keyless entry should validate; got %v (yaml: %q)", err, y)

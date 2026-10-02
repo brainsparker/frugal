@@ -7,11 +7,10 @@
 // return a result and Serper is rate-limited or out of quota.
 //
 // Note: You.com also offers an MCP server at api.you.com/mcp with a
-// no-key free tier (?profile=free, 100 queries/day, search only). That
-// path bypasses this driver — agents can talk to it directly via MCP.
-// We could add a youcom-mcp Searcher that proxies through it for the
-// free-tier price (=0); deferred as a follow-up since it requires an
-// MCP-client implementation rather than a REST call.
+// no-key free tier (?profile=free, about 100 queries/day, search only).
+// That tier is routed by the separate "youcom-free" provider
+// (internal/provider/youcomfree), which speaks JSON-RPC tools/call to
+// the endpoint at $0. This driver is the keyed REST tier.
 package youcom
 
 import (

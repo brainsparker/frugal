@@ -31,6 +31,7 @@ import (
 	"github.com/frugalsh/frugal/internal/provider/serper"
 	"github.com/frugalsh/frugal/internal/provider/wikipedia"
 	"github.com/frugalsh/frugal/internal/provider/youcom"
+	"github.com/frugalsh/frugal/internal/provider/youcomfree"
 	"github.com/frugalsh/frugal/internal/routing"
 	"github.com/frugalsh/frugal/internal/search"
 )
@@ -334,7 +335,8 @@ func runMCPInstall(args []string) int {
 	default:
 		fmt.Fprintln(os.Stderr, "  1. optional: export SERPER_API_KEY and/or YDC_API_KEY, then re-run")
 		fmt.Fprintln(os.Stderr, "     `frugal mcp install` so GUI clients get the keys too — zero-key")
-		fmt.Fprintln(os.Stderr, "     search via Marginalia works without this step")
+		fmt.Fprintln(os.Stderr, "     search via You.com's free tier, Marginalia, and Wikipedia works")
+		fmt.Fprintln(os.Stderr, "     without this step")
 	}
 	fmt.Fprintln(os.Stderr, "  2. restart the agent client to pick up the new MCP server")
 	fmt.Fprintln(os.Stderr, "  3. look for the 'frugal__search' tool in the agent's tool picker")
@@ -526,8 +528,16 @@ func (c *latencyCache) lookup(tool string) routing.LatencyLookup {
 // preserve file order, so this list — not the config file — is what makes
 // registration (and therefore OrderByCost's stable ties) deterministic.
 // Providers not listed here sort last, by name.
+//
+// Among the public-free search rungs: youcom-free first (a general
+// major-index SERP, about 100 keyless queries per day), then Marginalia
+// (indie-web index; strong on long-tail essays and docs, but it returns
+// weak non-zero hits on mainstream queries, and zero-hit fall-through
+// can't see "weak"), then Wikipedia (reference entities). Marginalia and
+// Wikipedia are the rungs that keep serving once the youcom-free daily
+// allowance is spent and the guard cools it down.
 var canonicalProviderOrder = []string{
-	"searxng", "marginalia", "wikipedia", "serper", "youcom", // search
+	"searxng", "youcom-free", "marginalia", "wikipedia", "serper", "youcom", // search
 	"goreadability", "firecrawl", // extract
 	"browserless", // browse
 }
@@ -538,7 +548,7 @@ var canonicalProviderOrder = []string{
 // must not benchmark savings against a config entry the binary can never
 // dispatch to.
 var wireableProviders = map[string]map[string]bool{
-	"search":  {"searxng": true, "marginalia": true, "wikipedia": true, "serper": true, "youcom": true},
+	"search":  {"searxng": true, "marginalia": true, "youcom-free": true, "wikipedia": true, "serper": true, "youcom": true},
 	"extract": {"goreadability": true, "firecrawl": true},
 	"browse":  {"browserless": true},
 }
@@ -769,6 +779,12 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 			// driver defaults to the public endpoint. Always registers
 			// if the YAML entry exists.
 			out = append(out, marginalia.New(base))
+		case "youcom-free":
+			// You.com's hosted MCP endpoint on its keyless free profile;
+			// no API key, no required URL (driver defaults to the public
+			// endpoint). Always registers if the YAML entry exists. The
+			// keyed REST tier is the separate "youcom" provider.
+			out = append(out, youcomfree.New(base))
 		case "wikipedia":
 			// Public Wikimedia REST search; no API key, no required
 			// URL. Always registers if the YAML entry exists.

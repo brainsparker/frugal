@@ -48,12 +48,34 @@ and register it as a `streamable` server instead.
 
 ## Try it now (no keys)
 
-Search and extract work out of the box: **Marginalia** (free index of the
-indie / non-commercial web), **Wikipedia** (free Wikimedia REST search),
-and **go-readability** (free, pure-Go local extractor) ship enabled with
+Search and extract work out of the box: **You.com free tier**
+(`youcom-free`: the same major web index as the keyed You.com provider,
+reached through You.com's hosted MCP endpoint with no key and no account,
+about 100 queries per day), **Marginalia** (free index of the indie /
+non-commercial web), **Wikipedia** (free Wikimedia REST search), and
+**go-readability** (free, pure-Go local extractor) ship enabled with
 zero configuration. This is the default `cheap` policy at work — free and
 local rungs first, failover when a provider comes up empty. Captured from
 a live zero-key run:
+
+```
+frugal__search {"query": "AI agent framework comparison", "max_results": 3}
+
+  result › {
+    "provider_used": "youcom-free",
+    "cost_usd": 0,
+    "latency_ms": 177,
+    "results": [
+      {"title": "Top 12 AI Agent Frameworks Comparison", "url": "https://www.nimbleway.com/blog/top-ai-agent-frameworks-comparison", ...},
+      {"title": "AI Agent Frameworks Compared: LangGraph, CrewAI, AutoGen", "url": "https://pecollective.com/blog/ai-agent-frameworks-compared/", ...},
+      {"title": "Comparing Open-Source AI Agent Frameworks - Langfuse", "url": "https://langfuse.com/blog/2025-03-19-ai-agent-comparison", ...}
+    ]
+  }
+```
+
+Once the free tier's daily allowance is spent it rate-limits, the router
+cools it down, and the chain keeps serving from the narrower free
+indexes. The same query on that fallback path, also captured live:
 
 ```
 frugal__search {"query": "AI agent framework comparison", "max_results": 3}
@@ -71,12 +93,17 @@ frugal__search {"query": "AI agent framework comparison", "max_results": 3}
   }
 ```
 
-Honest limits: Marginalia is genuinely good for essays, docs, blogs, and
-niche technical writing, and weak on mainstream news and product pages;
-Wikipedia covers entities and reference topics. Zero-key mode is a real
-workflow for research and local extraction — it is not a Google-grade
-SERP. One env var changes that: `SEARXNG_URL` (free, self-hosted) or
-`SERPER_API_KEY` ($0.001/call) gives the chain a stronger rung to fall to.
+Honest limits: `youcom-free` is a general web index but is capped at
+roughly 100 queries a day per IP; Marginalia is genuinely good for
+essays, docs, blogs, and niche technical writing, and weak on mainstream
+news and product pages; Wikipedia covers entities and reference topics.
+Zero-key mode is a real workflow for research and local extraction, but
+it is not unlimited. One env var changes that: `SEARXNG_URL` (free,
+self-hosted), `SERPER_API_KEY` ($0.001/call), or `YDC_API_KEY` (the keyed
+You.com tier, no daily cap) gives the chain a stronger rung to fall to.
+Prefer to keep queries off You.com entirely? Add `youcom-free: {enabled:
+false}` under `search_providers` and the chain is Marginalia and
+Wikipedia again.
 
 ## Routing policies
 
@@ -151,15 +178,15 @@ a live zero-key run:
 ```
 frugal__execute {"intent": "search for MCP server security best practices"}
 
-  stderr › search zero hits; falling back  provider=marginalia latency_ms=273
   result › {
     "capability": "search",
-    "provider_used": "wikipedia",
+    "provider_used": "youcom-free",
     "cost_usd": 0,
-    "latency_ms": 650,
-    "reason": "routed to a web search; policy=cheap: effective cost ascending; provider=wikipedia won on attempt 2",
+    "latency_ms": 594,
+    "reason": "routed to a web search; policy=cheap: effective cost ascending; provider=youcom-free won on attempt 1",
     "results": [
-      {"title": "ChatGPT", "url": "https://en.wikipedia.org/wiki/ChatGPT", ...},
+      {"title": "MCP Server Security Best Practices for Safe AI Deployments", "url": "https://www.truefoundry.com/blog/mcp-server-security-best-practices", ...},
+      {"title": "GitHub - slowmist/MCP-Security-Checklist", "url": "https://github.com/slowmist/MCP-Security-Checklist", ...},
       ...
     ]
   }
@@ -209,7 +236,7 @@ environment and only registers tools whose providers are configured:
 
 ```bash
 # Search — frugal__search
-export SEARXNG_URL=...           # free, self-hosted (Marginalia + Wikipedia need no key)
+export SEARXNG_URL=...           # free, self-hosted (You.com free tier, Marginalia, Wikipedia need no key)
 export SERPER_API_KEY=...        # cheap paid
 export YDC_API_KEY=...           # premium paid (You.com)
 
@@ -230,7 +257,7 @@ is 5× Serper at $0.001/call. SearXNG, running on your own machine, is free.
 
 | Capability | Free / local | Cheap paid | Premium paid | Status |
 |---|---|---|---|---|
-| Search | **SearXNG** · **Marginalia** · **Wikipedia** | **Serper** $0.001/call | **You.com** $0.005/call | **shipping** |
+| Search | **SearXNG** · **You.com free tier** · **Marginalia** · **Wikipedia** | **Serper** $0.001/call | **You.com** $0.005/call | **shipping** |
 | Extract | **go-readability** (local) | — | **Firecrawl** $0.001/page | **shipping** |
 | Browse | local Playwright *(deferred)* | **Browserless** $0.002/render | Browserbase *(planned)* | *partial* |
 | Code exec | local Docker | E2B ~$0.10/hr (2 vCPU) | Modal | planned |
@@ -244,15 +271,17 @@ one with a receipt.
 
 ## What ships today
 
-One MCP server, four tools, eight providers:
+One MCP server, four tools, nine providers:
 
 - **`frugal__execute`** — **shipping**. Describe the job (`intent`,
   optional `priority`); heuristic classification onto a capability, then
   policy-routed. Returns the full routing trace (`capability`,
   `provider_used`, `cost_usd`, `reason`).
 - **`frugal__search`** — **shipping**. Routed across **SearXNG** (free,
-  self-hosted), **Marginalia** (free, public), **Wikipedia** (free,
-  public), **Serper** (`$0.001/call`), and **You.com** (`$0.005/call`).
+  self-hosted), **You.com free tier** (`youcom-free`: free, public,
+  hosted MCP, ~100 queries/day), **Marginalia** (free, public),
+  **Wikipedia** (free, public), **Serper** (`$0.001/call`), and
+  **You.com** (`$0.005/call`, keyed, no daily cap).
   When a free provider returns zero hits the chain falls through to the
   next rung; a paid provider returning zero hits ends the chain (the
   query has no hits — no point paying a pricier provider to confirm).

@@ -33,6 +33,43 @@ func TestBuildSearchers_SkipsDisabledProviders(t *testing.T) {
 	}
 }
 
+func TestBuildSearchers_YoucomFreeIsKeylessAndOrdered(t *testing.T) {
+	// youcom-free needs no key and no URL, so a bare entry registers,
+	// and the canonical order places it ahead of Marginalia and
+	// Wikipedia: a general web index serves first, and the two narrower
+	// free indexes are the fallback once the free daily allowance is
+	// spent. The keyed youcom entry stays gated on its env var.
+	t.Setenv("YDC_API_KEY", "")
+	cfg := &config.Config{
+		SearchProviders: map[string]config.SearchProviderConfig{
+			"wikipedia":   {BaseURL: "https://en.wikipedia.org"},
+			"youcom-free": {},
+			"marginalia":  {BaseURL: "https://api.marginalia.nu"},
+			"youcom":      {APIKeyEnv: "YDC_API_KEY", CostPerCall: 0.005},
+		},
+	}
+	searchers := buildSearchers(cfg)
+	var names []string
+	for _, s := range searchers {
+		names = append(names, s.Name())
+		if s.CostPerCall() != 0 {
+			t.Errorf("%s: keyless rungs must be free; got cost %v", s.Name(), s.CostPerCall())
+		}
+	}
+	want := []string{"youcom-free", "marginalia", "wikipedia"}
+	if len(names) != len(want) {
+		t.Fatalf("registered %v, want %v", names, want)
+	}
+	for i := range want {
+		if names[i] != want[i] {
+			t.Fatalf("registration order %v, want %v", names, want)
+		}
+	}
+	if !wireableProviders["search"]["youcom-free"] {
+		t.Errorf("youcom-free must be wireable so rack-rate accounting and the switch agree")
+	}
+}
+
 func TestBuildExtractors_SkipsDisabledProviders(t *testing.T) {
 	cfg := &config.Config{
 		ExtractProviders: map[string]config.SearchProviderConfig{
