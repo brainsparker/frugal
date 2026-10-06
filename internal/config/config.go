@@ -47,6 +47,17 @@ type RoutingConfig struct {
 	// level, not per capability: a provider's rate limit is a fact about
 	// the provider, not about which capability called it.
 	Cooldown string `yaml:"cooldown,omitempty"`
+	// LoopLimit is the loop-guard rail: how many identical tool calls
+	// (same tool, same arguments) are admitted per LoopWindow before the
+	// next one is refused without calling a provider. Absent (nil) means
+	// the product default of 5; an explicit 0 turns the rail off;
+	// negative values fail the load. Top level like Cooldown: a stuck
+	// agent is a fact about the session, not about one capability.
+	LoopLimit *int `yaml:"loop_limit,omitempty"`
+	// LoopWindow is the sliding window LoopLimit counts within. A Go
+	// duration string like "60s" or "2m"; empty or invalid falls back to
+	// the 60s default with a warning at wiring time, same as Cooldown.
+	LoopWindow string `yaml:"loop_window,omitempty"`
 }
 
 // RoutePolicy is one capability's routing rule.
@@ -283,6 +294,9 @@ var validRouteStrategies = map[string]bool{"": true, "cheap": true, "fast": true
 func validateRouting(cfg *Config) error {
 	if cfg.Routing == nil {
 		return nil
+	}
+	if cfg.Routing.LoopLimit != nil && *cfg.Routing.LoopLimit < 0 {
+		return fmt.Errorf("routing.loop_limit must be non-negative (0 turns the loop guard off)")
 	}
 	for _, c := range []struct {
 		capability string

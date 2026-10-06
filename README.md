@@ -141,6 +141,39 @@ When a guardrail skips a provider it is noted in the routing trace
 in a chain is over budget or cooling down, the call fails with a clear
 message rather than silently doing nothing.
 
+## Loop guard
+
+A third rail catches the failure the other two cannot see coming: an
+agent stuck re-issuing the same tool call. Budgets only trip after the
+money is spent, cooldowns only fire after a provider says 429, and the
+free rungs never hit either. The MCP spec gives clients no backoff
+convention, so the server has to be the one that says stop.
+
+```yaml
+routing:
+  loop_limit: 5              # identical calls admitted per window (default 5; 0 turns the rail off)
+  loop_window: 60s           # sliding window the limit counts within (default 60s)
+```
+
+On by default. A call is "identical" when the same tool receives the same
+normalized arguments (whitespace trimmed, provider spelling folded, so a
+loop that jitters its formatting still counts). The sixth identical
+`frugal__search` inside a minute is refused before any provider is
+reached, with a reason the agent can act on:
+
+```
+frugal__search: loop guard: this exact frugal__search call has been made 6 times
+in the last 1m0s (limit 5); the result will not change, so change the arguments or wait 48s
+```
+
+Refused calls still count, so a client that keeps hammering stays refused
+until it goes quiet for a full window. Each tool has its own fingerprint
+space (an extract and a browse of the same URL are two calls, not one),
+and a changed argument, `max_results`, `freshness`, `priority`, is a new
+call. The guard holds only hashes of the arguments, in memory, in a
+bounded map; nothing about the query is written anywhere. Trips are
+logged at Warn next to the budget skips.
+
 ## Describe the job: `frugal__execute`
 
 Instead of picking a tool, an agent can state the intent and a priority.

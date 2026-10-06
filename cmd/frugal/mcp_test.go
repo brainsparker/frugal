@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/frugalsh/frugal/internal/config"
 	"github.com/frugalsh/frugal/internal/routing"
@@ -60,6 +61,41 @@ func TestRackRates_SkipsDisabledAndUnwireable(t *testing.T) {
 	got := rackRates(cfg)
 	if got["search"] != 0.001 {
 		t.Errorf("search rack rate = %v, want 0.001 (serper; youcom disabled, internal-search unwireable)", got["search"])
+	}
+}
+
+func TestLoopGuardSettings_DefaultsOffSwitchAndWindow(t *testing.T) {
+	intPtr := func(i int) *int { return &i }
+
+	// No routing section: product defaults.
+	if limit, window := loopGuardSettings(&config.Config{}); limit != routing.DefaultLoopLimit || window != routing.DefaultLoopWindow {
+		t.Errorf("no routing: got %d/%s, want defaults", limit, window)
+	}
+	// Routing section without loop keys: still defaults.
+	if limit, window := loopGuardSettings(&config.Config{Routing: &config.RoutingConfig{Cooldown: "90s"}}); limit != routing.DefaultLoopLimit || window != routing.DefaultLoopWindow {
+		t.Errorf("no loop keys: got %d/%s, want defaults", limit, window)
+	}
+	// Explicit 0 is the off switch.
+	if limit, _ := loopGuardSettings(&config.Config{Routing: &config.RoutingConfig{LoopLimit: intPtr(0)}}); limit != 0 {
+		t.Errorf("loop_limit 0: got %d, want 0", limit)
+	}
+	// Explicit values win.
+	if limit, window := loopGuardSettings(&config.Config{Routing: &config.RoutingConfig{LoopLimit: intPtr(8), LoopWindow: "2m"}}); limit != 8 || window != 2*time.Minute {
+		t.Errorf("explicit: got %d/%s, want 8/2m", limit, window)
+	}
+	// Invalid or non-positive windows fall back without failing.
+	for _, raw := range []string{"soon", "-5s", "0"} {
+		if _, window := loopGuardSettings(&config.Config{Routing: &config.RoutingConfig{LoopWindow: raw}}); window != routing.DefaultLoopWindow {
+			t.Errorf("loop_window %q: got %s, want default", raw, window)
+		}
+	}
+
+	// And the guard buildGuard hands back has the rail in the configured state.
+	if g := buildGuard(&config.Config{}); !g.LoopGuardEnabled() {
+		t.Error("buildGuard with no config must enable the loop guard by default")
+	}
+	if g := buildGuard(&config.Config{Routing: &config.RoutingConfig{LoopLimit: intPtr(0)}}); g.LoopGuardEnabled() {
+		t.Error("buildGuard with loop_limit 0 must leave the rail off")
 	}
 }
 

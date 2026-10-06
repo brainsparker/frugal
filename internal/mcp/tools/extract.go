@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -93,13 +94,20 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 		q := extract.Query{URL: in.URL, Formats: in.Formats}
 		logger := slog.Default()
 
+		provider := normalizeProvider(in.Provider)
+		if err := admitCall(o.guard, "frugal__extract", ExtractInput{
+			URL:      strings.TrimSpace(in.URL),
+			Formats:  in.Formats,
+			Provider: provider,
+		}, logger); err != nil {
+			return nil, ExtractOutput{}, err
+		}
 		start := time.Now()
 		var (
 			used extract.Extractor
 			res  extract.Result
 			err  error
 		)
-		provider := normalizeProvider(in.Provider)
 		if isAuto(provider) {
 			ordered, reason := routing.Apply(extractors, o.policy, o.lat, time.Now())
 			if len(ordered) == 0 {

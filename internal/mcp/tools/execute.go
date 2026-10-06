@@ -133,6 +133,14 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 		}
 
 		provider := normalizeProvider(in.Provider)
+		logger := slog.Default()
+		if err := admitCall(o.guard, "frugal__execute", ExecuteInput{
+			Intent:   strings.TrimSpace(in.Intent),
+			Priority: priority,
+			Provider: provider,
+		}, logger); err != nil {
+			return nil, ExecuteOutput{}, err
+		}
 		if !isAuto(provider) && polOf(it.Capability).Deny[provider] {
 			// Deny means "never call" — a pin doesn't override it.
 			return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: provider %q is denied by the routing policy", provider)
@@ -146,7 +154,6 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 			}
 		}
 
-		logger := slog.Default()
 		start := time.Now()
 		out, err := dispatchIntent(ctx, it, polOf, latOf, provider, searchers, extractors, browsers, metrics, o.guard, logger)
 		if err != nil {

@@ -29,6 +29,13 @@ type Guard struct {
 	mu    sync.Mutex
 	spend map[string]daySpend  // key → today's accumulated spend
 	cool  map[string]time.Time // key → cooldown expiry (zero if not cooling)
+
+	// Loop rail (see loop.go). loopLimit is the number of identical calls
+	// (same tool, same arguments) admitted per loopWindow; zero means the
+	// rail is off, which is the library default. Set via SetLoopGuard.
+	loopLimit  int
+	loopWindow time.Duration
+	loops      map[string]*loopEntry // fingerprint → recent call times
 }
 
 // daySpend is one key's spend accumulator, tagged with the UTC day it
@@ -65,6 +72,7 @@ func NewGuard(caps map[string]float64, cooldown time.Duration) *Guard {
 		now:      time.Now,
 		spend:    make(map[string]daySpend),
 		cool:     make(map[string]time.Time),
+		loops:    make(map[string]*loopEntry),
 	}
 }
 

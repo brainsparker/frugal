@@ -124,6 +124,17 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 		logger := slog.Default()
 
 		provider := normalizeProvider(in.Provider)
+		// Loop rail: refuse the one-too-many identical call before any
+		// provider is paid for it. Keyed on the normalized input, so
+		// whitespace and provider spelling don't split a loop.
+		if err := admitCall(o.guard, "frugal__search", SearchInput{
+			Query:      strings.TrimSpace(in.Query),
+			MaxResults: in.MaxResults,
+			Freshness:  freshness,
+			Provider:   provider,
+		}, logger); err != nil {
+			return nil, SearchOutput{}, err
+		}
 		start := time.Now()
 		var (
 			used      search.Searcher
