@@ -152,6 +152,14 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 		}
 
 		provider := normalizeProvider(in.Provider)
+		logger := slog.Default()
+		if err := admitCall(o.guard, "frugal__execute", ExecuteInput{
+			Intent:   strings.TrimSpace(in.Intent),
+			Priority: priority,
+			Provider: provider,
+		}, logger); err != nil {
+			return nil, ExecuteOutput{}, err
+		}
 		if !isAuto(provider) && polOf(it.Capability).Deny[provider] {
 			// Deny means "never call" — a pin doesn't override it.
 			return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: provider %q is denied by the routing policy", provider)
@@ -165,7 +173,6 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 			}
 		}
 
-		logger := slog.Default()
 		// Domain policy runs before dispatch for URL intents: a refused
 		// target never reaches a provider, and the extract-to-browse fall
 		// forward reuses the same URL so one check covers both chains.
@@ -174,6 +181,7 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 				return nil, ExecuteOutput{}, err
 			}
 		}
+
 		start := time.Now()
 
 		// Result cache. Keys match the ones frugal__search and

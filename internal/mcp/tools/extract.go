@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -130,7 +131,13 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 		}
 
 		provider := normalizeProvider(in.Provider)
-
+		if err := admitCall(o.guard, "frugal__extract", ExtractInput{
+			URL:      strings.TrimSpace(in.URL),
+			Formats:  in.Formats,
+			Provider: provider,
+		}, logger); err != nil {
+			return nil, ExtractOutput{}, err
+		}
 		start := time.Now()
 
 		// Result cache: same URL, formats, and pin inside the TTL is

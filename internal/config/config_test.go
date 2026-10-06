@@ -616,6 +616,39 @@ search_providers:
 	}
 }
 
+func TestParse_LoopGuardRoundTripsAndValidates(t *testing.T) {
+	// Absent: nil pointer, so wiring applies the product default.
+	cfg, err := Parse([]byte("routing:\n  cooldown: 90s\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Routing.LoopLimit != nil || cfg.Routing.LoopWindow != "" {
+		t.Fatalf("absent loop guard must stay nil/empty, got %+v", cfg.Routing)
+	}
+
+	// Explicit values round-trip; 0 is a valid "off".
+	cfg, err = Parse([]byte("routing:\n  loop_limit: 0\n  loop_window: 2m\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Routing.LoopLimit == nil || *cfg.Routing.LoopLimit != 0 || cfg.Routing.LoopWindow != "2m" {
+		t.Fatalf("routing loop guard = %+v, want limit 0 window 2m", cfg.Routing)
+	}
+	cfg, err = Parse([]byte("routing:\n  loop_limit: 8\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Routing.LoopLimit == nil || *cfg.Routing.LoopLimit != 8 {
+		t.Fatalf("routing.loop_limit = %+v, want 8", cfg.Routing.LoopLimit)
+	}
+
+	// Negative is rejected at load with a hint about 0.
+	_, err = Parse([]byte("routing:\n  loop_limit: -1\n"))
+	if err == nil || !strings.Contains(err.Error(), "loop_limit") {
+		t.Fatalf("want loop_limit error for a negative limit, got %v", err)
+	}
+}
+
 func TestParse_CooldownRoundTrips(t *testing.T) {
 	cfg, err := Parse([]byte("routing:\n  cooldown: 90s\n"))
 	if err != nil {

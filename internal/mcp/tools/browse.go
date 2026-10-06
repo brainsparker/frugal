@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -101,13 +102,21 @@ func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics, o toolOp
 			return nil, BrowseOutput{}, err
 		}
 
+		provider := normalizeProvider(in.Provider)
+		if err := admitCall(o.guard, "frugal__browse", BrowseInput{
+			URL:      strings.TrimSpace(in.URL),
+			WaitMs:   in.WaitMs,
+			Format:   strings.ToLower(strings.TrimSpace(in.Format)),
+			Provider: provider,
+		}, logger); err != nil {
+			return nil, BrowseOutput{}, err
+		}
 		start := time.Now()
 		var (
 			used browse.Browser
 			res  browse.Result
 			err  error
 		)
-		provider := normalizeProvider(in.Provider)
 		if isAuto(provider) {
 			ordered, reason := routing.Apply(browsers, o.policy, o.lat, time.Now())
 			if len(ordered) == 0 {

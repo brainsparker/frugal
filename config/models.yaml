@@ -93,6 +93,18 @@
 #       allow: [docs.python.org, github.com]
 #       deny: [gist.github.com]
 #       deny_private: true
+
+# Loop guard (optional, on by default). When the same tool is called
+# with the same normalized arguments more than loop_limit times inside
+# loop_window, the next identical call is refused before any provider is
+# reached, with a reason the agent can act on. This catches an agent
+# stuck in a retry loop before it burns a daily budget or a free
+# provider's goodwill. loop_limit: 0 turns the rail off; loop_window is
+# a Go duration and falls back to 60s when invalid:
+#
+#   routing:
+#     loop_limit: 5
+#     loop_window: 60s
 #
 # v1.0 ships only the search-tool layer. Chat-model routing and its
 # pricing tables come back in Phase 2 with the frugal__chat MCP tool.

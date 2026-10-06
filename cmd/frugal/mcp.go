@@ -435,7 +435,48 @@ func buildGuard(cfg *config.Config) *routing.Guard {
 			}
 		}
 	}
-	return routing.NewGuard(caps, cooldown)
+	guard := routing.NewGuard(caps, cooldown)
+
+	// Loop guard: on by default at the routing package's limit / window;
+	// routing.loop_limit: 0 turns it off. Like cooldown, a bad window
+	// string warns and falls back rather than refusing to start.
+	limit, window := loopGuardSettings(cfg)
+	guard.SetLoopGuard(limit, window)
+	if limit > 0 {
+		slog.Info("mcp serve: loop guard", "limit", limit, "window", window)
+	} else {
+		slog.Info("mcp serve: loop guard disabled by routing.loop_limit: 0")
+	}
+	return guard
+}
+
+// loopGuardSettings resolves routing.loop_limit / routing.loop_window to
+// the values SetLoopGuard takes. Absent limit means the product default;
+// an explicit 0 disables. Window parsing mirrors the cooldown rules:
+// empty, invalid, or non-positive falls back to the default with a Warn.
+func loopGuardSettings(cfg *config.Config) (int, time.Duration) {
+	limit := routing.DefaultLoopLimit
+	window := routing.DefaultLoopWindow
+	if cfg.Routing == nil {
+		return limit, window
+	}
+	if cfg.Routing.LoopLimit != nil {
+		limit = *cfg.Routing.LoopLimit
+	}
+	if raw := strings.TrimSpace(cfg.Routing.LoopWindow); raw != "" {
+		d, err := time.ParseDuration(raw)
+		switch {
+		case err != nil:
+			slog.Warn("mcp serve: invalid routing loop_window; using default",
+				"loop_window", raw, "err", err)
+		case d <= 0:
+			slog.Warn("mcp serve: routing loop_window must be positive; using default",
+				"loop_window", raw)
+		default:
+			window = d
+		}
+	}
+	return limit, window
 }
 
 // Result-cache TTL defaults. Search results shift faster than article
