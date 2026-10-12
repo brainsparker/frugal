@@ -36,6 +36,11 @@ type SearchInput struct {
 	// picks (cheapest-first by default). Use a pin when a specific
 	// provider is known to have materially better recall for this call.
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: searxng | marginalia | wikipedia | serper | youcom | auto"`
+	// MaxCostUSD is the caller's per-call spend ceiling. Providers whose
+	// effective per-call cost exceeds it are removed from the chain before
+	// any call is made; 0 means free rungs only. A pointer so that an
+	// explicit 0 is distinguishable from "not declared".
+	MaxCostUSD *float64 `json:"max_cost_usd,omitempty" jsonschema:"optional per-call spend ceiling in USD: providers priced above it are never called for this request; 0 means free providers only"`
 }
 
 // SearchOutput is the structured-content payload returned to the MCP
@@ -77,7 +82,8 @@ func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics 
 		"Run a web search routed across %s. Returns a list of {title, url, snippet} hits "+
 			"plus the actual provider used and cost paid. Provider choice follows the "+
 			"configured routing policy (cheapest-first by default, with automatic failover); "+
-			"pin via the `provider` argument.",
+			"pin via the `provider` argument, or cap this call's spend with `max_cost_usd` "+
+			"(0 = free providers only).",
 		joinNames(searchers),
 	)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
@@ -116,6 +122,10 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 		if err != nil {
 			return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", err)
 		}
+		ceiling, err := routing.CeilingFrom(in.MaxCostUSD)
+		if err != nil {
+			return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", err)
+		}
 		q := search.Query{
 			Text:       in.Query,
 			MaxResults: in.MaxResults,
@@ -131,13 +141,19 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 			searchErr error
 		)
 		if isAuto(provider) {
-			ordered, reason := routing.Apply(searchers, o.policy, o.lat, time.Now())
+			now := time.Now()
+			ordered, reason := routing.Apply(searchers, o.policy, o.lat, now)
 			if len(ordered) == 0 {
 				return nil, SearchOutput{}, fmt.Errorf("frugal__search: every configured provider is denied by the routing policy")
 			}
 			ordered, reason = guardChain(o.guard, "search", ordered, reason, logger)
 			if len(ordered) == 0 {
 				return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", guardEmptyError("search"))
+			}
+			affordable := ordered
+			ordered, reason = routing.ApplyCeiling(ordered, ceiling, reason, now)
+			if len(ordered) == 0 {
+				return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", routing.CeilingEmptyError("search", ceiling, affordable, now))
 			}
 			logger.Debug("search routing", "reason", reason)
 			used, res, searchErr = search.CallInOrder(ctx, ordered, q, logger, hook)
@@ -148,6 +164,10 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 			// Budget / cooldown blocks a pin the same way deny does:
 			// blocked means blocked.
 			return nil, SearchOutput{}, fmt.Errorf("frugal__search: provider %q unavailable: %s", provider, why)
+		} else if ok, why := pinUnderCeiling(searchers, provider, ceiling); !ok {
+			// A pin above the caller's own ceiling is a contradiction in
+			// the request; refuse before spending.
+			return nil, SearchOutput{}, fmt.Errorf("frugal__search: %s", why)
 		} else {
 			used, res, searchErr = search.CallPinned(ctx, searchers, provider, q, logger, hook)
 		}

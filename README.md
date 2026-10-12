@@ -141,6 +141,38 @@ When a guardrail skips a provider it is noted in the routing trace
 in a chain is over budget or cooling down, the call fails with a clear
 message rather than silently doing nothing.
 
+## Per-call cost ceilings: `max_cost_usd`
+
+Daily budgets protect your wallet over a day. `max_cost_usd` lets the
+agent decide, per call, what one question is worth. Every routed tool
+(`frugal__search`, `frugal__extract`, `frugal__browse`, and
+`frugal__execute`) accepts it:
+
+```
+frugal__search  {"query": "is this library still maintained", "max_cost_usd": 0.001}
+frugal__execute {"intent": "read https://example.com/post", "max_cost_usd": 0}
+```
+
+- Providers whose effective per-call price is above the ceiling are
+  removed from the chain before anything is called, so they are not
+  reached as fallback rungs either. The rest of the chain routes under
+  your policy as usual.
+- `0` means free providers only. Effective price is quota-aware: a paid
+  provider with free quota left this month counts as free.
+- Pinning a provider priced above your own ceiling is refused before
+  any spend, like pinning a denied or over-budget provider.
+- On `frugal__execute`, the ceiling also governs the extract-to-browse
+  fall-forward. A call capped at `0` never falls forward into a paid
+  render; the empty extract comes back with a warning that says why.
+- Skips are visible in the trace (`; ceiling: skipped youcom (youcom
+  costs $0.0050 per call, above max_cost_usd $0.0010)`). If nothing
+  fits, the error names the cheapest configured provider and its price
+  so the agent can raise the ceiling or move on.
+
+Leave it unset and routing is exactly what it was. The ceiling is a
+request-time knob for the agent; the operator's `daily_budget_usd`,
+`deny`, and `cooldown` still apply on top of it.
+
 ## Describe the job: `frugal__execute`
 
 Instead of picking a tool, an agent can state the intent and a priority.
