@@ -23,6 +23,7 @@ import (
 	"github.com/frugalsh/frugal/internal/mcp"
 	"github.com/frugalsh/frugal/internal/mcp/tools"
 	"github.com/frugalsh/frugal/internal/obs"
+	"github.com/frugalsh/frugal/internal/provider/brave"
 	"github.com/frugalsh/frugal/internal/provider/browserless"
 	"github.com/frugalsh/frugal/internal/provider/firecrawl"
 	"github.com/frugalsh/frugal/internal/provider/goreadability"
@@ -158,7 +159,7 @@ func runMCPServe(args []string) int {
 		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard))
 	if len(searchers) == 0 {
 		slog.Warn("mcp serve: no search providers configured — frugal__search will not be advertised. " +
-			"Set SEARXNG_URL (free, self-hosted), SERPER_API_KEY, or YDC_API_KEY to enable.")
+			"Set SEARXNG_URL (free, self-hosted), SERPER_API_KEY, BRAVE_API_KEY, or YDC_API_KEY to enable.")
 	} else {
 		slog.Info("mcp serve: frugal__search registered", "providers", searcherNames(searchers))
 	}
@@ -332,7 +333,7 @@ func runMCPInstall(args []string) int {
 		fmt.Fprintln(os.Stderr, "  1. Claude Code spawns frugal from your shell, so it inherits your")
 		fmt.Fprintln(os.Stderr, "     exported keys live — nothing needed baking into a config file")
 	default:
-		fmt.Fprintln(os.Stderr, "  1. optional: export SERPER_API_KEY and/or YDC_API_KEY, then re-run")
+		fmt.Fprintln(os.Stderr, "  1. optional: export SERPER_API_KEY, BRAVE_API_KEY, and/or YDC_API_KEY, then re-run")
 		fmt.Fprintln(os.Stderr, "     `frugal mcp install` so GUI clients get the keys too — zero-key")
 		fmt.Fprintln(os.Stderr, "     search via Marginalia works without this step")
 	}
@@ -527,7 +528,7 @@ func (c *latencyCache) lookup(tool string) routing.LatencyLookup {
 // registration (and therefore OrderByCost's stable ties) deterministic.
 // Providers not listed here sort last, by name.
 var canonicalProviderOrder = []string{
-	"searxng", "marginalia", "wikipedia", "serper", "youcom", // search
+	"searxng", "marginalia", "wikipedia", "serper", "youcom", "brave", // search
 	"goreadability", "firecrawl", // extract
 	"browserless", // browse
 }
@@ -538,7 +539,7 @@ var canonicalProviderOrder = []string{
 // must not benchmark savings against a config entry the binary can never
 // dispatch to.
 var wireableProviders = map[string]map[string]bool{
-	"search":  {"searxng": true, "marginalia": true, "wikipedia": true, "serper": true, "youcom": true},
+	"search":  {"searxng": true, "marginalia": true, "wikipedia": true, "serper": true, "youcom": true, "brave": true},
 	"extract": {"goreadability": true, "firecrawl": true},
 	"browse":  {"browserless": true},
 }
@@ -759,6 +760,11 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 				continue
 			}
 			out = append(out, serper.New(key, base, sp.CostPerCall))
+		case "brave":
+			if key == "" {
+				continue
+			}
+			out = append(out, brave.New(key, base, sp.CostPerCall))
 		case "searxng":
 			// Self-hosted; gate on base URL (no API key).
 			if c := searxng.New(base); c != nil {

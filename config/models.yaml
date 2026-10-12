@@ -96,6 +96,21 @@ search_providers:
         api_key_env: YDC_API_KEY
         base_url: https://ydc-index.io
         cost_per_call: 0.005
+    # Independent-index paid rung: Brave's own crawl, not a Google or
+    # Bing wrapper, so it answers differently from Serper on the same
+    # query. List price is $0.005 per request, the same as You.com; the
+    # canonical tie-break keeps You.com ahead of Brave when both keys
+    # are set, so adding a Brave key never reorders an existing chain.
+    # Prefer Brave with `routing.search.order: [brave]`. Every Brave plan
+    # includes $5 of monthly credit (about 1,000 requests) when the
+    # project attributes Brave publicly; `daily_budget_usd: 0.16` keeps a
+    # month of calls inside that credit. Sign up at
+    # https://brave.com/search/api (a card is required even for the
+    # credited tier).
+    brave:
+        api_key_env: BRAVE_API_KEY
+        base_url: https://api.search.brave.com
+        cost_per_call: 0.005
 
 # Extract providers consumed by the frugal__extract MCP tool. Same
 # routing rules as search: cheapest configured wins; any per-provider
