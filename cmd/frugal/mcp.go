@@ -26,6 +26,7 @@ import (
 	"github.com/frugalsh/frugal/internal/provider/browserless"
 	"github.com/frugalsh/frugal/internal/provider/firecrawl"
 	"github.com/frugalsh/frugal/internal/provider/goreadability"
+	"github.com/frugalsh/frugal/internal/provider/jina"
 	"github.com/frugalsh/frugal/internal/provider/marginalia"
 	"github.com/frugalsh/frugal/internal/provider/searxng"
 	"github.com/frugalsh/frugal/internal/provider/serper"
@@ -522,13 +523,16 @@ func (c *latencyCache) lookup(tool string) routing.LatencyLookup {
 
 // canonicalProviderOrder fixes the tie-break between same-cost providers:
 // self-hosted first (the operator stood that instance up deliberately),
-// then public-free, then paid by ascending list price. YAML maps don't
-// preserve file order, so this list — not the config file — is what makes
-// registration (and therefore OrderByCost's stable ties) deterministic.
+// then in-process, then public-free, then paid by ascending list price.
+// YAML maps don't preserve file order, so this list — not the config
+// file — is what makes registration (and therefore OrderByCost's stable
+// ties) deterministic. For extract that means goreadability (local)
+// runs before jina (free, hosted): a static page never leaves the
+// machine, and only a JS-rendered page reaches the hosted rung.
 // Providers not listed here sort last, by name.
 var canonicalProviderOrder = []string{
 	"searxng", "marginalia", "wikipedia", "serper", "youcom", // search
-	"goreadability", "firecrawl", // extract
+	"goreadability", "jina", "firecrawl", // extract
 	"browserless", // browse
 }
 
@@ -539,7 +543,7 @@ var canonicalProviderOrder = []string{
 // dispatch to.
 var wireableProviders = map[string]map[string]bool{
 	"search":  {"searxng": true, "marginalia": true, "wikipedia": true, "serper": true, "youcom": true},
-	"extract": {"goreadability": true, "firecrawl": true},
+	"extract": {"goreadability": true, "jina": true, "firecrawl": true},
 	"browse":  {"browserless": true},
 }
 
@@ -783,9 +787,11 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 
 // buildExtractors instantiates one extract.Extractor per extract_providers
 // entry whose credentials/endpoint are present at startup. goreadability
-// is in-process and always available when listed in the YAML; firecrawl
-// gates on FIRECRAWL_API_KEY. Entries marked `enabled: false` are
-// skipped. Unknown names log a warning and are skipped.
+// is in-process and always available when listed in the YAML; jina is
+// keyless and always registers, upgrading to the keyed rate-limit tier
+// when the entry names an api_key_env that is set; firecrawl gates on
+// FIRECRAWL_API_KEY. Entries marked `enabled: false` are skipped.
+// Unknown names log a warning and are skipped.
 func buildExtractors(cfg *config.Config) []extract.Extractor {
 	var out []extract.Extractor
 	for _, name := range sortedProviderNames(cfg.ExtractProviders) {
@@ -807,6 +813,18 @@ func buildExtractors(cfg *config.Config) []extract.Extractor {
 		case "goreadability":
 			// Pure-in-process — no key, no URL, always available.
 			out = append(out, goreadability.New())
+		case "jina":
+			// Hosted, keyless by default: the driver defaults the public
+			// Reader endpoint. A key is optional: when the entry names an
+			// api_key_env and it is set, the same driver registers on the
+			// keyed tier instead of being skipped like a paid provider.
+			c := jina.New(base, key, sp.CostPerCall)
+			tier := "keyless (20 rpm)"
+			if c.Keyed() {
+				tier = "keyed (500 rpm)"
+			}
+			slog.Info("mcp serve: jina reader tier", "tier", tier)
+			out = append(out, c)
 		case "firecrawl":
 			if key == "" {
 				continue

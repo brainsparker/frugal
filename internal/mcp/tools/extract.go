@@ -23,8 +23,8 @@ type ExtractInput struct {
 	// populate others.
 	Formats []string `json:"formats,omitempty" jsonschema:"output formats: markdown | html | text"`
 	// Provider pins the extract provider for this call ("goreadability",
-	// "firecrawl", …). Empty / "auto" → the routing policy decides.
-	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: goreadability | firecrawl | auto"`
+	// "jina", "firecrawl", …). Empty / "auto" → the routing policy decides.
+	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: goreadability | jina | firecrawl | auto"`
 }
 
 // ExtractOutput is the structured-content payload returned to the MCP
@@ -60,8 +60,8 @@ func RegisterExtract(server *sdkmcp.Server, extractors []extract.Extractor, metr
 		"Extract the main article content from a URL, routed across %s. Returns "+
 			"markdown / html / text + metadata (title, byline). Provider choice "+
 			"follows the configured routing policy (cheapest-first by default: "+
-			"typically a local Readability pass, falling back to a paid scraper "+
-			"when the page needs JS).",
+			"typically a local Readability pass, then a free hosted render when "+
+			"the page needs JS, then a paid scraper).",
 		joinExtractorNames(extractors),
 	)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
