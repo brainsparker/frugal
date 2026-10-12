@@ -24,6 +24,8 @@ type BrowseInput struct {
 	// Provider pins the browse provider for this call. Empty / "auto"
 	// → the routing policy decides.
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: browserless | auto"`
+	// MaxCostUSD is the caller's per-call spend ceiling; see SearchInput.
+	MaxCostUSD *float64 `json:"max_cost_usd,omitempty" jsonschema:"optional per-call spend ceiling in USD: providers priced above it are never called for this request; 0 means free providers only"`
 }
 
 // BrowseOutput is the structured-content payload returned to the MCP
@@ -83,6 +85,10 @@ func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics, o toolOp
 		if in.URL == "" {
 			return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: url is required")
 		}
+		ceiling, cerr := routing.CeilingFrom(in.MaxCostUSD)
+		if cerr != nil {
+			return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: %w", cerr)
+		}
 		q := browse.Query{URL: in.URL, WaitForMS: in.WaitMs, ReturnFormat: in.Format}
 		logger := slog.Default()
 
@@ -94,13 +100,19 @@ func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics, o toolOp
 		)
 		provider := normalizeProvider(in.Provider)
 		if isAuto(provider) {
-			ordered, reason := routing.Apply(browsers, o.policy, o.lat, time.Now())
+			now := time.Now()
+			ordered, reason := routing.Apply(browsers, o.policy, o.lat, now)
 			if len(ordered) == 0 {
 				return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: every configured provider is denied by the routing policy")
 			}
 			ordered, reason = guardChain(o.guard, "browse", ordered, reason, logger)
 			if len(ordered) == 0 {
 				return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: %w", guardEmptyError("browse"))
+			}
+			affordable := ordered
+			ordered, reason = routing.ApplyCeiling(ordered, ceiling, reason, now)
+			if len(ordered) == 0 {
+				return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: %w", routing.CeilingEmptyError("browse", ceiling, affordable, now))
 			}
 			logger.Debug("browse routing", "reason", reason)
 			used, res, err = browse.CallInOrder(ctx, ordered, q, logger, hook)
@@ -110,6 +122,8 @@ func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics, o toolOp
 		} else if ok, why := o.guard.Allow("browse", provider); !ok {
 			// Budget / cooldown blocks a pin the same way deny does.
 			return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: provider %q unavailable: %s", provider, why)
+		} else if ok, why := pinUnderCeiling(browsers, provider, ceiling); !ok {
+			return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: %s", why)
 		} else {
 			used, res, err = browse.CallPinned(ctx, browsers, provider, q, logger, hook)
 		}

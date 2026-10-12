@@ -25,6 +25,8 @@ type ExtractInput struct {
 	// Provider pins the extract provider for this call ("goreadability",
 	// "firecrawl", …). Empty / "auto" → the routing policy decides.
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: goreadability | firecrawl | auto"`
+	// MaxCostUSD is the caller's per-call spend ceiling; see SearchInput.
+	MaxCostUSD *float64 `json:"max_cost_usd,omitempty" jsonschema:"optional per-call spend ceiling in USD: providers priced above it are never called for this request; 0 means free providers only"`
 }
 
 // ExtractOutput is the structured-content payload returned to the MCP
@@ -90,6 +92,10 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 		if in.URL == "" {
 			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: url is required")
 		}
+		ceiling, cerr := routing.CeilingFrom(in.MaxCostUSD)
+		if cerr != nil {
+			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: %w", cerr)
+		}
 		q := extract.Query{URL: in.URL, Formats: in.Formats}
 		logger := slog.Default()
 
@@ -101,13 +107,19 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 		)
 		provider := normalizeProvider(in.Provider)
 		if isAuto(provider) {
-			ordered, reason := routing.Apply(extractors, o.policy, o.lat, time.Now())
+			now := time.Now()
+			ordered, reason := routing.Apply(extractors, o.policy, o.lat, now)
 			if len(ordered) == 0 {
 				return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: every configured provider is denied by the routing policy")
 			}
 			ordered, reason = guardChain(o.guard, "extract", ordered, reason, logger)
 			if len(ordered) == 0 {
 				return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: %w", guardEmptyError("extract"))
+			}
+			affordable := ordered
+			ordered, reason = routing.ApplyCeiling(ordered, ceiling, reason, now)
+			if len(ordered) == 0 {
+				return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: %w", routing.CeilingEmptyError("extract", ceiling, affordable, now))
 			}
 			logger.Debug("extract routing", "reason", reason)
 			used, res, err = extract.CallInOrder(ctx, ordered, q, logger, hook)
@@ -117,6 +129,8 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 		} else if ok, why := o.guard.Allow("extract", provider); !ok {
 			// Budget / cooldown blocks a pin the same way deny does.
 			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: provider %q unavailable: %s", provider, why)
+		} else if ok, why := pinUnderCeiling(extractors, provider, ceiling); !ok {
+			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: %s", why)
 		} else {
 			used, res, err = extract.CallPinned(ctx, extractors, provider, q, logger, hook)
 		}
