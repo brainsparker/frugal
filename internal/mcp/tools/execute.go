@@ -30,6 +30,7 @@ type ExecuteInput struct {
 	// or a render. Search results are never truncated. Zero falls back
 	// to the server's configured default.
 	MaxChars int `json:"max_chars,omitempty" jsonschema:"optional cap on returned page content characters for extract and browse intents (markdown, text, and html combined); the response reports truncated, chars_returned, and chars_total; 0 = server default"`
+	MaxCostUSD *float64 `json:"max_cost_usd,omitempty" jsonschema:"optional per-call spend ceiling in USD: providers priced above it are never called for this request, including on the extract-to-browse fall-forward; 0 means free providers only"`
 }
 
 // ExecuteOutput carries whichever capability's payload the intent
@@ -134,6 +135,11 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 			return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: max_chars must be zero (server default) or positive")
 		}
 
+		ceiling, err := routing.CeilingFrom(in.MaxCostUSD)
+		if err != nil {
+			return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: %w", err)
+		}
+
 		it := ClassifyIntent(in.Intent)
 		// Priority overrides the strategy only; the operator's order and
 		// deny lists always apply. balanced (or empty) means "whatever
@@ -170,6 +176,23 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 		if !isAuto(provider) {
 			if ok, why := o.guard.Allow(it.Capability, provider); !ok {
 				return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: provider %q unavailable: %s", provider, why)
+			}
+			// A pin above the caller's own ceiling is refused before any
+			// spend, like a denied or over-budget pin.
+			var ok bool
+			var why string
+			switch it.Capability {
+			case "search":
+				ok, why = pinUnderCeiling(searchers, provider, ceiling)
+			case "extract":
+				ok, why = pinUnderCeiling(extractors, provider, ceiling)
+			case "browse":
+				ok, why = pinUnderCeiling(browsers, provider, ceiling)
+			default:
+				ok = true
+			}
+			if !ok {
+				return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: %s", why)
 			}
 		}
 
@@ -233,7 +256,7 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 			}
 		}
 
-		out, err := dispatchIntent(ctx, it, polOf, latOf, provider, searchers, extractors, browsers, metrics, o.guard, logger, co)
+		out, err := dispatchIntent(ctx, it, polOf, latOf, provider, searchers, extractors, browsers, metrics, o.guard, logger, co, ceiling)
 		if err != nil {
 			return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: %w", err)
 		}
@@ -299,7 +322,7 @@ func reasonLine(it Intent, pol routing.Policy, applyReason string, provider stri
 // search / extract results are stored under the same keys the direct
 // tools use. Only the clean single-capability success paths store; the
 // browse fall-forward never does.
-func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.Policy, latOf func(string) routing.LatencyLookup, provider string, searchers []search.Searcher, extractors []extract.Extractor, browsers []browse.Browser, metrics *obs.Metrics, guard *routing.Guard, logger *slog.Logger, co toolOptions) (ExecuteOutput, error) {
+func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.Policy, latOf func(string) routing.LatencyLookup, provider string, searchers []search.Searcher, extractors []extract.Extractor, browsers []browse.Browser, metrics *obs.Metrics, guard *routing.Guard, logger *slog.Logger, co toolOptions, ceiling routing.Ceiling) (ExecuteOutput, error) {
 	var attempts atomic.Int64
 	hook := hookFor(metrics, guard, it.Capability, &attempts)
 	now := time.Now()
@@ -323,6 +346,11 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 			ordered, applyReason = guardChain(guard, "search", ordered, applyReason, logger)
 			if len(ordered) == 0 {
 				return ExecuteOutput{}, guardEmptyError("search")
+			}
+			affordable := ordered
+			ordered, applyReason = routing.ApplyCeiling(ordered, ceiling, applyReason, now)
+			if len(ordered) == 0 {
+				return ExecuteOutput{}, routing.CeilingEmptyError("search", ceiling, affordable, now)
 			}
 			reason = applyReason
 			used, res, err = search.CallInOrder(ctx, ordered, q, logger, hook)
@@ -354,10 +382,11 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 		}
 		q := extract.Query{URL: it.URL}
 		var (
-			used   extract.Extractor
-			res    extract.Result
-			err    error
-			reason string
+			used     extract.Extractor
+			res      extract.Result
+			err      error
+			reason   string
+			warnings []string
 		)
 		if isAuto(provider) {
 			ordered, applyReason := routing.Apply(extractors, pol, lat, now)
@@ -367,6 +396,11 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 			ordered, applyReason = guardChain(guard, "extract", ordered, applyReason, logger)
 			if len(ordered) == 0 {
 				return ExecuteOutput{}, guardEmptyError("extract")
+			}
+			affordable := ordered
+			ordered, applyReason = routing.ApplyCeiling(ordered, ceiling, applyReason, now)
+			if len(ordered) == 0 {
+				return ExecuteOutput{}, routing.CeilingEmptyError("extract", ceiling, affordable, now)
 			}
 			reason = applyReason
 			used, res, err = extract.CallInOrder(ctx, ordered, q, logger, hook)
@@ -386,7 +420,7 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 			// hook must book spend / cooldown under "browse", not the
 			// extract key the primary hook uses.
 			browseHook := hookFor(metrics, guard, "browse", &attempts)
-			out, berr := browseFor(ctx, it, polOf("browse"), latOf("browse"), browsers, guard, browseHook, logger, "text", now)
+			out, berr := browseFor(ctx, it, polOf("browse"), latOf("browse"), ceiling, browsers, guard, browseHook, logger, "text", now)
 			if berr == nil {
 				out.CostUSD += extractCost
 				out.Reason = reasonLine(it, pol, "extract produced no content; fell forward to a headless render", out.ProviderUsed, attempts.Load())
@@ -395,6 +429,11 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 			if err != nil {
 				return ExecuteOutput{}, fmt.Errorf("extract failed (%w) and browse fall-forward failed (%v)", err, berr)
 			}
+			// The extract succeeded with no content and the render could
+			// not run (ceiling, budget, or provider failure). Return the
+			// empty extract as before, but say why it stayed empty so the
+			// agent can raise the ceiling or move on instead of guessing.
+			warnings = append(warnings, "browse fall-forward skipped: "+berr.Error())
 		}
 		if err != nil {
 			return ExecuteOutput{}, err
@@ -412,6 +451,7 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 			CostUSD:      res.CostUSD,
 			ProviderUsed: used.Name(),
 			Reason:       reasonLine(it, pol, reason, used.Name(), attempts.Load()),
+			Warnings:     warnings,
 		}, nil
 
 	case "browse":
@@ -432,7 +472,7 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 				Reason:       reasonLine(it, pol, "provider pinned by caller", used.Name(), attempts.Load()),
 			}, nil
 		}
-		out, err := browseFor(ctx, it, pol, lat, browsers, guard, hook, logger, "", now)
+		out, err := browseFor(ctx, it, pol, lat, ceiling, browsers, guard, hook, logger, "", now)
 		if err != nil {
 			return ExecuteOutput{}, err
 		}
@@ -445,7 +485,7 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 // browseFor runs the browse chain under the given policy. The returned
 // Reason is only the policy apply-reason; callers wrap it into the full
 // trace line.
-func browseFor(ctx context.Context, it Intent, pol routing.Policy, lat routing.LatencyLookup, browsers []browse.Browser, guard *routing.Guard, hook routing.AttemptHook, logger *slog.Logger, format string, now time.Time) (ExecuteOutput, error) {
+func browseFor(ctx context.Context, it Intent, pol routing.Policy, lat routing.LatencyLookup, ceiling routing.Ceiling, browsers []browse.Browser, guard *routing.Guard, hook routing.AttemptHook, logger *slog.Logger, format string, now time.Time) (ExecuteOutput, error) {
 	ordered, applyReason := routing.Apply(browsers, pol, lat, now)
 	if len(ordered) == 0 {
 		return ExecuteOutput{}, fmt.Errorf("every configured browse provider is denied by the routing policy")
@@ -453,6 +493,11 @@ func browseFor(ctx context.Context, it Intent, pol routing.Policy, lat routing.L
 	ordered, applyReason = guardChain(guard, "browse", ordered, applyReason, logger)
 	if len(ordered) == 0 {
 		return ExecuteOutput{}, guardEmptyError("browse")
+	}
+	affordable := ordered
+	ordered, applyReason = routing.ApplyCeiling(ordered, ceiling, applyReason, now)
+	if len(ordered) == 0 {
+		return ExecuteOutput{}, routing.CeilingEmptyError("browse", ceiling, affordable, now)
 	}
 	used, res, err := browse.CallInOrder(ctx, ordered, browse.Query{URL: it.URL, ReturnFormat: format}, logger, hook)
 	if err != nil {
