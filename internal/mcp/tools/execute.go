@@ -11,6 +11,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/frugalsh/frugal/internal/browse"
+	"github.com/frugalsh/frugal/internal/cache"
 	"github.com/frugalsh/frugal/internal/extract"
 	"github.com/frugalsh/frugal/internal/obs"
 	"github.com/frugalsh/frugal/internal/routing"
@@ -42,6 +43,10 @@ type ExecuteOutput struct {
 	LatencyMS    int64         `json:"latency_ms"`
 	Reason       string        `json:"reason"`
 	Warnings     []string      `json:"warnings,omitempty"`
+	// Cached / CacheAgeMS report when the response came from the local
+	// result cache instead of a provider call. cost_usd is 0 on a hit.
+	Cached     bool  `json:"cached,omitempty" jsonschema:"true when served from the local result cache without a provider call"`
+	CacheAgeMS int64 `json:"cache_age_ms,omitempty" jsonschema:"age of the cached result in milliseconds (cache hits only)"`
 }
 
 // RegisterExecute wires frugal__execute onto the given MCP server. The
@@ -148,7 +153,59 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 
 		logger := slog.Default()
 		start := time.Now()
-		out, err := dispatchIntent(ctx, it, polOf, latOf, provider, searchers, extractors, browsers, metrics, o.guard, logger)
+
+		// Result cache. Keys match the ones frugal__search and
+		// frugal__extract use, so the direct tools and execute share
+		// entries: "search python docs" through execute is a hit after
+		// frugal__search("python docs") and vice versa. An explicit
+		// cheap / premium priority bypasses the cache entirely (read
+		// and write): the caller asked for a specific routing outcome,
+		// and a memoized answer from a different chain would misreport
+		// it. Browse is never cached.
+		co := o
+		if priority == "cheap" || priority == "premium" {
+			co.resultCache = nil
+		}
+		switch it.Capability {
+		case "search":
+			key := cache.SearchKey(provider, it.Query, 0, it.Freshness)
+			if v, age, ok := co.resultCache.Get(key); ok {
+				if hit, isSearch := v.(cachedSearch); isSearch {
+					return nil, ExecuteOutput{
+						Capability:   "search",
+						Results:      hit.Items,
+						CostUSD:      0,
+						ProviderUsed: hit.Provider,
+						LatencyMS:    time.Since(start).Milliseconds(),
+						Reason:       fmt.Sprintf("%s; served from result cache; provider=%s paid earlier", it.Note, hit.Provider),
+						Warnings:     hit.Warnings,
+						Cached:       true,
+						CacheAgeMS:   age.Milliseconds(),
+					}, nil
+				}
+			}
+		case "extract":
+			key := cache.ExtractKey(provider, it.URL, nil)
+			if v, age, ok := co.resultCache.Get(key); ok {
+				if hit, isExtract := v.(cachedExtract); isExtract {
+					return nil, ExecuteOutput{
+						Capability:   "extract",
+						Markdown:     hit.Res.Markdown,
+						HTML:         hit.Res.HTML,
+						Text:         hit.Res.Text,
+						Title:        hit.Res.Title,
+						CostUSD:      0,
+						ProviderUsed: hit.Provider,
+						LatencyMS:    time.Since(start).Milliseconds(),
+						Reason:       fmt.Sprintf("%s; served from result cache; provider=%s paid earlier", it.Note, hit.Provider),
+						Cached:       true,
+						CacheAgeMS:   age.Milliseconds(),
+					}, nil
+				}
+			}
+		}
+
+		out, err := dispatchIntent(ctx, it, polOf, latOf, provider, searchers, extractors, browsers, metrics, o.guard, logger, co)
 		if err != nil {
 			return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: %w", err)
 		}
@@ -183,7 +240,11 @@ func reasonLine(it Intent, pol routing.Policy, applyReason string, provider stri
 // JS-rendered-page case frugal__browse's own docs describe — with
 // costs summed across both chains. The fall-forward browse runs under
 // the browse capability's own policy.
-func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.Policy, latOf func(string) routing.LatencyLookup, provider string, searchers []search.Searcher, extractors []extract.Extractor, browsers []browse.Browser, metrics *obs.Metrics, guard *routing.Guard, logger *slog.Logger) (ExecuteOutput, error) {
+// co carries the (possibly cache-disabled) tool options so successful
+// search / extract results are stored under the same keys the direct
+// tools use. Only the clean single-capability success paths store; the
+// browse fall-forward never does.
+func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.Policy, latOf func(string) routing.LatencyLookup, provider string, searchers []search.Searcher, extractors []extract.Extractor, browsers []browse.Browser, metrics *obs.Metrics, guard *routing.Guard, logger *slog.Logger, co toolOptions) (ExecuteOutput, error) {
 	var attempts atomic.Int64
 	hook := hookFor(metrics, guard, it.Capability, &attempts)
 	now := time.Now()
@@ -217,6 +278,12 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 		if err != nil {
 			return ExecuteOutput{}, err
 		}
+		co.resultCache.Put(cache.SearchKey(provider, it.Query, 0, it.Freshness), cachedSearch{
+			Items:    res.Items,
+			Warnings: res.Warnings,
+			Provider: used.Name(),
+			CostUSD:  res.CostUSD,
+		}, res.CostUSD, co.searchTTL)
 		return ExecuteOutput{
 			Capability:   "search",
 			Results:      res.Items,
@@ -277,6 +344,10 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 		if err != nil {
 			return ExecuteOutput{}, err
 		}
+		co.resultCache.Put(cache.ExtractKey(provider, it.URL, nil), cachedExtract{
+			Res:      res,
+			Provider: used.Name(),
+		}, res.CostUSD, co.extractTTL)
 		return ExecuteOutput{
 			Capability:   "extract",
 			Markdown:     res.Markdown,
