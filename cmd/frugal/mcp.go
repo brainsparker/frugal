@@ -152,10 +152,19 @@ func runMCPServe(args []string) int {
 	// rail, so there's no behavior difference for a budget-free config.
 	guard := buildGuard(cfg)
 
+	// Result-size default: the operator's character budget for page
+	// content (extract / browse / execute). Zero keeps results whole,
+	// exactly as before; a per-call max_chars always overrides it.
+	maxChars := 0
+	if cfg.Limits != nil && cfg.Limits.MaxChars > 0 {
+		maxChars = cfg.Limits.MaxChars
+		slog.Info("mcp serve: default result cap", "max_chars", maxChars)
+	}
+
 	searchers := buildSearchers(cfg)
 	warnPolicyStrangers("search", policies["search"], searcherNames(searchers))
 	tools.RegisterSearch(srv.Inner, searchers, metrics,
-		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard))
+		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard), tools.WithMaxChars(maxChars))
 	if len(searchers) == 0 {
 		slog.Warn("mcp serve: no search providers configured — frugal__search will not be advertised. " +
 			"Set SEARXNG_URL (free, self-hosted), SERPER_API_KEY, or YDC_API_KEY to enable.")
@@ -166,7 +175,7 @@ func runMCPServe(args []string) int {
 	extractors := buildExtractors(cfg)
 	warnPolicyStrangers("extract", policies["extract"], extractorNames(extractors))
 	tools.RegisterExtract(srv.Inner, extractors, metrics,
-		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")), tools.WithGuard(guard))
+		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")), tools.WithGuard(guard), tools.WithMaxChars(maxChars))
 	if len(extractors) > 0 {
 		slog.Info("mcp serve: frugal__extract registered", "providers", extractorNames(extractors))
 	}
@@ -174,13 +183,13 @@ func runMCPServe(args []string) int {
 	browsers := buildBrowsers(cfg)
 	warnPolicyStrangers("browse", policies["browse"], browserNames(browsers))
 	tools.RegisterBrowse(srv.Inner, browsers, metrics,
-		tools.WithPolicy(policies["browse"]), tools.WithLatencyLookup(latFor("browse")), tools.WithGuard(guard))
+		tools.WithPolicy(policies["browse"]), tools.WithLatencyLookup(latFor("browse")), tools.WithGuard(guard), tools.WithMaxChars(maxChars))
 	if len(browsers) > 0 {
 		slog.Info("mcp serve: frugal__browse registered", "providers", browserNames(browsers))
 	}
 
 	tools.RegisterExecute(srv.Inner, searchers, extractors, browsers, metrics,
-		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor), tools.WithGuard(guard))
+		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor), tools.WithGuard(guard), tools.WithMaxChars(maxChars))
 	if len(searchers) > 0 {
 		slog.Info("mcp serve: frugal__execute registered",
 			"search", len(searchers), "extract", len(extractors), "browse", len(browsers))

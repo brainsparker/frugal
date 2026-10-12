@@ -30,6 +30,23 @@ type Config struct {
 	// Routing is the optional per-capability routing policy. Absent means
 	// every capability routes cheapest-first — the historical default.
 	Routing *RoutingConfig `yaml:"routing,omitempty"`
+	// Limits is the optional result-size section. Absent means results
+	// are returned whole, exactly as before.
+	Limits *LimitsConfig `yaml:"limits,omitempty"`
+}
+
+// LimitsConfig caps what a routed read returns to the agent.
+//
+//   - max_chars: default character budget for the content of
+//     frugal__extract, frugal__browse, and frugal__execute results
+//     (markdown + text + html, shared, in that priority). When a result
+//     exceeds it the tail is cut on a word boundary, a visible marker is
+//     appended, and the response reports truncated: true with
+//     chars_returned / chars_total so the agent can re-call with a
+//     larger per-call max_chars. Zero or absent means no default cap.
+//     A per-call max_chars argument always overrides this value.
+type LimitsConfig struct {
+	MaxChars int `yaml:"max_chars,omitempty"`
 }
 
 // RoutingConfig declares routing policy per capability. Each entry is
@@ -267,7 +284,22 @@ func validate(cfg *Config) error {
 	if err := validateProviders("browse_providers", cfg.BrowseProviders); err != nil {
 		return err
 	}
-	return validateRouting(cfg)
+	if err := validateRouting(cfg); err != nil {
+		return err
+	}
+	return validateLimits(cfg)
+}
+
+// validateLimits rejects a negative max_chars: zero is the documented
+// "no cap" spelling, and a negative number is a typo, not an intent.
+func validateLimits(cfg *Config) error {
+	if cfg.Limits == nil {
+		return nil
+	}
+	if cfg.Limits.MaxChars < 0 {
+		return fmt.Errorf("limits.max_chars must be zero (no cap) or positive, got %d", cfg.Limits.MaxChars)
+	}
+	return nil
 }
 
 // validRouteStrategies is the config-file spelling of the routing

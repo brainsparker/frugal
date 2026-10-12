@@ -19,6 +19,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/frugalsh/frugal/internal/limit"
 	"github.com/frugalsh/frugal/internal/obs"
 	"github.com/frugalsh/frugal/internal/routing"
 	"github.com/frugalsh/frugal/internal/search"
@@ -52,6 +53,11 @@ type SearchOutput struct {
 	// so the agent can react (re-query pinned to serper/youcom) instead of
 	// mistaking best-effort results for exact ones.
 	Warnings []string `json:"warnings,omitempty" jsonschema:"degraded-service notes, e.g. a provider that ignored the freshness window"`
+	// EstTokens is the approximate context cost of the result list
+	// (titles, URLs, snippets), so the agent can see what a wide
+	// max_results actually buys. Search results are never truncated;
+	// max_results is the size knob for this tool.
+	EstTokens int `json:"est_tokens"`
 }
 
 // RegisterSearch wires frugal__search onto the given MCP server. searchers
@@ -162,6 +168,7 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 			ProviderUsed: used.Name(),
 			LatencyMS:    latency,
 			Warnings:     res.Warnings,
+			EstTokens:    limit.EstTokens(itemChars(res.Items)),
 		}
 		return nil, out, nil
 	}
@@ -187,6 +194,16 @@ func joinNames(searchers []search.Searcher) string {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+// itemChars counts the characters a result list puts into the agent's
+// context: title, URL, and snippet per hit.
+func itemChars(items []search.Item) int {
+	total := 0
+	for _, it := range items {
+		total += limit.Count(it.Title, it.URL, it.Snippet)
+	}
+	return total
+}
 
 func normalizeFreshness(in string) (string, error) {
 	v := strings.ToLower(strings.TrimSpace(in))

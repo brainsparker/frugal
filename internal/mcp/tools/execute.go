@@ -12,6 +12,7 @@ import (
 
 	"github.com/frugalsh/frugal/internal/browse"
 	"github.com/frugalsh/frugal/internal/extract"
+	"github.com/frugalsh/frugal/internal/limit"
 	"github.com/frugalsh/frugal/internal/obs"
 	"github.com/frugalsh/frugal/internal/routing"
 	"github.com/frugalsh/frugal/internal/search"
@@ -24,6 +25,10 @@ type ExecuteInput struct {
 	Intent   string `json:"intent" jsonschema:"what you want done, in plain language; include the URL if you have one"`
 	Priority string `json:"priority,omitempty" jsonschema:"routing preference: cheap | balanced | premium (default balanced — the server's configured policy)"`
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider pin within the chosen capability"`
+	// MaxChars caps page content when the intent resolves to an extract
+	// or a render. Search results are never truncated. Zero falls back
+	// to the server's configured default.
+	MaxChars int `json:"max_chars,omitempty" jsonschema:"optional cap on returned page content characters for extract and browse intents (markdown, text, and html combined); the response reports truncated, chars_returned, and chars_total; 0 = server default"`
 }
 
 // ExecuteOutput carries whichever capability's payload the intent
@@ -42,6 +47,12 @@ type ExecuteOutput struct {
 	LatencyMS    int64         `json:"latency_ms"`
 	Reason       string        `json:"reason"`
 	Warnings     []string      `json:"warnings,omitempty"`
+	// Size footer, see ExtractOutput. For search intents CharsTotal and
+	// CharsReturned measure the result list and Truncated is never set.
+	CharsReturned int  `json:"chars_returned"`
+	CharsTotal    int  `json:"chars_total"`
+	Truncated     bool `json:"truncated,omitempty"`
+	EstTokens     int  `json:"est_tokens"`
 }
 
 // RegisterExecute wires frugal__execute onto the given MCP server. The
@@ -114,6 +125,9 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 		default:
 			return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: priority must be one of: cheap, balanced, premium")
 		}
+		if in.MaxChars < 0 {
+			return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: max_chars must be zero (server default) or positive")
+		}
 
 		it := ClassifyIntent(in.Intent)
 		// Priority overrides the strategy only; the operator's order and
@@ -153,8 +167,27 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 			return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: %w", err)
 		}
 		out.LatencyMS = time.Since(start).Milliseconds()
+		applySizeFooter(&out, o.effectiveMaxChars(in.MaxChars))
 		return nil, out, nil
 	}
+}
+
+// applySizeFooter caps page content and fills the size footer on an
+// execute result. Search results are measured but never cut: the
+// caller's size knob there is max_results, and dropping hits silently
+// would misreport what the provider returned. The fall-forward render
+// path lands here too, so a JS-rendered page gets the same budget as a
+// plain extract.
+func applySizeFooter(out *ExecuteOutput, maxChars int) {
+	if out.Capability == "search" {
+		n := itemChars(out.Results)
+		out.CharsReturned, out.CharsTotal = n, n
+		out.EstTokens = limit.EstTokens(n)
+		return
+	}
+	rep := limit.Cap(maxChars, &out.Markdown, &out.Text, &out.HTML)
+	out.CharsReturned, out.CharsTotal, out.Truncated = rep.CharsReturned, rep.CharsTotal, rep.Truncated
+	out.EstTokens = limit.EstTokens(rep.CharsReturned)
 }
 
 // hookFor adapts the metrics sink into an AttemptHook while counting
