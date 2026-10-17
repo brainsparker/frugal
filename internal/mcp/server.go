@@ -28,6 +28,29 @@ import (
 	"github.com/frugalsh/frugal/internal/obs"
 )
 
+// Protocol-version plumbing for the Streamable HTTP transport.
+//
+// The 2026-07-28 MCP revision (SEP-2567, SEP-2575) removed protocol-level
+// sessions and the initialize handshake: every request carries its own
+// version and capabilities, and the SDK only serves such clients from a
+// stateless handler. Older clients (2025-11-25 and earlier) still expect a
+// session and the optional GET event stream. Frugal keeps both populations
+// working by routing on the version header each request already carries.
+const (
+	// protocolVersionHeader is the header every Streamable HTTP request
+	// carries after negotiation (required on every request from 2026-07-28).
+	protocolVersionHeader = "Mcp-Protocol-Version"
+	// statelessProtocolVersion is the first revision without sessions.
+	// Versions are ISO dates, so plain string comparison orders them.
+	statelessProtocolVersion = "2026-07-28"
+	// catalogTTL is the ttlMs hint attached to tools/list, prompts/list,
+	// resources/list and server/discover results (SEP-2549). Frugal's tool
+	// catalog is fixed for the life of the process (the provider set and
+	// policies load at startup), so clients can hold it for an hour without
+	// re-fetching; a restart with a new config invalidates it naturally.
+	catalogTTL = time.Hour
+)
+
 // Server wraps an *mcp.Server with the bits the CLI driver needs (logger,
 // graceful HTTP shutdown). The embedded *mcp.Server is exported so future
 // PRs can register tools via mcp.AddTool[In, Out](s.Inner, …).
@@ -59,6 +82,14 @@ func New(name, version string, logger *slog.Logger) *Server {
 			"Describe a job to frugal__execute, or call the capability tools directly. " +
 			"See https://frugal.sh for the policy model.",
 		Logger: logger,
+		// Cache hints on the catalog: the tool list is identical for every
+		// caller, so it is public and good for catalogTTL. Handlers that set
+		// their own values win; the SDK fills cacheScope "public" by default.
+		SetCacheable: func(_ context.Context, _ mcp.Request, c *mcp.Cacheable) {
+			if c.TTLMs == 0 {
+				c.TTLMs = int(catalogTTL / time.Millisecond)
+			}
+		},
 	})
 	return &Server{Inner: srv, Logger: logger}
 }
@@ -117,6 +148,18 @@ type HTTPOptions struct {
 	// from oversized-header requests. Zero/negative falls back to a safe
 	// default (1 MiB).
 	MaxHeaderBytes int
+	// Stateless serves every client without sessions: no Mcp-Session-Id, no
+	// GET event stream, each POST is self-contained. This is what a
+	// horizontally scaled deployment behind a plain load balancer needs,
+	// since any replica can answer any request.
+	//
+	// When false (the default) frugal routes per request: clients speaking
+	// MCP 2026-07-28 or newer are served statelessly (the only mode the spec
+	// defines for them), while older clients keep their session and event
+	// stream exactly as before. Pre-2026 clients lose nothing either way
+	// except the optional GET stream in Stateless mode, which the spec
+	// allows a server to decline with 405.
+	Stateless bool
 }
 
 // ServeHTTP runs the MCP server over Streamable HTTP on addr. Returns when
@@ -149,7 +192,9 @@ func (s *Server) ServeHTTP(ctx context.Context, addr string, opts HTTPOptions) e
 			"addr", addr,
 			"auth", opts.AuthToken != "",
 			"rate_limit_rpm", opts.RateLimitPerMinute,
-			"metrics_endpoint", opts.Metrics != nil)
+			"metrics_endpoint", opts.Metrics != nil,
+			"stateless", opts.Stateless,
+			"protocol_versions", strings.Join(mcp.SupportedProtocolVersions(), ","))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 			return
@@ -175,9 +220,18 @@ func (s *Server) ServeHTTP(ctx context.Context, addr string, opts HTTPOptions) e
 // optional /metrics) wrapped in timeout, size, rate-limit, auth, and
 // security-header layers. Split out so tests exercise the real wiring.
 func (s *Server) httpHandler(opts HTTPOptions) http.Handler {
-	mcpHandler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
-		return s.Inner
-	}, nil)
+	getServer := func(*http.Request) *mcp.Server { return s.Inner }
+	stateless := mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{
+		Stateless: true,
+		Logger:    s.Logger,
+	})
+	var mcpHandler http.Handler = stateless
+	if !opts.Stateless {
+		stateful := mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{
+			Logger: s.Logger,
+		})
+		mcpHandler = protocolRouter(stateless, stateful)
+	}
 
 	mux := http.NewServeMux()
 	if opts.Metrics != nil {
@@ -214,6 +268,40 @@ func (s *Server) httpHandler(opts HTTPOptions) http.Handler {
 		handler = withBearerAuth(handler, opts.AuthToken, skipPaths...)
 	}
 	return withSecurityHeaders(handler)
+}
+
+// protocolRouter dispatches each request to the handler that can actually
+// serve its protocol revision. From 2026-07-28 the SDK rejects a stateless
+// client that lands on a session-keeping handler (UnsupportedProtocolVersion
+// listing only legacy versions), so the version header decides:
+//
+//   - header >= 2026-07-28: stateless. Every such request is required to
+//     carry the header, so routing on it is complete for new clients.
+//   - anything else (older version, or no header on a legacy initialize):
+//     stateful, preserving sessions, the GET event stream, and resumption
+//     for the clients that still rely on them.
+//
+// A request with no header but a 2026-07-28 _meta block in the body reaches
+// the stateful handler, which answers with the spec's UnsupportedProtocolVersion
+// error and its supported legacy versions; a conforming client then retries
+// with a version both sides speak. That is the spec-defined fallback, not a
+// frugal-specific failure.
+func protocolRouter(stateless, stateful http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requestIsStateless(r) {
+			stateless.ServeHTTP(w, r)
+			return
+		}
+		stateful.ServeHTTP(w, r)
+	})
+}
+
+// requestIsStateless reports whether the request declares a protocol
+// revision without sessions. Protocol versions are ISO dates, so the string
+// comparison is a date comparison.
+func requestIsStateless(r *http.Request) bool {
+	v := strings.TrimSpace(r.Header.Get(protocolVersionHeader))
+	return v != "" && v >= statelessProtocolVersion
 }
 
 // isLocalhostBind reports whether addr resolves to a loopback bind. Used

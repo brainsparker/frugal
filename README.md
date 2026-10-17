@@ -46,6 +46,34 @@ chat. In Docker, the `command` path must resolve *inside* the container —
 mount the `frugal` binary in, or run `frugal mcp serve --http` on the host
 and register it as a `streamable` server instead.
 
+### Streamable HTTP and MCP 2026-07-28
+
+`frugal mcp serve --http ADDR` serves Streamable HTTP for remote clients and
+Docker setups. It speaks the current MCP revision, 2026-07-28, which removed
+protocol-level sessions and the `initialize` handshake, as well as the
+session-based revisions before it. Both kinds of client connect to the same
+endpoint:
+
+- A client speaking 2026-07-28 or newer is served statelessly: no
+  `Mcp-Session-Id`, every POST self-contained, `server/discover` answered
+  with the supported versions and capabilities.
+- An older client (2025-11-25 and earlier) keeps its session and optional
+  GET event stream, so nothing changes for the hosts you already run.
+
+Pass `--stateless` to drop sessions for every client, which is what you want
+when several `frugal` replicas sit behind a plain load balancer: any replica
+can answer any request. Older clients still work in that mode; they only lose
+the optional GET stream (declined with 405, as the spec allows).
+
+Catalog results (`tools/list`, `server/discover`) carry a one-hour `ttlMs`
+hint with `cacheScope: public`, so spec-current clients stop re-fetching the
+tool list on every turn. The catalog is fixed for the life of the process, so
+a restart with a new config is the only thing that changes it.
+
+```bash
+FRUGAL_AUTH_TOKEN=... frugal mcp serve --http 0.0.0.0:8765 --stateless
+```
+
 ## Try it now (no keys)
 
 Search and extract work out of the box: **Marginalia** (free index of the
@@ -264,7 +292,10 @@ One MCP server, four tools, eight providers:
 - **Routing policies** — **shipping**. Per-capability `strategy`
   (cheap / fast / premium), explicit `order`, `deny` lists.
 - **`frugal stats`** — the local savings receipt (see above).
-- Stdio + Streamable HTTP transports.
+- Stdio + Streamable HTTP transports. HTTP serves MCP 2026-07-28
+  (stateless) and the session-based revisions before it on one endpoint;
+  `--stateless` for load-balanced replicas; `ttlMs` cache hints on the
+  tool catalog.
 - HTTP transport supports bearer-token auth (`FRUGAL_AUTH_TOKEN`),
   per-IP rate limiting, and a `/metrics` endpoint (Prometheus text:
   `frugal_calls_total{tool=,provider=}` etc.).
