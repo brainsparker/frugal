@@ -78,14 +78,18 @@ func runMCPServe(args []string) int {
 	rateLimit := fs.Int("rate-limit-rpm", 600, "per-IP request budget per minute when serving --http (0 disables)")
 	reqTimeout := fs.Duration("request-timeout", 30*time.Second, "per-request timeout when serving --http (0 disables)")
 	maxRequestBytes := fs.Int64("max-request-bytes", 1<<20, "reject HTTP requests above this Content-Length when serving --http (0 disables)")
+	stateless := fs.Bool("stateless", false, "serve --http without sessions for every client (no Mcp-Session-Id, no GET event stream); required behind a load balancer. Off by default: MCP 2026-07-28 clients are always served statelessly, older clients keep their session")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: frugal mcp serve [--http ADDR]")
+		fmt.Fprintln(os.Stderr, "Usage: frugal mcp serve [--http ADDR] [--stateless]")
 		fmt.Fprintln(os.Stderr, "Run Frugal as an MCP server. Default transport is stdio")
 		fmt.Fprintln(os.Stderr, "(what Claude Desktop, Claude Code, and Cursor consume).")
 		fmt.Fprintln(os.Stderr, "Pass --http ADDR for Streamable HTTP (remote / HTTP clients).")
 		fmt.Fprintln(os.Stderr, "Set FRUGAL_AUTH_TOKEN to enable bearer-token auth — required for any")
 		fmt.Fprintln(os.Stderr, "non-local bind. Or pass --allow-anon to serve unauthenticated, which")
 		fmt.Fprintln(os.Stderr, "additionally requires a loopback address (e.g. --http 127.0.0.1:8765).")
+		fmt.Fprintln(os.Stderr, "HTTP speaks MCP 2026-07-28 (stateless) and the session-based revisions")
+		fmt.Fprintln(os.Stderr, "before it; --stateless drops sessions for every client so replicas can")
+		fmt.Fprintln(os.Stderr, "sit behind a plain load balancer.")
 		fmt.Fprintln(os.Stderr)
 		fs.PrintDefaults()
 	}
@@ -215,6 +219,7 @@ func runMCPServe(args []string) int {
 			Metrics:            metrics,
 			RequestTimeout:     *reqTimeout,
 			MaxRequestBytes:    *maxRequestBytes,
+			Stateless:          *stateless,
 		}
 		if err := srv.ServeHTTP(ctx, *httpAddr, opts); err != nil {
 			fmt.Fprintf(os.Stderr, "frugal mcp serve: %v\n", err)
