@@ -6,6 +6,48 @@
     <description>Provider routing, AI tool-call costs, model selection, and agent infrastructure. By Brian Sparker.</description>
     <atom:link href="https://frugal.sh/blog/feed.xml" rel="self" type="application/rss+xml"></atom:link>
     <item>
+      <title>The agent cost audit: 8 numbers to pull this quarter</title>
+      <link>https://frugal.sh/blog/agent-cost-audit/</link>
+      <guid>https://frugal.sh/blog/agent-cost-audit/</guid>
+      <pubDate>Tue, 29 Sep 2026 14:35:00 +0000</pubDate>
+      <description>Not a dashboard project. Eight numbers you can compute from a call log in an afternoon, and the specific fix each bad number points at.</description>
+    </item>
+    <item>
+      <title>What makes a good MCP tool description: 7 patterns</title>
+      <link>https://frugal.sh/blog/mcp-tool-descriptions/</link>
+      <guid>https://frugal.sh/blog/mcp-tool-descriptions/</guid>
+      <pubDate>Fri, 25 Sep 2026 16:30:00 +0000</pubDate>
+      <description>The tool description is the only documentation the model will ever read, and most are written like marketing copy. Seven patterns from operating three tools in production.</description>
+    </item>
+    <item>
+      <title>Agent discovery: server cards, skills, and the .well-known web</title>
+      <link>https://frugal.sh/blog/agent-discovery-well-known/</link>
+      <guid>https://frugal.sh/blog/agent-discovery-well-known/</guid>
+      <pubDate>Thu, 24 Sep 2026 13:50:00 +0000</pubDate>
+      <description>Agents can&#39;t use tools they can&#39;t find, and today they find tools through humans pasting configs. The machine-readable alternative is taking shape.</description>
+    </item>
+    <item>
+      <title>Single-provider agents are a liability</title>
+      <link>https://frugal.sh/blog/single-provider-liability/</link>
+      <guid>https://frugal.sh/blog/single-provider-liability/</guid>
+      <pubDate>Tue, 22 Sep 2026 15:05:00 +0000</pubDate>
+      <description>Outages are the risk everyone plans for and the least likely one to hurt you. Quality drift, repricing, and quota cuts arrive without status pages.</description>
+    </item>
+    <item>
+      <title>Rate limits, retries, and the thundering herd</title>
+      <link>https://frugal.sh/blog/rate-limits-thundering-herd/</link>
+      <guid>https://frugal.sh/blog/rate-limits-thundering-herd/</guid>
+      <pubDate>Thu, 17 Sep 2026 14:25:00 +0000</pubDate>
+      <description>When one rung fails, every agent in your fleet fails over to the same next rung in the same second. The stampede is self-inflicted. Here&#39;s how to break it up.</description>
+    </item>
+    <item>
+      <title>How small teams ship AI products without a platform team</title>
+      <link>https://frugal.sh/blog/small-teams-ai-products/</link>
+      <guid>https://frugal.sh/blog/small-teams-ai-products/</guid>
+      <pubDate>Tue, 15 Sep 2026 16:15:00 +0000</pubDate>
+      <description>You don&#39;t need an ML platform group to ship an AI feature. You need readable pieces, defaults that can&#39;t surprise you on cost, and four honest weeks.</description>
+    </item>
+    <item>
       <title>A receipt for every agent run</title>
       <link>https://frugal.sh/blog/receipt-for-every-agent-run/</link>
       <guid>https://frugal.sh/blog/receipt-for-every-agent-run/</guid>
@@ -102,48 +144,6 @@
       <guid>https://frugal.sh/blog/ai-product-unit-economics/</guid>
       <pubDate>Tue, 04 Aug 2026 15:35:00 +0000</pubDate>
       <description>One click becomes forty API calls before anyone looks up. The budgeting discipline that survives that fan-out, worked through with real search rates.</description>
-    </item>
-    <item>
-      <title>Local models are underrated infrastructure</title>
-      <link>https://frugal.sh/blog/local-models-underrated/</link>
-      <guid>https://frugal.sh/blog/local-models-underrated/</guid>
-      <pubDate>Fri, 31 Jul 2026 14:55:00 +0000</pubDate>
-      <description>Everyone prices the model ladder from cheap-API up. There&#39;s a rung below that: weights on hardware you already own, at a marginal cost of zero.</description>
-    </item>
-    <item>
-      <title>Timeouts are a product decision</title>
-      <link>https://frugal.sh/blog/timeouts-product-decision/</link>
-      <guid>https://frugal.sh/blog/timeouts-product-decision/</guid>
-      <pubDate>Thu, 30 Jul 2026 16:05:00 +0000</pubDate>
-      <description>Somewhere in your config is a number deciding how long users stare at a spinner for an answer that may never come. Nobody senior chose it.</description>
-    </item>
-    <item>
-      <title>Routing tool calls vs routing model calls</title>
-      <link>https://frugal.sh/blog/routing-tool-calls-vs-model-calls/</link>
-      <guid>https://frugal.sh/blog/routing-tool-calls-vs-model-calls/</guid>
-      <pubDate>Tue, 28 Jul 2026 13:45:00 +0000</pubDate>
-      <description>The same ladder idea, two different physics. Why a router that treats search results and model completions identically gets both of them wrong.</description>
-    </item>
-    <item>
-      <title>Frugal is the open routing layer for AI tools</title>
-      <link>https://frugal.sh/blog/frugal-open-routing-layer/</link>
-      <guid>https://frugal.sh/blog/frugal-open-routing-layer/</guid>
-      <pubDate>Thu, 23 Jul 2026 16:00:00 +0000</pubDate>
-      <description>Cost was the wedge. Routing is the product. What&#39;s shipping, what changed, and what Frugal Cloud will add.</description>
-    </item>
-    <item>
-      <title>Benchmarks lie: evaluate models on your own traffic</title>
-      <link>https://frugal.sh/blog/evaluate-models-own-traffic/</link>
-      <guid>https://frugal.sh/blog/evaluate-models-own-traffic/</guid>
-      <pubDate>Thu, 23 Jul 2026 15:20:00 +0000</pubDate>
-      <description>A model&#39;s leaderboard position tells you how it does on the leaderboard&#39;s distribution, not yours. Fifty queries from your own logs beat it every time.</description>
-    </item>
-    <item>
-      <title>Hardening an MCP server&#39;s HTTP transport</title>
-      <link>https://frugal.sh/blog/hardening-mcp-http-transport/</link>
-      <guid>https://frugal.sh/blog/hardening-mcp-http-transport/</guid>
-      <pubDate>Tue, 21 Jul 2026 14:30:00 +0000</pubDate>
-      <description>The moment an MCP server leaves stdio for HTTP, it becomes a network service with everything that implies. The hardening playbook I actually run.</description>
     </item>
   </channel>
 </rss>

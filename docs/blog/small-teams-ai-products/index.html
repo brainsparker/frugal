@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How small teams ship AI products without a platform team — frugal blog</title>
+  <meta name="description" content="Small team AI development without a platform team: boring pieces you can read, free-first defaults, one eval set, one ledger, one router." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta name="color-scheme" content="light" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://frugal.sh/blog/small-teams-ai-products/" />
+  <meta property="og:title" content="How small teams ship AI products without a platform team — frugal blog" />
+  <meta property="og:description" content="Small team AI development without a platform team: boring pieces you can read, free-first defaults, one eval set, one ledger, one router." />
+  <meta property="og:site_name" content="frugal.sh" />
+  <meta property="article:published_time" content="2026-09-15T16:15:00Z" />
+  <meta property="article:author" content="https://frugal.sh/author/brian-sparker/" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="How small teams ship AI products without a platform team — frugal blog" />
+  <meta name="twitter:description" content="Small team AI development without a platform team: boring pieces you can read, free-first defaults, one eval set, one ledger, one router." />
+
+  <link rel="canonical" href="https://frugal.sh/blog/small-teams-ai-products/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="application/rss+xml" title="frugal blog" href="/blog/feed.xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/blog.css" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Brian Sparker","url":"https://frugal.sh/author/brian-sparker/"},"dateModified":"2026-09-15T16:15:00Z","datePublished":"2026-09-15T16:15:00Z","description":"Small team AI development without a platform team: boring pieces you can read, free-first defaults, one eval set, one ledger, one router.","headline":"How small teams ship AI products without a platform team","keywords":"small team AI development","mainEntityOfPage":"https://frugal.sh/blog/small-teams-ai-products/","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://frugal.sh/favicon.svg"},"name":"frugal.sh","url":"https://frugal.sh/"},"url":"https://frugal.sh/blog/small-teams-ai-products/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://frugal.sh/","name":"frugal","position":1},{"@type":"ListItem","item":"https://frugal.sh/blog/","name":"Blog","position":2},{"@type":"ListItem","name":"How small teams ship AI products without a platform team","position":3}]}</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/" aria-label="frugal home">
+        <span class="brand-mark" aria-hidden="true">🎺</span>
+        <span class="brand-name">frugal</span>
+      </a>
+      <nav class="top-nav" aria-label="Primary">
+        <a href="/blog/">Blog</a>
+        <a href="/#routing">Routing</a>
+        <a href="/#install">Install</a>
+        <a class="nav-cta" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <article class="post">
+      <div class="shell post-shell">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="/">frugal</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">How small teams ship AI products without a platform team</span>
+        </nav>
+
+        <header class="post-header">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/building-with-ai/">Building with AI</a>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h1>How small teams ship AI products without a platform team</h1>
+          <p class="post-byline">
+            By <a rel="author" href="/author/brian-sparker/">Brian Sparker</a>
+            · <time datetime="2026-09-15">Sep 15, 2026</time>
+            · 6 min read
+          </p>
+        </header>
+
+        <div class="post-body">
+<p>You do not need a platform team to ship an AI product. You need four things: pieces boring enough to read, a clear line between what you buy and what you build, defaults that make cost surprises structurally impossible, and about a month of disciplined sequencing. Most advice about small team AI development quietly assumes you'll grow into a big team's architecture. I think the opposite: the constraints of a small team — no one to babysit infrastructure, no budget slack to absorb a surprise bill — are exactly the constraints that produce good agent systems.</p>
+<p>I build Frugal alone. One Go binary, no control plane, a JSONL file for a ledger. That's not a hardship story; it's the design. Here's the version of it that generalizes.</p>
+<h2>Choose boring pieces you can read</h2>
+<p>The platform-team instinct is to adopt the sophisticated thing — the orchestration framework, the vector database with a mascot, the observability suite with its own query language. Each one is a bet that someone will be around to understand it in eight months. On a five-person team, that someone is you, at 11pm, during an incident.</p>
+<p>So invert the criterion. Choose components by whether you can read them end to end: a single binary over a cluster, a flat file over a hosted store, a switch statement over a plugin system, JSONL over a telemetry pipeline. Readable pieces have a property that demo-driven evaluation never surfaces — when they break, the failure is legible. You can open the file. You can grep the log. You can trace the request without a vendor's support tier. I've argued before that <a href="/blog/boring-parts-are-the-product/">the boring parts are the product</a>; for a small team they're also the headcount you don't have to hire.</p>
+<p>The test I use: if this component misbehaved right now, could someone on the team locate the misbehavior in under an hour with the tools already on their laptop? If the honest answer is no, that component is a future platform team, prepaid.</p>
+<h2>Buy plumbing, build judgment</h2>
+<p>The build-vs-buy line for a small team is not &quot;build what's core, buy what's not.&quot; It's sharper than that: buy plumbing, build judgment.</p>
+<p>Plumbing is everything with a known right answer — HTTP clients, model APIs, transcription, extraction, sandboxed execution. Vendors are good at plumbing, the market prices it by the call, and your version would be worse. Buy it, ideally through interfaces thin enough to swap.</p>
+<p>Judgment is everything that encodes what <em>your</em> product means by good: the eval set that defines acceptable output, the routing policy that decides which provider or model serves which call, the failure rules that decide when to escalate, retry, or degrade. Judgment is the product. Outsource it and you've outsourced the reason customers pick you; keep it and every plumbing vendor becomes replaceable. I've written a fuller treatment of <a href="/blog/build-vs-buy-agent-infrastructure/">build vs. buy for agent infrastructure</a> — the small-team corollary is that judgment components are small. An eval set is a file of examples. A routing policy is a page of rules. You can afford to own them precisely because they're tiny; they're just not tiny in consequence.</p>
+<h2>Free-first defaults, so cost can't surprise you</h2>
+<p>A big company absorbs a surprise $4,000 API bill as a line-item annoyance. A small team absorbs it as a bad week and a lost option. The fix isn't vigilance — vigilance doesn't scale to thousands of autonomous calls a day. The fix is structural: make the default rung of every dependency free, and make paid rungs opt-in escalations with explicit triggers.</p>
+<p>Free-first means the identical search tries Wikipedia or Marginalia before anything metered; extraction tries a local readability parser before a paid crawler; embeddings try a local model before an API. When the free rung misses, the call falls through and pays — deliberately, once, with the trigger logged. The worst case of a free-first mistake is a fall-through and a few milliseconds. The worst case of a paid-first mistake is an invoice. I've made the full argument for free-first defaults elsewhere; the small-team framing is simpler: a default you never have to monitor is the only kind of cost control a team without a platform group can actually operate.</p>
+<h2>One eval set, one ledger, one router</h2>
+<p>If I had to compress the whole infrastructure question for a small team into a sentence: you need exactly three artifacts, and one of each.</p>
+<p><strong>One eval set</strong> — a few dozen real cases with known-good answers, run before any provider, model, or prompt change. Not a benchmark program. A file. This is the gate that lets a two-person team change things confidently on a Tuesday. <a href="/blog/evals-before-scale/">Evals come before scale</a>, and on a small team they come before almost everything.</p>
+<p><strong>One ledger</strong> — an append-only local record of every provider call: tool, provider, cost, latency, run ID. This is your observability suite, your billing reconciliation, and your capacity plan, in a file <code>jq</code> can read. I've made the case that <a href="/blog/receipt-for-every-agent-run/">every agent run deserves a receipt</a>; the ledger is where receipts live.</p>
+<p><strong>One router</strong> — the single code path through which every external call flows, walking cheapest-first with written fall-through rules. One router means one place to add a provider, one place to enforce policy, one place that stamps the ledger.</p>
+<p>The &quot;one&quot; matters more than the artifact. Two eval sets drift apart. Ledgers per service stop reconciling. Routing logic per call site becomes no routing at all. Small teams win by having a single source of truth for each question — what is good, what did we spend, who answers this call.</p>
+<h2>A realistic first month</h2>
+<p>Sequencing is where small teams actually fail — not by picking wrong pieces but by picking them in the wrong order, usually routing before measurement or shipping before evals. Here's the order that works, one focus per week.</p>
+<table>
+<thead>
+<tr>
+<th>Week</th>
+<th>Focus</th>
+<th>Done means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Evals</td>
+<td>30–50 real cases with expected outputs, runnable by one command</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Instrumentation</td>
+<td>Every external call logs provider, cost, latency to one ledger</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Routing</td>
+<td>Free floor found for each dependency; fall-through rules written; router is the only path out</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Ship behind a flag</td>
+<td>Real traffic for some users, receipts reviewed daily, kill switch tested</td>
+</tr>
+</tbody>
+</table>
+<p>Week 1 before week 3 because you cannot reorder rungs safely without a gate that says quality held. Week 2 before week 3 because routing decisions without a ledger are guesses with extra steps. And week 4 behind a flag because the first week of real traffic is itself an eval — the flag is what makes its lessons cheap.</p>
+<p>At the end of the month you have an AI feature in production, a file that defines correct, a file that records spend, and one code path that enforces policy. No platform. Three artifacts and a habit.</p>
+<h2>Where to start</h2>
+<p>Start with week 1, this week, even if the rest is months away — the eval set improves every later decision and costs an afternoon. And when the feature ships and someone eventually asks whether you need to hire a platform team, you'll have the ledger open in a terminal and a fairly short answer. More on shipping with a small crew lives on the <a href="/blog/topics/building-with-ai/">building with AI</a> hub.</p>
+
+        </div>
+
+        <aside class="author-box">
+          <div class="author-box-mark" aria-hidden="true">BS</div>
+          <div>
+            <p class="author-box-name"><a rel="author" href="/author/brian-sparker/">Brian Sparker</a></p>
+            <p class="author-box-bio">Creator of <a href="/">Frugal</a>, the open routing layer for AI tools — an MCP server that routes agent tool calls per policy: cost, latency, pinning, failover. Writes about provider routing, AI tool costs, and agent infrastructure.</p>
+          </div>
+        </aside>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <div class="blog-grid">
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/building-with-ai/">Building with AI</a>
+            <time datetime="2026-08-14">Aug 14, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/boring-parts-are-the-product/">The boring parts of the AI product are the product</a></h3>
+          <p class="blog-card-excerpt">Your model call is forty lines anyone can write. The moat is the unglamorous machinery around it — and the judgment encoded inside that machinery.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/building-with-ai/">Building with AI</a>
+            <time datetime="2026-08-06">Aug 6, 2026</time>
+            <span class="blog-card-kind">Essay</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/build-vs-buy-agent-infrastructure/">Build vs buy for agent infrastructure</a></h3>
+          <p class="blog-card-excerpt">Your evals are your product. Your retry loop is not. Splitting the agent stack along that line answers the platform question before a vendor call.</p>
+        </article>
+
+
+        <article class="blog-card">
+          <div class="blog-card-meta">
+            <a class="blog-chip" href="/blog/topics/building-with-ai/">Building with AI</a>
+            <time datetime="2026-06-04">Jun 4, 2026</time>
+            <span class="blog-card-kind">Guide</span>
+          </div>
+          <h3 class="blog-card-title"><a href="/blog/evals-before-scale/">Evals before scale: the cheapest insurance in AI engineering</a></h3>
+          <p class="blog-card-excerpt">Thirty real queries with expected answers will save you more money than any discount negotiation. You can&#39;t swap models, cut costs, or route traffic without a way to score the output.</p>
+        </article>
+
+          </div>
+        </section>
+
+        <div class="cta-banner-card post-cta">
+          <div>
+            <h2>The open routing layer for AI tools.</h2>
+            <p>Frugal is one Go binary: every tool call routed per policy — cheapest by default — with the decision and <code>cost_usd</code> on every result. BYOK, no account.</p>
+          </div>
+          <div class="cta-banner-actions">
+            <a class="btn btn-primary" href="/#install">Install →</a>
+            <a class="btn btn-ghost" href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <footer class="bottom">
+    <div class="bottom-inner">
+      <div>
+        <span class="brand-mark small" aria-hidden="true">🎺</span>
+        <span>frugal.sh</span>
+        <span class="bottom-sep" aria-hidden="true">·</span>
+        <span>Created by <a href="/author/brian-sparker/">Brian Sparker</a></span>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/brainsparker/frugal" rel="noopener">GitHub</a>
+        <a href="https://github.com/brainsparker/frugal#readme" rel="noopener">Docs</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/SECURITY.md" rel="noopener">Security</a>
+        <a href="https://github.com/brainsparker/frugal/blob/main/LICENSE-BUSL-FAQ.md" rel="noopener">License</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
