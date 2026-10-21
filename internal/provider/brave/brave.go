@@ -106,7 +106,7 @@ func (c *Client) Search(ctx context.Context, q search.Query) (search.Results, er
 	endpoint := c.baseURL + "/res/v1/web/search?" + params.Encode()
 
 	var out search.Results
-	err := routing.DoWithRetry(ctx, 1+len(routing.DefaultBackoff), routing.DefaultBackoff, func() error {
+	err := routing.DoWithRetry(ctx, routing.RetryAttemptsFor(c.CostPerCall()), routing.DefaultBackoff, func() error {
 		var attemptErr error
 		out, attemptErr = c.doOnce(ctx, endpoint)
 		return attemptErr
@@ -151,10 +151,11 @@ func (c *Client) doOnce(ctx context.Context, endpoint string) (search.Results, e
 	if resp.StatusCode != http.StatusOK {
 		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return search.Results{}, &routing.Error{
-			Provider: c.Name(),
-			Kind:     routing.ClassifyHTTPStatus(resp.StatusCode),
-			Status:   resp.StatusCode,
-			Err:      fmt.Errorf("%s", bytes.TrimSpace(snippet)),
+			Provider:   c.Name(),
+			Kind:       routing.ClassifyHTTPStatus(resp.StatusCode),
+			RetryAfter: routing.ParseRetryAfter(resp.Header),
+			Status:     resp.StatusCode,
+			Err:        fmt.Errorf("%s", bytes.TrimSpace(snippet)),
 		}
 	}
 

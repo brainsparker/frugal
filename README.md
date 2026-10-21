@@ -216,6 +216,31 @@ limits:
 `frugal mcp serve --call-timeout 30s` overrides the config. Over `--http`,
 the shorter of this and `--request-timeout` (30s by default) wins.
 
+### Retries on transient errors: `retries` (free providers only)
+
+**Free providers** (`cost_per_call: 0` in your config) retry a transient
+error (429, 408, 5xx, timeout, connection reset) **2 times by default**
+before failing over, with short jittered backoff (about 200ms, then
+800ms). **Paid providers** (`cost_per_call > 0`: by default Serper,
+You.com, Brave, Firecrawl, Browserless) are **never retried**: a request
+that timed out or 5xx'd may still have been billed, so Frugal fails over
+to the next provider immediately instead of risking a double charge.
+Paid-ness comes from the configured price, so setting a provider's
+`cost_per_call` to 0 makes it retryable and vice versa.
+
+Permanent errors (401, 402, 403, other 4xx) and errors no provider can
+fix are never retried. A `Retry-After` header is honored: the retry
+waits at least that long if it is 5s or less; a longer hint skips the
+retry and fails over instead. A retry never sleeps past the remaining
+`call_timeout`. A 429 also opens the provider's rate-limit cooldown for
+the configured window, extended to the `Retry-After` hint (capped at 10
+minutes); that applies to paid and free providers alike.
+
+```yaml
+limits:
+  retries: 1   # free providers only; 0 disables (fail over immediately); max 5
+```
+
 ## Result size caps and the token receipt
 
 Dollars are one cost of a tool call. The other is the tokens its result

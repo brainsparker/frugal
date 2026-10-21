@@ -790,3 +790,13 @@ func TestParse_LimitsCallTimeout(t *testing.T) {
 		t.Fatal("negative call_timeout accepted")
 	}
 }
+
+func TestParse_LimitsRetries(t *testing.T) {
+	cfg, err := Parse([]byte("limits:\n  retries: 0\n"))
+	if err != nil || cfg.Limits.Retries == nil || *cfg.Limits.Retries != 0 {
+		t.Fatalf("retries: 0 not parsed: %v %+v", err, cfg)
+	}
+	if _, err := Parse([]byte("limits:\n  retries: -1\n")); err == nil {
+		t.Fatal("negative retries accepted")
+	}
+}

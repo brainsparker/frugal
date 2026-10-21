@@ -96,7 +96,8 @@ func TestSearch_401IsPermanent(t *testing.T) {
 	}
 }
 
-func TestSearch_429ClassifiedTransient(t *testing.T) {
+// Configured as free (cost_per_call 0), the driver retries transient errors.
+func TestSearch_429ClassifiedTransient_FreeConfig(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls.Add(1)
@@ -104,7 +105,7 @@ func TestSearch_429ClassifiedTransient(t *testing.T) {
 		_, _ = w.Write([]byte(`{"error":"rate limited"}`))
 	}))
 	defer srv.Close()
-	c := New("k", srv.URL, 0.005)
+	c := New("k", srv.URL, 0) // free per config: retried
 	c.httpClient.Timeout = 2 * time.Second
 	_, err := c.Search(context.Background(), search.Query{Text: "x"})
 	if err == nil {
@@ -130,7 +131,8 @@ func TestSearch_NetworkErrorIsTransient(t *testing.T) {
 	}
 }
 
-func TestSearch_RetrySucceedsAfterTransient(t *testing.T) {
+// Configured as free (cost_per_call 0), the driver retries transient errors.
+func TestSearch_RetrySucceedsAfterTransient_FreeConfig(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		n := calls.Add(1)
@@ -142,7 +144,7 @@ func TestSearch_RetrySucceedsAfterTransient(t *testing.T) {
 		_, _ = w.Write([]byte(`{"hits":[{"title":"OK","url":"https://x","description":"hit"}]}`))
 	}))
 	defer srv.Close()
-	c := New("k", srv.URL, 0.005)
+	c := New("k", srv.URL, 0) // free per config: retried
 	res, err := c.Search(context.Background(), search.Query{Text: "x"})
 	if err != nil {
 		t.Fatalf("expected retry to recover; got %v", err)
@@ -184,5 +186,26 @@ func TestNew_DefaultsBaseURL(t *testing.T) {
 	c := New("k", "", 0.005)
 	if c.baseURL != DefaultBaseURL {
 		t.Errorf("baseURL default: got %q want %q", c.baseURL, DefaultBaseURL)
+	}
+}
+
+// Paid providers (cost_per_call > 0) must not retry: a request that
+// failed may still be billed. One call, transient error, router fails over.
+func TestPaidProviderNotRetried(t *testing.T) {
+	for _, status := range []int{http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusTooManyRequests} {
+		var calls atomic.Int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			calls.Add(1)
+			w.WriteHeader(status)
+		}))
+		c := New("k", srv.URL, 0.005)
+		_, err := c.Search(context.Background(), search.Query{Text: "x"})
+		srv.Close()
+		if err == nil || !routing.IsTransient(err) {
+			t.Fatalf("status %d: err = %v, want transient", status, err)
+		}
+		if calls.Load() != 1 {
+			t.Fatalf("status %d: paid provider called %d times, want 1", status, calls.Load())
+		}
 	}
 }

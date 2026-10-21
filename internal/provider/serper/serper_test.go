@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/frugalsh/frugal/internal/routing"
 	"github.com/frugalsh/frugal/internal/search"
@@ -96,7 +97,8 @@ func TestSearch_HTTPErrorSurfacedWithSnippet(t *testing.T) {
 	}
 }
 
-func TestSearch_5xxClassifiedTransientAndRetried(t *testing.T) {
+// Configured as free (cost_per_call 0), the driver retries transient errors.
+func TestSearch_5xxClassifiedTransientAndRetried_FreeConfig(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		n := calls.Add(1)
@@ -108,7 +110,7 @@ func TestSearch_5xxClassifiedTransientAndRetried(t *testing.T) {
 		_, _ = w.Write([]byte(`{"organic":[{"title":"recovered","link":"https://x","snippet":"hit"}]}`))
 	}))
 	defer srv.Close()
-	c := New("k", srv.URL, 0.0003)
+	c := New("k", srv.URL, 0) // free per config: retried
 	res, err := c.Search(context.Background(), search.Query{Text: "x"})
 	if err != nil {
 		t.Fatalf("expected retry to recover; got %v", err)
@@ -150,5 +152,47 @@ func TestSearch_OversizedResponseIsRejected(t *testing.T) {
 	}
 	if !routing.IsTransient(err) {
 		t.Fatalf("expected transient classification, got: %v", err)
+	}
+}
+
+// Paid providers (cost_per_call > 0) must not retry: a request that
+// failed may still be billed. One call, transient error, router fails over.
+func TestPaidProviderNotRetried(t *testing.T) {
+	for _, status := range []int{http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusTooManyRequests} {
+		var calls atomic.Int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			calls.Add(1)
+			w.WriteHeader(status)
+		}))
+		c := New("k", srv.URL, 0.001)
+		_, err := c.Search(context.Background(), search.Query{Text: "x"})
+		srv.Close()
+		if err == nil || !routing.IsTransient(err) {
+			t.Fatalf("status %d: err = %v, want transient", status, err)
+		}
+		if calls.Load() != 1 {
+			t.Fatalf("status %d: paid provider called %d times, want 1", status, calls.Load())
+		}
+	}
+}
+
+func TestPaidProviderTimeoutNotRetried(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		select {
+		case <-r.Context().Done():
+		case <-time.After(2 * time.Second):
+		}
+	}))
+	defer srv.Close()
+	c := New("k", srv.URL, 0.001)
+	c.httpClient.Timeout = 100 * time.Millisecond
+	_, err := c.Search(context.Background(), search.Query{Text: "x"})
+	if err == nil || !routing.IsTransient(err) {
+		t.Fatalf("err = %v, want transient timeout", err)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("paid provider called %d times on timeout, want 1", calls.Load())
 	}
 }
