@@ -216,6 +216,23 @@ limits:
 `frugal mcp serve --call-timeout 30s` overrides the config. Over `--http`,
 the shorter of this and `--request-timeout` (30s by default) wins.
 
+### Retries on transient errors: `retries`
+
+Before failing over, each provider call is retried on a transient error
+(429, 408, 5xx, timeout, connection reset) **2 times by default**, with
+short jittered backoff (about 200ms, then 800ms). Permanent errors (401,
+402, 403, other 4xx) and errors no provider can fix are never retried.
+A `Retry-After` header is honored: the retry waits at least that long
+if it is 5s or less; a longer hint skips the retry and fails over
+instead. A retry never sleeps past the remaining `call_timeout`. A 429
+also opens the provider's rate-limit cooldown for the configured window,
+extended to the `Retry-After` hint (capped at 10 minutes).
+
+```yaml
+limits:
+  retries: 1   # 0 disables in-provider retries (fail over immediately); max 5
+```
+
 ## Result size caps and the token receipt
 
 Dollars are one cost of a tool call. The other is the tokens its result

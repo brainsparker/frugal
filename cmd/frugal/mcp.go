@@ -78,7 +78,7 @@ func runMCPServe(args []string) int {
 	rateLimit := fs.Int("rate-limit-rpm", 600, "per-IP request budget per minute when serving --http (0 disables)")
 	reqTimeout := fs.Duration("request-timeout", 30*time.Second, "per-request timeout when serving --http (0 disables)")
 	maxRequestBytes := fs.Int64("max-request-bytes", 1<<20, "reject HTTP requests above this Content-Length when serving --http (0 disables)")
-	callTimeout := fs.Duration("call-timeout", -1, "overall deadline per tool call across all failover attempts (default limits.call_timeout, else 60s; 0 disables)")
+	callTimeout := fs.Duration("call-timeout", routing.DefaultCallTimeout, "overall deadline per tool call across all failover attempts; overrides limits.call_timeout (0 disables)")
 	stateless := fs.Bool("stateless", false, "serve --http without sessions for every client (no Mcp-Session-Id, no GET event stream); required behind a load balancer. Off by default: MCP 2026-07-28 clients are always served statelessly, older clients keep their session")
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: frugal mcp serve [--http ADDR] [--stateless]")
@@ -162,9 +162,18 @@ func runMCPServe(args []string) int {
 	if cfg.Limits != nil && cfg.Limits.CallTimeout != nil {
 		callDeadline = *cfg.Limits.CallTimeout
 	}
-	if *callTimeout >= 0 {
+	if flagSet(fs, "call-timeout") {
 		callDeadline = *callTimeout
 	}
+	if callDeadline < 0 {
+		callDeadline = 0
+	}
+	// In-driver retries for transient errors: limits.retries, default
+	// routing.DefaultRetries.
+	if cfg.Limits != nil && cfg.Limits.Retries != nil {
+		routing.SetRetries(*cfg.Limits.Retries)
+	}
+	slog.Info("mcp serve: transient retries per provider", "retries", routing.Retries())
 	slog.Info("mcp serve: call deadline", "call_timeout", callDeadline.String())
 
 	// Result cache: one instance shared by every read tool so
@@ -956,4 +965,15 @@ func buildBrowsers(cfg *config.Config) []browse.Browser {
 		}
 	}
 	return out
+}
+
+// flagSet reports whether name was passed explicitly on the command line.
+func flagSet(fs *flag.FlagSet, name string) bool {
+	set := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			set = true
+		}
+	})
+	return set
 }

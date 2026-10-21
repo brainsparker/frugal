@@ -58,6 +58,10 @@ type LimitsConfig struct {
 	// means the built-in default (60s); "0s" disables the deadline.
 	// The mcp serve --call-timeout flag overrides it.
 	CallTimeout *time.Duration `yaml:"call_timeout,omitempty"`
+	// Retries is how many times each provider call is retried on a
+	// transient error (429, 408, 5xx, timeout, connection reset) before
+	// failing over. Absent means the built-in default (2); 0 disables.
+	Retries *int `yaml:"retries,omitempty"`
 }
 
 // CacheConfig declares the exact-match result cache for the read
@@ -376,6 +380,9 @@ func validateLimits(cfg *Config) error {
 	}
 	if cfg.Limits.CallTimeout != nil && *cfg.Limits.CallTimeout < 0 {
 		return fmt.Errorf("limits.call_timeout must be zero (disabled) or positive, got %s", *cfg.Limits.CallTimeout)
+	}
+	if cfg.Limits.Retries != nil && (*cfg.Limits.Retries < 0 || *cfg.Limits.Retries > 5) {
+		return fmt.Errorf("limits.retries must be between 0 and 5, got %d", *cfg.Limits.Retries)
 	}
 	if cfg.Limits.MaxChars < 0 {
 		return fmt.Errorf("limits.max_chars must be zero (no cap) or positive, got %d", cfg.Limits.MaxChars)

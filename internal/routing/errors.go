@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // Kind classifies a provider error for routing decisions. Transient
@@ -68,6 +69,10 @@ type Error struct {
 	Kind     Kind
 	Status   int   // HTTP status code, or 0 if not an HTTP error
 	Err      error // underlying cause
+	// RetryAfter is the provider's Retry-After hint (0 if absent). The
+	// in-driver retry waits at least this long (capped by MaxRetryAfter and
+	// the remaining call deadline); the rate-limit cooldown honors it too.
+	RetryAfter time.Duration
 }
 
 // Error implements error. Format is intentionally compact:

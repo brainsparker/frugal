@@ -72,7 +72,7 @@ func (c *Client) Extract(ctx context.Context, q extract.Query) (extract.Result, 
 	}
 
 	var out extract.Result
-	err = routing.DoWithRetry(ctx, 1+len(routing.DefaultBackoff), routing.DefaultBackoff, func() error {
+	err = routing.DoWithRetry(ctx, routing.RetryAttempts(), routing.DefaultBackoff, func() error {
 		var attemptErr error
 		out, attemptErr = c.doOnce(ctx, body)
 		return attemptErr
@@ -103,10 +103,11 @@ func (c *Client) doOnce(ctx context.Context, body []byte) (extract.Result, error
 	if resp.StatusCode != http.StatusOK {
 		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return extract.Result{}, &routing.Error{
-			Provider: c.Name(),
-			Kind:     routing.ClassifyHTTPStatus(resp.StatusCode),
-			Status:   resp.StatusCode,
-			Err:      fmt.Errorf("%s", bytes.TrimSpace(snippet)),
+			Provider:   c.Name(),
+			Kind:       routing.ClassifyHTTPStatus(resp.StatusCode),
+			RetryAfter: routing.ParseRetryAfter(resp.Header),
+			Status:     resp.StatusCode,
+			Err:        fmt.Errorf("%s", bytes.TrimSpace(snippet)),
 		}
 	}
 
