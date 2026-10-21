@@ -49,3 +49,22 @@ jobs:
 
       - name: Govulncheck
         run: govulncheck ./...
+
+  fuzz:
+    # Short smoke fuzz on every PR; seed corpora also run in the test job.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Fuzz (20s per target)
+        run: |
+          go test ./internal/browse  -run='^$' -fuzz='^FuzzStripHTML$'       -fuzztime=20s
+          go test ./internal/limit   -run='^$' -fuzz='^FuzzCap$'             -fuzztime=20s
+          go test ./internal/routing -run='^$' -fuzz='^FuzzDomainPolicy$'    -fuzztime=20s
+          go test ./internal/routing -run='^$' -fuzz='^FuzzParseRetryAfter$' -fuzztime=20s
+
