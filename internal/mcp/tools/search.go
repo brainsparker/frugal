@@ -138,6 +138,8 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 	hook = composeHook(o.guard, "search", hook)
 
 	return func(ctx context.Context, _ *sdkmcp.CallToolRequest, in SearchInput) (*sdkmcp.CallToolResult, SearchOutput, error) {
+		ctx, cancelCall := routing.WithCallDeadline(ctx, o.callTimeout)
+		defer cancelCall()
 		if in.Query == "" {
 			return nil, SearchOutput{}, fmt.Errorf("frugal__search: query is required")
 		}

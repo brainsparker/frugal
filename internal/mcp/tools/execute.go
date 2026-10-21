@@ -122,6 +122,8 @@ func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extrac
 	}
 
 	return func(ctx context.Context, _ *sdkmcp.CallToolRequest, in ExecuteInput) (*sdkmcp.CallToolResult, ExecuteOutput, error) {
+		ctx, cancelCall := routing.WithCallDeadline(ctx, o.callTimeout)
+		defer cancelCall()
 		if strings.TrimSpace(in.Intent) == "" {
 			return nil, ExecuteOutput{}, fmt.Errorf("frugal__execute: intent is required")
 		}
