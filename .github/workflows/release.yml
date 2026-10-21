@@ -94,7 +94,33 @@ jobs:
 
       - name: Publish npm wrapper
         working-directory: npm
-        run: npm publish --access public --provenance
+        run: |
+          set -euo pipefail
+          V="$(node -p "require('./package.json').version")"
+          if [ "$(npm view "frugal-mcp@${V}" version 2>/dev/null || true)" = "$V" ]; then
+            echo "frugal-mcp@${V} is already on npm; skipping publish."
+            exit 0
+          fi
+          npm publish --access public --provenance
+
+      - name: Wait for npm version to be visible
+        run: |
+          set -euo pipefail
+          V="$(node -p "require('./npm/package.json').version")"
+          delay=10; waited=0; limit=600
+          while :; do
+            if [ "$(npm view "frugal-mcp@${V}" version --prefer-online 2>/dev/null || true)" = "$V" ]; then
+              echo "frugal-mcp@${V} visible on npm after ${waited}s."
+              exit 0
+            fi
+            if [ "$waited" -ge "$limit" ]; then
+              echo "::error::frugal-mcp@${V} not visible on npm after ${limit}s; the MCP Registry validates against npm, so not publishing there. Re-dispatch this workflow (tag=v${V}) once it appears."
+              exit 1
+            fi
+            echo "frugal-mcp@${V} not visible yet (waited ${waited}s); retrying in ${delay}s."
+            sleep "$delay"; waited=$((waited + delay))
+            delay=$(( delay * 2 > 120 ? 120 : delay * 2 ))
+          done
 
       ### Publish server metadata to the official MCP Registry. The
       ### Registry verifies the npm package's `mcpName` matches the
