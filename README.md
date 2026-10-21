@@ -196,6 +196,26 @@ When a guardrail skips a provider it is noted in the routing trace
 in a chain is over budget or cooling down, the call fails with a clear
 message rather than silently doing nothing.
 
+## Per-call deadline: `call_timeout`
+
+Each provider client has its own request timeout (15–90s), but a chain
+that walks several slow providers could still block an agent for
+minutes. Every routed tool call (`frugal__search`, `frugal__extract`,
+`frugal__browse`, `frugal__execute` including its extract-to-browse
+fall-forward) therefore runs under one overall deadline, **60s by
+default**. Each attempt gets only the budget that remains; once it runs
+out, failover stops (no further provider is called or paid) and the call
+fails with `frugal: call deadline exceeded; <capability> failover stopped
+after N attempt(s): ...`, naming every attempt's error.
+
+```yaml
+limits:
+  call_timeout: 45s   # "0s" disables the overall deadline
+```
+
+`frugal mcp serve --call-timeout 30s` overrides the config. Over `--http`,
+the shorter of this and `--request-timeout` (30s by default) wins.
+
 ## Result size caps and the token receipt
 
 Dollars are one cost of a tool call. The other is the tokens its result

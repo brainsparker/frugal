@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -52,6 +53,11 @@ type Config struct {
 //     A per-call max_chars argument always overrides this value.
 type LimitsConfig struct {
 	MaxChars int `yaml:"max_chars,omitempty"`
+	// CallTimeout is the overall wall-clock budget for one routed tool
+	// call across every failover attempt (e.g. "45s", "2m"). Absent
+	// means the built-in default (60s); "0s" disables the deadline.
+	// The mcp serve --call-timeout flag overrides it.
+	CallTimeout *time.Duration `yaml:"call_timeout,omitempty"`
 }
 
 // CacheConfig declares the exact-match result cache for the read
@@ -367,6 +373,9 @@ func validate(cfg *Config) error {
 func validateLimits(cfg *Config) error {
 	if cfg.Limits == nil {
 		return nil
+	}
+	if cfg.Limits.CallTimeout != nil && *cfg.Limits.CallTimeout < 0 {
+		return fmt.Errorf("limits.call_timeout must be zero (disabled) or positive, got %s", *cfg.Limits.CallTimeout)
 	}
 	if cfg.Limits.MaxChars < 0 {
 		return fmt.Errorf("limits.max_chars must be zero (no cap) or positive, got %d", cfg.Limits.MaxChars)

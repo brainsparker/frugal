@@ -58,6 +58,16 @@ func CallInOrder(ctx context.Context, ordered []Extractor, q Query, logger *slog
 	}
 	var errs []error
 	for i, e := range ordered {
+		// Overall call deadline (or client cancel): don't start another
+		// attempt with a dead context — stop the chain cleanly. The first
+		// attempt always runs so a provider can report the ctx error itself.
+		if i > 0 && ctx.Err() != nil {
+			logger.Warn("extract stopped before attempt; context done",
+				"next_provider", e.Name(),
+				"attempt", i+1,
+				"call_deadline", routing.CallDeadlineHit(ctx))
+			return e, Result{}, routing.ContextStopError(ctx, "extract", errs)
+		}
 		start := time.Now()
 		res, err := e.Extract(ctx, q)
 		latency := time.Since(start)
@@ -87,7 +97,7 @@ func CallInOrder(ctx context.Context, ordered []Extractor, q Query, logger *slog
 				"provider", e.Name(),
 				"latency_ms", latency.Milliseconds(),
 				"err", err)
-			return e, Result{}, routing.JoinAttempts(errs)
+			return e, Result{}, routing.ContextStopError(ctx, "extract", errs)
 		}
 		logger.Warn("extract error; falling back",
 			"provider", e.Name(),
@@ -124,6 +134,9 @@ func CallPinned(ctx context.Context, extractors []Extractor, name string, q Quer
 			"latency_ms", latency.Milliseconds(),
 			"permanent", routing.IsPermanent(err),
 			"err", err)
+	}
+	if err != nil && routing.CallDeadlineHit(ctx) {
+		err = routing.ContextStopError(ctx, "extract", []error{err})
 	}
 	return e, res, err
 }
