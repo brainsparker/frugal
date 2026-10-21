@@ -64,6 +64,12 @@ func ParseRetryAfter(h http.Header) time.Duration {
 		if secs <= 0 {
 			return 0
 		}
+		// Clamp before converting: a huge delta-seconds value would
+		// overflow time.Duration and come out negative (found by fuzzing).
+		const maxSecs = 24 * 60 * 60
+		if secs > maxSecs {
+			secs = maxSecs
+		}
 		return time.Duration(secs) * time.Second
 	}
 	if t, err := http.ParseTime(v); err == nil {

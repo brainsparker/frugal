@@ -133,3 +133,13 @@ func TestGuard_CooldownHonorsRetryAfter(t *testing.T) {
 		t.Fatal("Retry-After cooldown should be capped")
 	}
 }
+
+// Regression (fuzz): a huge delta-seconds Retry-After overflowed
+// time.Duration and came out negative.
+func TestParseRetryAfter_HugeValueClamped(t *testing.T) {
+	h := http.Header{}
+	h.Set("Retry-After", "9227000000")
+	if d := ParseRetryAfter(h); d <= 0 || d > 24*time.Hour {
+		t.Fatalf("ParseRetryAfter(9227000000) = %s, want clamped positive", d)
+	}
+}
