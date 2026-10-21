@@ -67,7 +67,7 @@ func (c *Client) Render(ctx context.Context, q browse.Query) (browse.Result, err
 	}
 
 	var out browse.Result
-	err = routing.DoWithRetry(ctx, routing.RetryAttempts(), routing.DefaultBackoff, func() error {
+	err = routing.DoWithRetry(ctx, routing.RetryAttemptsFor(c.CostPerCall()), routing.DefaultBackoff, func() error {
 		var attemptErr error
 		out, attemptErr = c.doOnce(ctx, body, q.ReturnFormat)
 		return attemptErr

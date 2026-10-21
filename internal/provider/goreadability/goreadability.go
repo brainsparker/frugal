@@ -70,7 +70,7 @@ func (c *Client) Extract(ctx context.Context, q extract.Query) (extract.Result, 
 	}
 
 	var out extract.Result
-	err = routing.DoWithRetry(ctx, routing.RetryAttempts(), routing.DefaultBackoff, func() error {
+	err = routing.DoWithRetry(ctx, routing.RetryAttemptsFor(c.CostPerCall()), routing.DefaultBackoff, func() error {
 		var attemptErr error
 		out, attemptErr = c.doOnce(ctx, parsed)
 		return attemptErr

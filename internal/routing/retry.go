@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// DefaultRetries is how many times a driver retries a transient failure
+// DefaultRetries is how many times a free-provider driver retries a transient failure
 // (429, 408, 5xx, timeouts, connection resets) before the router fails
 // over to the next provider. Matches the historical schedule
 // (len(DefaultBackoff)).
@@ -37,9 +37,21 @@ func SetRetries(n int) {
 // Retries reports the configured in-driver retry count.
 func Retries() int { return int(driverRetries.Load()) }
 
-// RetryAttempts is the total attempts per provider call: 1 + Retries().
-// Drivers pass it to DoWithRetry.
+// RetryAttempts is the total attempts per call to a free provider:
+// 1 + Retries().
 func RetryAttempts() int { return 1 + Retries() }
+
+// RetryAttemptsFor is what drivers pass to DoWithRetry. Paid providers
+// (configured cost_per_call > 0) get exactly one attempt: a request that
+// timed out client-side may still have been billed, so retrying risks a
+// double charge — the router fails over to the next provider instead.
+// Free providers get 1 + Retries() (limits.retries).
+func RetryAttemptsFor(costPerCall float64) int {
+	if costPerCall > 0 {
+		return 1
+	}
+	return RetryAttempts()
+}
 
 // ParseRetryAfter reads a Retry-After header (delta-seconds or HTTP-date).
 // Returns 0 when absent, unparseable, or in the past.

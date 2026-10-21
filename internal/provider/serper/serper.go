@@ -91,7 +91,7 @@ func (c *Client) Search(ctx context.Context, q search.Query) (search.Results, er
 	}
 
 	var out search.Results
-	err = routing.DoWithRetry(ctx, routing.RetryAttempts(), routing.DefaultBackoff, func() error {
+	err = routing.DoWithRetry(ctx, routing.RetryAttemptsFor(c.CostPerCall()), routing.DefaultBackoff, func() error {
 		var attemptErr error
 		out, attemptErr = c.doOnce(ctx, buf)
 		return attemptErr
