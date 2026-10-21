@@ -28,7 +28,7 @@ type BrowseInput struct {
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: browserless | auto"`
 	// MaxChars caps the rendered content returned (text + html, shared).
 	// Zero falls back to the server's configured default.
-	MaxChars int `json:"max_chars,omitempty" jsonschema:"optional cap on returned content characters (text and html combined); the response reports truncated, chars_returned, and chars_total; 0 = server default"`
+	MaxChars   int      `json:"max_chars,omitempty" jsonschema:"optional cap on returned content characters (text and html combined); the response reports truncated, chars_returned, and chars_total; 0 = server default"`
 	MaxCostUSD *float64 `json:"max_cost_usd,omitempty" jsonschema:"optional per-call spend ceiling in USD: providers priced above it are never called for this request; 0 means free providers only"`
 }
 
@@ -37,11 +37,15 @@ type BrowseInput struct {
 // "text". CostUSD + ProviderUsed + LatencyMS make the routing decision
 // auditable; the size footer makes the context cost auditable.
 type BrowseOutput struct {
-	HTML         string  `json:"html,omitempty"`
-	Text         string  `json:"text,omitempty"`
-	CostUSD      float64 `json:"cost_usd"`
-	ProviderUsed string  `json:"provider_used"`
-	LatencyMS    int64   `json:"latency_ms"`
+	HTML    string  `json:"html,omitempty"`
+	Text    string  `json:"text,omitempty"`
+	CostUSD float64 `json:"cost_usd"`
+	// TotalCostUSD sums every attempt's cost_usd; Attempts lists each
+	// provider call in order (see Attempt).
+	TotalCostUSD float64   `json:"total_cost_usd"`
+	Attempts     []Attempt `json:"attempts,omitempty"`
+	ProviderUsed string    `json:"provider_used"`
+	LatencyMS    int64     `json:"latency_ms"`
 	// See ExtractOutput for the meaning of the size footer.
 	CharsReturned int  `json:"chars_returned"`
 	CharsTotal    int  `json:"chars_total"`
@@ -78,7 +82,7 @@ func RegisterBrowse(server *sdkmcp.Server, browsers []browse.Browser, metrics *o
 			IdempotentHint:  false, // JS execution is not deterministic
 			OpenWorldHint:   boolPtr(true),
 		},
-	}, makeBrowseHandler(browsers, metrics, buildToolOptions(opts)))
+	}, withAttempts(makeBrowseHandler(browsers, metrics, buildToolOptions(opts)), func(o *BrowseOutput, a []Attempt, t float64) { o.Attempts, o.TotalCostUSD = a, t }))
 }
 
 func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics, o toolOptions) func(context.Context, *sdkmcp.CallToolRequest, BrowseInput) (*sdkmcp.CallToolResult, BrowseOutput, error) {
@@ -91,6 +95,7 @@ func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics, o toolOp
 	hook = composeHook(o.guard, "browse", hook)
 
 	return func(ctx context.Context, _ *sdkmcp.CallToolRequest, in BrowseInput) (*sdkmcp.CallToolResult, BrowseOutput, error) {
+		hook := attemptLogFrom(ctx).wrap("", hook)
 		if in.URL == "" {
 			return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: url is required")
 		}

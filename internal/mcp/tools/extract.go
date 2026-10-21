@@ -39,7 +39,7 @@ type ExtractInput struct {
 	// MaxChars caps the content returned (markdown + text + html,
 	// shared). Zero falls back to the server's configured default, which
 	// is unlimited unless the operator set limits.max_chars.
-	MaxChars int `json:"max_chars,omitempty" jsonschema:"optional cap on returned content characters (markdown, text, and html combined); the response reports truncated, chars_returned, and chars_total so you can re-call with a larger value; 0 = server default"`
+	MaxChars   int      `json:"max_chars,omitempty" jsonschema:"optional cap on returned content characters (markdown, text, and html combined); the response reports truncated, chars_returned, and chars_total so you can re-call with a larger value; 0 = server default"`
 	MaxCostUSD *float64 `json:"max_cost_usd,omitempty" jsonschema:"optional per-call spend ceiling in USD: providers priced above it are never called for this request; 0 means free providers only"`
 }
 
@@ -50,15 +50,19 @@ type ExtractInput struct {
 // the size footer (CharsReturned / CharsTotal / Truncated / EstTokens)
 // makes the context cost auditable in the same breath.
 type ExtractOutput struct {
-	Markdown     string   `json:"markdown,omitempty"`
-	HTML         string   `json:"html,omitempty"`
-	Text         string   `json:"text,omitempty"`
-	Title        string   `json:"title,omitempty"`
-	Byline       string   `json:"byline,omitempty"`
-	Links        []string `json:"links,omitempty"`
-	CostUSD      float64  `json:"cost_usd"`
-	ProviderUsed string   `json:"provider_used"`
-	LatencyMS    int64    `json:"latency_ms"`
+	Markdown string   `json:"markdown,omitempty"`
+	HTML     string   `json:"html,omitempty"`
+	Text     string   `json:"text,omitempty"`
+	Title    string   `json:"title,omitempty"`
+	Byline   string   `json:"byline,omitempty"`
+	Links    []string `json:"links,omitempty"`
+	CostUSD  float64  `json:"cost_usd"`
+	// TotalCostUSD sums every attempt's cost_usd; Attempts lists each
+	// provider call in order (see Attempt).
+	TotalCostUSD float64   `json:"total_cost_usd"`
+	Attempts     []Attempt `json:"attempts,omitempty"`
+	ProviderUsed string    `json:"provider_used"`
+	LatencyMS    int64     `json:"latency_ms"`
 	// CharsReturned / CharsTotal / Truncated report what the max_chars
 	// budget did: how much content is in this response, how much the
 	// provider produced, and whether the two differ. EstTokens is the
@@ -105,7 +109,7 @@ func RegisterExtract(server *sdkmcp.Server, extractors []extract.Extractor, metr
 			IdempotentHint:  true, // extracting the same URL twice should yield the same content
 			OpenWorldHint:   boolPtr(true),
 		},
-	}, makeExtractHandler(extractors, metrics, buildToolOptions(opts)))
+	}, withAttempts(makeExtractHandler(extractors, metrics, buildToolOptions(opts)), func(o *ExtractOutput, a []Attempt, t float64) { o.Attempts, o.TotalCostUSD = a, t }))
 }
 
 func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o toolOptions) func(context.Context, *sdkmcp.CallToolRequest, ExtractInput) (*sdkmcp.CallToolResult, ExtractOutput, error) {
@@ -118,6 +122,7 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 	hook = composeHook(o.guard, "extract", hook)
 
 	return func(ctx context.Context, _ *sdkmcp.CallToolRequest, in ExtractInput) (*sdkmcp.CallToolResult, ExtractOutput, error) {
+		hook := attemptLogFrom(ctx).wrap("", hook)
 		if in.URL == "" {
 			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: url is required")
 		}

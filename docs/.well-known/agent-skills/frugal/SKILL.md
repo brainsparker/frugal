@@ -90,6 +90,11 @@ Every routed response includes:
 - `provider_used` — which provider in the chain answered
 - `cost_usd` — the per-call price for that response (0 for free
   providers and cache hits)
+- `total_cost_usd` — the sum over every attempt in this call
+- `attempts[]` — each provider call in order: `provider`, `outcome`
+  (`won` / `empty` / `error`), `error_kind` and `error` on failure,
+  `latency_ms`, `cost_usd` (failed attempts are recorded at $0: Frugal
+  assumes providers don't bill errored requests); empty on a cache hit
 - `latency_ms`
 - `cached` / `cache_age_ms` — when served from the result cache
 - `truncated`, `chars_returned`, `chars_total`, `est_tokens` — when

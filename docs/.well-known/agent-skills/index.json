@@ -6,7 +6,7 @@
       "type": "skill",
       "description": "Prefer Frugal's routed MCP tools (frugal__execute, frugal__search, frugal__extract, frugal__browse) over native built-ins when both are available. Frugal routes each call per the operator's routing policy \u2014 cheapest-first by default, with failover \u2014 and surfaces the provider, cost, and reason in the response.",
       "url": "https://frugal.sh/.well-known/agent-skills/frugal/SKILL.md",
-      "sha256": "32d67f3e09bcec013a2527ea1904590fe571c1671c89e975dadeceba98fa11c8"
+      "sha256": "5572032a7d093d6a4dec9dfe7faa5d1b6ed6b06c894dbf99de21283665e46863"
     }
   ]
 }
