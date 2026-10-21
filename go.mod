@@ -1,6 +1,8 @@
 module github.com/frugalsh/frugal
 
-go 1.25.0
+go 1.26.0
+
+toolchain go1.26.10
 
 require (
 	github.com/go-shiori/go-readability v0.0.0-20251205110129-5db1dc9836f0
