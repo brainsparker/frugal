@@ -47,6 +47,16 @@ func CallInOrder(ctx context.Context, ordered []Browser, q Query, logger *slog.L
 	}
 	var errs []error
 	for i, b := range ordered {
+		// Overall call deadline (or client cancel): don't start another
+		// attempt with a dead context — stop the chain cleanly. The first
+		// attempt always runs so a provider can report the ctx error itself.
+		if i > 0 && ctx.Err() != nil {
+			logger.Warn("browse stopped before attempt; context done",
+				"next_provider", b.Name(),
+				"attempt", i+1,
+				"call_deadline", routing.CallDeadlineHit(ctx))
+			return b, Result{}, routing.ContextStopError(ctx, "browse", errs)
+		}
 		start := time.Now()
 		res, err := b.Render(ctx, q)
 		latency := time.Since(start)
@@ -76,7 +86,7 @@ func CallInOrder(ctx context.Context, ordered []Browser, q Query, logger *slog.L
 				"provider", b.Name(),
 				"latency_ms", latency.Milliseconds(),
 				"err", err)
-			return b, Result{}, routing.JoinAttempts(errs)
+			return b, Result{}, routing.ContextStopError(ctx, "browse", errs)
 		}
 		logger.Warn("browse error; falling back",
 			"provider", b.Name(),
@@ -111,6 +121,9 @@ func CallPinned(ctx context.Context, browsers []Browser, name string, q Query, l
 			"latency_ms", latency.Milliseconds(),
 			"permanent", routing.IsPermanent(err),
 			"err", err)
+	}
+	if err != nil && routing.CallDeadlineHit(ctx) {
+		err = routing.ContextStopError(ctx, "browse", []error{err})
 	}
 	return b, res, err
 }

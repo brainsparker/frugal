@@ -42,6 +42,22 @@ type toolOptions struct {
 	// Consulted before routing on every URL-taking call and applied to
 	// search result lists. Nil allows everything.
 	domains *routing.DomainPolicy
+
+	// callTimeout is the overall wall-clock budget for one tool call,
+	// across every failover attempt. Zero (the zero value) disables it;
+	// mcp serve sets routing.DefaultCallTimeout unless configured.
+	callTimeout time.Duration
+}
+
+// WithCallTimeout bounds each tool call — the whole failover chain — to d.
+// Zero or negative disables the overall deadline.
+func WithCallTimeout(d time.Duration) ToolOption {
+	return func(o *toolOptions) {
+		if d < 0 {
+			d = 0
+		}
+		o.callTimeout = d
+	}
 }
 
 // ToolOption configures a routed tool at registration time.
