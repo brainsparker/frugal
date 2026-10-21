@@ -59,8 +59,10 @@ type LimitsConfig struct {
 	// The mcp serve --call-timeout flag overrides it.
 	CallTimeout *time.Duration `yaml:"call_timeout,omitempty"`
 	// Retries is how many times each free-provider call (cost_per_call 0)
-	// is retried on a transient error; paid providers never retry (429, 408, 5xx, timeout, connection reset) before
-	// failing over. Absent means the built-in default (2); 0 disables.
+	// is retried on a transient error (429, 408, 5xx, timeout, connection
+	// reset) before failing over. Paid providers (cost_per_call > 0) never
+	// retry, to avoid double billing. Absent means the built-in default
+	// (2); 0 disables.
 	Retries *int `yaml:"retries,omitempty"`
 }
 
