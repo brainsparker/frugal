@@ -29,7 +29,7 @@ type ExecuteInput struct {
 	// MaxChars caps page content when the intent resolves to an extract
 	// or a render. Search results are never truncated. Zero falls back
 	// to the server's configured default.
-	MaxChars int `json:"max_chars,omitempty" jsonschema:"optional cap on returned page content characters for extract and browse intents (markdown, text, and html combined); the response reports truncated, chars_returned, and chars_total; 0 = server default"`
+	MaxChars   int      `json:"max_chars,omitempty" jsonschema:"optional cap on returned page content characters for extract and browse intents (markdown, text, and html combined); the response reports truncated, chars_returned, and chars_total; 0 = server default"`
 	MaxCostUSD *float64 `json:"max_cost_usd,omitempty" jsonschema:"optional per-call spend ceiling in USD: providers priced above it are never called for this request, including on the extract-to-browse fall-forward; 0 means free providers only"`
 }
 
@@ -38,17 +38,21 @@ type ExecuteInput struct {
 // latency, and a one-line reason explaining the classification and the
 // policy that ordered the chain.
 type ExecuteOutput struct {
-	Capability   string        `json:"capability"`
-	Results      []search.Item `json:"results,omitempty"`
-	Markdown     string        `json:"markdown,omitempty"`
-	Text         string        `json:"text,omitempty"`
-	Title        string        `json:"title,omitempty"`
-	HTML         string        `json:"html,omitempty"`
-	CostUSD      float64       `json:"cost_usd"`
-	ProviderUsed string        `json:"provider_used"`
-	LatencyMS    int64         `json:"latency_ms"`
-	Reason       string        `json:"reason"`
-	Warnings     []string      `json:"warnings,omitempty"`
+	Capability string        `json:"capability"`
+	Results    []search.Item `json:"results,omitempty"`
+	Markdown   string        `json:"markdown,omitempty"`
+	Text       string        `json:"text,omitempty"`
+	Title      string        `json:"title,omitempty"`
+	HTML       string        `json:"html,omitempty"`
+	CostUSD    float64       `json:"cost_usd"`
+	// TotalCostUSD sums every attempt's cost_usd; Attempts lists each
+	// provider call in order (see Attempt).
+	TotalCostUSD float64   `json:"total_cost_usd"`
+	Attempts     []Attempt `json:"attempts,omitempty"`
+	ProviderUsed string    `json:"provider_used"`
+	LatencyMS    int64     `json:"latency_ms"`
+	Reason       string    `json:"reason"`
+	Warnings     []string  `json:"warnings,omitempty"`
 	// Size footer, see ExtractOutput. For search intents CharsTotal and
 	// CharsReturned measure the result list and Truncated is never set.
 	CharsReturned int  `json:"chars_returned"`
@@ -109,7 +113,7 @@ func RegisterExecute(server *sdkmcp.Server, searchers []search.Searcher, extract
 			IdempotentHint:  false, // search results and rendered pages shift between calls
 			OpenWorldHint:   boolPtr(true),
 		},
-	}, makeExecuteHandler(searchers, extractors, browsers, metrics, buildToolOptions(opts)))
+	}, withAttempts(makeExecuteHandler(searchers, extractors, browsers, metrics, buildToolOptions(opts)), func(o *ExecuteOutput, a []Attempt, t float64) { o.Attempts, o.TotalCostUSD = a, t }))
 }
 
 func makeExecuteHandler(searchers []search.Searcher, extractors []extract.Extractor, browsers []browse.Browser, metrics *obs.Metrics, o toolOptions) func(context.Context, *sdkmcp.CallToolRequest, ExecuteInput) (*sdkmcp.CallToolResult, ExecuteOutput, error) {
@@ -326,7 +330,7 @@ func reasonLine(it Intent, pol routing.Policy, applyReason string, provider stri
 // browse fall-forward never does.
 func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.Policy, latOf func(string) routing.LatencyLookup, provider string, searchers []search.Searcher, extractors []extract.Extractor, browsers []browse.Browser, metrics *obs.Metrics, guard *routing.Guard, logger *slog.Logger, co toolOptions, ceiling routing.Ceiling) (ExecuteOutput, error) {
 	var attempts atomic.Int64
-	hook := hookFor(metrics, guard, it.Capability, &attempts)
+	hook := attemptLogFrom(ctx).wrap(it.Capability, hookFor(metrics, guard, it.Capability, &attempts))
 	now := time.Now()
 	pol := polOf(it.Capability)
 	lat := latOf(it.Capability)
@@ -421,7 +425,7 @@ func dispatchIntent(ctx context.Context, it Intent, polOf func(string) routing.P
 			// The fall-forward runs under the browse capability, so its
 			// hook must book spend / cooldown under "browse", not the
 			// extract key the primary hook uses.
-			browseHook := hookFor(metrics, guard, "browse", &attempts)
+			browseHook := attemptLogFrom(ctx).wrap("browse", hookFor(metrics, guard, "browse", &attempts))
 			out, berr := browseFor(ctx, it, polOf("browse"), latOf("browse"), ceiling, browsers, guard, browseHook, logger, "text", now)
 			if berr == nil {
 				out.CostUSD += extractCost

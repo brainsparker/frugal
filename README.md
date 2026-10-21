@@ -241,6 +241,18 @@ limits:
   retries: 1   # free providers only; 0 disables (fail over immediately); max 5
 ```
 
+## Multi-attempt receipts: `attempts[]` and `total_cost_usd`
+
+`cost_usd` remains the price of the answer you got. Every successful
+routed result also carries `attempts[]` (each provider call in order,
+with `provider`, `outcome` = `won` / `empty` / `error`, `error_kind`,
+`error`, `latency_ms`, `cost_usd`) and `total_cost_usd` (their sum), so
+a call that failed over shows every rung it touched. A failed attempt is
+recorded at `$0`: Frugal assumes a provider does not bill a request that
+errored (no driver reports a charge on failure). A paid provider's
+zero-hit answer is billed and shows its list price. In-driver retries of
+one provider count as one attempt. Cache hits have no attempts.
+
 ## Result size caps and the token receipt
 
 Dollars are one cost of a tool call. The other is the tokens its result

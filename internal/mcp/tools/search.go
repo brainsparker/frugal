@@ -60,10 +60,14 @@ type SearchInput struct {
 // CostUSD + ProviderUsed + LatencyMS are the observability footer that
 // makes the routing decision auditable in agent traces.
 type SearchOutput struct {
-	Results      []search.Item `json:"results"`
-	CostUSD      float64       `json:"cost_usd"`
-	ProviderUsed string        `json:"provider_used"`
-	LatencyMS    int64         `json:"latency_ms"`
+	Results []search.Item `json:"results"`
+	CostUSD float64       `json:"cost_usd"`
+	// TotalCostUSD sums every attempt's cost_usd; Attempts lists each
+	// provider call in order (see Attempt).
+	TotalCostUSD float64   `json:"total_cost_usd"`
+	Attempts     []Attempt `json:"attempts,omitempty"`
+	ProviderUsed string    `json:"provider_used"`
+	LatencyMS    int64     `json:"latency_ms"`
 	// Warnings carries degraded-service notes from the winning provider —
 	// e.g. "freshness window ignored" from drivers without a time filter —
 	// so the agent can react (re-query pinned to serper/youcom) instead of
@@ -119,7 +123,7 @@ func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics 
 			IdempotentHint:  false, // search results can shift between calls
 			OpenWorldHint:   boolPtr(true),
 		},
-	}, makeSearchHandler(searchers, metrics, buildToolOptions(opts)))
+	}, withAttempts(makeSearchHandler(searchers, metrics, buildToolOptions(opts)), func(o *SearchOutput, a []Attempt, t float64) { o.Attempts, o.TotalCostUSD = a, t }))
 }
 
 func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o toolOptions) func(context.Context, *sdkmcp.CallToolRequest, SearchInput) (*sdkmcp.CallToolResult, SearchOutput, error) {
@@ -140,6 +144,7 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 	return func(ctx context.Context, _ *sdkmcp.CallToolRequest, in SearchInput) (*sdkmcp.CallToolResult, SearchOutput, error) {
 		ctx, cancelCall := routing.WithCallDeadline(ctx, o.callTimeout)
 		defer cancelCall()
+		hook := attemptLogFrom(ctx).wrap("", hook)
 		if in.Query == "" {
 			return nil, SearchOutput{}, fmt.Errorf("frugal__search: query is required")
 		}
@@ -237,7 +242,6 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 			Provider: used.Name(),
 			CostUSD:  res.CostUSD,
 		}, res.CostUSD, o.searchTTL)
-
 
 		items, dropped := filterItems(o.domains, res.Items)
 		warnings := res.Warnings
