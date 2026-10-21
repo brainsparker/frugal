@@ -7,12 +7,12 @@
     "url": "https://github.com/brainsparker/frugal",
     "source": "github"
   },
-  "version": "0.0.0",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "frugal-mcp",
-      "version": "0.0.0",
+      "version": "0.2.0",
       "runtimeHint": "npx",
       "packageArguments": [
         {
