@@ -1,6 +1,6 @@
 {
   "name": "frugal-mcp",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "description": "The open routing layer for AI tools: an MCP server that routes agent tool calls (search, extract, browse) across providers per policy — cost, latency, pinning, deny lists — with failover and the routing decision on every result. BYOK.",
   "keywords": [
     "mcp",
