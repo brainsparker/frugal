@@ -196,6 +196,51 @@ When a guardrail skips a provider it is noted in the routing trace
 in a chain is over budget or cooling down, the call fails with a clear
 message rather than silently doing nothing.
 
+## Per-call deadline: `call_timeout`
+
+Each provider client has its own request timeout (15–90s), but a chain
+that walks several slow providers could still block an agent for
+minutes. Every routed tool call (`frugal__search`, `frugal__extract`,
+`frugal__browse`, `frugal__execute` including its extract-to-browse
+fall-forward) therefore runs under one overall deadline, **60s by
+default**. Each attempt gets only the budget that remains; once it runs
+out, failover stops (no further provider is called or paid) and the call
+fails with `frugal: call deadline exceeded; <capability> failover stopped
+after N attempt(s): ...`, naming every attempt's error.
+
+```yaml
+limits:
+  call_timeout: 45s   # "0s" disables the overall deadline
+```
+
+`frugal mcp serve --call-timeout 30s` overrides the config. Over `--http`,
+the shorter of this and `--request-timeout` (30s by default) wins.
+
+### Retries on transient errors: `retries` (free providers only)
+
+**Free providers** (`cost_per_call: 0` in your config) retry a transient
+error (429, 408, 5xx, timeout, connection reset) **2 times by default**
+before failing over, with short jittered backoff (about 200ms, then
+800ms). **Paid providers** (`cost_per_call > 0`: by default Serper,
+You.com, Brave, Firecrawl, Browserless) are **never retried**: a request
+that timed out or 5xx'd may still have been billed, so Frugal fails over
+to the next provider immediately instead of risking a double charge.
+Paid-ness comes from the configured price, so setting a provider's
+`cost_per_call` to 0 makes it retryable and vice versa.
+
+Permanent errors (401, 402, 403, other 4xx) and errors no provider can
+fix are never retried. A `Retry-After` header is honored: the retry
+waits at least that long if it is 5s or less; a longer hint skips the
+retry and fails over instead. A retry never sleeps past the remaining
+`call_timeout`. A 429 also opens the provider's rate-limit cooldown for
+the configured window, extended to the `Retry-After` hint (capped at 10
+minutes); that applies to paid and free providers alike.
+
+```yaml
+limits:
+  retries: 1   # free providers only; 0 disables (fail over immediately); max 5
+```
+
 ## Multi-attempt receipts: `attempts[]` and `total_cost_usd`
 
 `cost_usd` remains the price of the answer you got. Every successful

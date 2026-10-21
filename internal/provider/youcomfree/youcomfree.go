@@ -118,7 +118,7 @@ func (c *Client) Search(ctx context.Context, q search.Query) (search.Results, er
 		return search.Results{}, routing.Permanent(c.Name(), 0, fmt.Errorf("empty query"))
 	}
 	var out search.Results
-	err := routing.DoWithRetry(ctx, 1+len(routing.DefaultBackoff), routing.DefaultBackoff, func() error {
+	err := routing.DoWithRetry(ctx, routing.RetryAttemptsFor(c.CostPerCall()), routing.DefaultBackoff, func() error {
 		var attemptErr error
 		out, attemptErr = c.doOnce(ctx, q)
 		return attemptErr
@@ -239,10 +239,11 @@ func (c *Client) doOnce(ctx context.Context, q search.Query) (search.Results, er
 			msg += " (free tier is about 100 queries/day per IP; set YDC_API_KEY for the keyed youcom provider)"
 		}
 		return search.Results{}, &routing.Error{
-			Provider: c.Name(),
-			Kind:     routing.ClassifyHTTPStatus(resp.StatusCode),
-			Status:   resp.StatusCode,
-			Err:      fmt.Errorf("%s", msg),
+			Provider:   c.Name(),
+			Kind:       routing.ClassifyHTTPStatus(resp.StatusCode),
+			RetryAfter: routing.ParseRetryAfter(resp.Header),
+			Status:     resp.StatusCode,
+			Err:        fmt.Errorf("%s", msg),
 		}
 	}
 

@@ -95,6 +95,8 @@ func makeBrowseHandler(browsers []browse.Browser, metrics *obs.Metrics, o toolOp
 	hook = composeHook(o.guard, "browse", hook)
 
 	return func(ctx context.Context, _ *sdkmcp.CallToolRequest, in BrowseInput) (*sdkmcp.CallToolResult, BrowseOutput, error) {
+		ctx, cancelCall := routing.WithCallDeadline(ctx, o.callTimeout)
+		defer cancelCall()
 		hook := attemptLogFrom(ctx).wrap("", hook)
 		if in.URL == "" {
 			return nil, BrowseOutput{}, fmt.Errorf("frugal__browse: url is required")

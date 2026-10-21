@@ -90,6 +90,19 @@ func CallInOrder(ctx context.Context, ordered []Searcher, q Query, logger *slog.
 	var emptyOK Searcher // first provider that succeeded with zero hits
 	var emptyRes Results
 	for i, s := range ordered {
+		// Overall call deadline (or client cancel): don't start another
+		// attempt with a dead context — stop the chain cleanly. The first
+		// attempt always runs so a provider can report the ctx error itself.
+		if i > 0 && ctx.Err() != nil {
+			logger.Warn("search stopped before attempt; context done",
+				"next_provider", s.Name(),
+				"attempt", i+1,
+				"call_deadline", routing.CallDeadlineHit(ctx))
+			if emptyOK != nil {
+				return emptyOK, emptyRes, nil
+			}
+			return s, Results{}, routing.ContextStopError(ctx, "search", errs)
+		}
 		start := time.Now()
 		res, err := s.Search(ctx, q)
 		latency := time.Since(start)
@@ -153,7 +166,7 @@ func CallInOrder(ctx context.Context, ordered []Searcher, q Query, logger *slog.
 			if emptyOK != nil {
 				return emptyOK, emptyRes, nil
 			}
-			return s, Results{}, routing.JoinAttempts(errs)
+			return s, Results{}, routing.ContextStopError(ctx, "search", errs)
 		}
 		logger.Warn("search error; falling back",
 			"provider", s.Name(),
@@ -198,6 +211,9 @@ func CallPinned(ctx context.Context, searchers []Searcher, name string, q Query,
 			"latency_ms", latency.Milliseconds(),
 			"permanent", routing.IsPermanent(err),
 			"err", err)
+	}
+	if err != nil && routing.CallDeadlineHit(ctx) {
+		err = routing.ContextStopError(ctx, "search", []error{err})
 	}
 	return s, res, err
 }

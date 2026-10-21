@@ -122,6 +122,8 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 	hook = composeHook(o.guard, "extract", hook)
 
 	return func(ctx context.Context, _ *sdkmcp.CallToolRequest, in ExtractInput) (*sdkmcp.CallToolResult, ExtractOutput, error) {
+		ctx, cancelCall := routing.WithCallDeadline(ctx, o.callTimeout)
+		defer cancelCall()
 		hook := attemptLogFrom(ctx).wrap("", hook)
 		if in.URL == "" {
 			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: url is required")

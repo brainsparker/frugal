@@ -144,14 +144,33 @@ func (g *Guard) RecordCost(capability, provider string, costUSD float64) {
 // Allow calls return false until cooldown elapses. Called when a provider
 // returns a 429 (see the tool hook closures). A nil Guard does nothing.
 func (g *Guard) RecordRateLimit(capability, provider string) {
+	g.RecordRateLimitFor(capability, provider, 0)
+}
+
+// RecordRateLimitFor opens the cooldown window for at least the
+// configured cooldown, extended to retryAfter (the provider's
+// Retry-After hint, capped at MaxCooldownRetryAfter) when that is longer.
+func (g *Guard) RecordRateLimitFor(capability, provider string, retryAfter time.Duration) {
 	if g == nil {
 		return
+	}
+	d := g.cooldown
+	if retryAfter > MaxCooldownRetryAfter {
+		retryAfter = MaxCooldownRetryAfter
+	}
+	if retryAfter > d {
+		d = retryAfter
 	}
 	k := key(capability, provider)
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.cool[k] = g.now().Add(g.cooldown)
+	g.cool[k] = g.now().Add(d)
 }
+
+// MaxCooldownRetryAfter caps how far a provider's Retry-After can push
+// the rate-limit cooldown, so a bogus header can't fence a provider off
+// for hours.
+const MaxCooldownRetryAfter = 10 * time.Minute
 
 // utcDay renders t's UTC calendar date, the bucket key spend accumulates
 // under. UTC (not local) so a machine's timezone can't shift when the

@@ -78,10 +78,13 @@ moves on.
   likely needs JavaScript, it falls forward to browse automatically.
 - **Guards**: a loop guard refuses repeated identical calls before a
   provider is paid; an operator domain policy may block some hosts.
-- **Overall call deadline** — *pending in PR #100, not yet released*:
-  a `call_timeout` (default 60s) bounding the whole failover chain;
-  when it expires failover stops and the error starts with
-  `frugal: call deadline exceeded`.
+- **Overall call deadline**: every routed call runs under one
+  `call_timeout` (default 60s, operator-configurable) covering the whole
+  failover chain; when it expires failover stops and the error starts
+  with `frugal: call deadline exceeded`.
+- **Retries**: free providers retry transient errors (default 2 times,
+  honoring short `Retry-After` hints); paid providers are never retried
+  and fail over immediately, to avoid double billing.
 
 ## The receipt on every result
 
