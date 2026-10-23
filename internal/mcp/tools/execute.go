@@ -310,7 +310,7 @@ func hookFor(metrics *obs.Metrics, guard *routing.Guard, capability string, atte
 		if metrics != nil {
 			metrics.RecordCall(provider, latency, costUSD, won, err)
 		}
-		guardRecord(guard, capability, provider, costUSD, err)
+		guardRecord(guard, capability, provider, costUSD, err, nil)
 	}
 }
 

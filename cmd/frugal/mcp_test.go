@@ -257,3 +257,40 @@ func TestBuildSearchers_BraveGatesOnKeyAndSortsAfterYoucom(t *testing.T) {
 		t.Errorf("brave must be wireable so rack rates and policy warnings recognize it")
 	}
 }
+
+func TestFailureBreakerSettings_DefaultsOffSwitchAndCooldown(t *testing.T) {
+	intPtr := func(i int) *int { return &i }
+
+	// No routing section: product default threshold, cooldown deferred to
+	// the guard (zero means "reuse routing.cooldown").
+	if th, cd := failureBreakerSettings(&config.Config{}); th != routing.DefaultFailureThreshold || cd != 0 {
+		t.Errorf("no routing: got %d/%s, want default/0", th, cd)
+	}
+	// Explicit 0 is the off switch.
+	if th, _ := failureBreakerSettings(&config.Config{Routing: &config.RoutingConfig{FailureThreshold: intPtr(0)}}); th != 0 {
+		t.Errorf("failure_threshold 0: got %d, want 0", th)
+	}
+	// Explicit values win.
+	if th, cd := failureBreakerSettings(&config.Config{Routing: &config.RoutingConfig{FailureThreshold: intPtr(5), FailureCooldown: "2m"}}); th != 5 || cd != 2*time.Minute {
+		t.Errorf("explicit: got %d/%s, want 5/2m", th, cd)
+	}
+	// Invalid or non-positive cooldowns fall back to the guard's without failing.
+	for _, raw := range []string{"soon", "-5s", "0"} {
+		if _, cd := failureBreakerSettings(&config.Config{Routing: &config.RoutingConfig{FailureCooldown: raw}}); cd != 0 {
+			t.Errorf("failure_cooldown %q: got %s, want 0 (defer to routing.cooldown)", raw, cd)
+		}
+	}
+
+	// buildGuard: on by default, sharing the 429 cooldown; separable; off at 0.
+	g := buildGuard(&config.Config{Routing: &config.RoutingConfig{Cooldown: "90s"}})
+	if th, cd := g.FailureBreakerSettings(); th != routing.DefaultFailureThreshold || cd != 90*time.Second {
+		t.Errorf("buildGuard default: got %d/%s, want %d/90s", th, cd, routing.DefaultFailureThreshold)
+	}
+	g = buildGuard(&config.Config{Routing: &config.RoutingConfig{Cooldown: "90s", FailureCooldown: "20s"}})
+	if _, cd := g.FailureBreakerSettings(); cd != 20*time.Second {
+		t.Errorf("buildGuard separate cooldown: got %s, want 20s", cd)
+	}
+	if g := buildGuard(&config.Config{Routing: &config.RoutingConfig{FailureThreshold: intPtr(0)}}); g.FailureBreakerEnabled() {
+		t.Error("buildGuard with failure_threshold 0 must leave the rail off")
+	}
+}

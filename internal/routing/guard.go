@@ -6,11 +6,12 @@ import (
 	"time"
 )
 
-// Guard enforces two operator-declared spend rails at the routing layer:
-// a per-provider daily USD budget, and a rate-limit cooldown circuit
-// breaker. Both are keyed by "capability/provider" (e.g. "search/youcom")
-// so the same provider name registered under two capability tables gets
-// independent counters, matching how the config splits its provider maps.
+// Guard enforces the operator-declared rails at the routing layer: a
+// per-provider daily USD budget, a rate-limit cooldown circuit breaker,
+// the loop guard (loop.go), and the failure breaker (breaker.go). All
+// are keyed by "capability/provider" (e.g. "search/youcom") so the same
+// provider name registered under two capability tables gets independent
+// counters, matching how the config splits its provider maps.
 //
 // A nil *Guard is a safe no-op on every method: Allow returns true,
 // RecordCost / RecordRateLimit do nothing. That lets call sites drop the
@@ -36,6 +37,13 @@ type Guard struct {
 	loopLimit  int
 	loopWindow time.Duration
 	loops      map[string]*loopEntry // fingerprint → recent call times
+
+	// Failure rail (see breaker.go). failThreshold consecutive transient
+	// failures open a provider's breaker for failCooldown; zero means the
+	// rail is off, which is the library default. Set via SetFailureBreaker.
+	failThreshold int
+	failCooldown  time.Duration
+	breakers      map[string]*breakerEntry // key → failure run and open window
 }
 
 // daySpend is one key's spend accumulator, tagged with the UTC day it
@@ -84,10 +92,11 @@ func key(capability, provider string) string {
 
 // Allow reports whether a provider may be called right now, and a human-
 // readable reason when it may not. It returns false when the provider is
-// inside its rate-limit cooldown, or when its accumulated spend for the
-// current UTC day has reached its configured cap. A provider with no
-// configured cap is always allowed on the spend rail; the cooldown rail
-// applies to every provider. A nil Guard always allows.
+// inside its rate-limit cooldown, when its failure breaker is open, or
+// when its accumulated spend for the current UTC day has reached its
+// configured cap. A provider with no configured cap is always allowed on
+// the spend rail; the cooldown and failure rails apply to every provider.
+// A nil Guard always allows.
 func (g *Guard) Allow(capability, provider string) (bool, string) {
 	if g == nil {
 		return true, ""
@@ -105,6 +114,10 @@ func (g *Guard) Allow(capability, provider string) (bool, string) {
 		}
 		// Expired: drop it so the map doesn't grow without bound.
 		delete(g.cool, k)
+	}
+
+	if ok, why := g.breakerAllowLocked(k, now); !ok {
+		return false, why
 	}
 
 	cap, capped := g.caps[k]

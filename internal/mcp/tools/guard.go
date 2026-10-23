@@ -32,7 +32,7 @@ func guardChain[T routing.Costed](g *routing.Guard, capability string, ordered [
 			kept = append(kept, it)
 			continue
 		}
-		logger.Warn("routing budget: provider skipped",
+		logger.Warn("routing guard: provider skipped",
 			"capability", capability, "provider", it.Name(), "reason", why)
 		skips = append(skips, fmt.Sprintf("skipped %s (%s)", it.Name(), why))
 	}
@@ -43,23 +43,34 @@ func guardChain[T routing.Costed](g *routing.Guard, capability string, ordered [
 }
 
 // guardEmptyError is the error returned when guardChain fenced off every
-// provider. It names the capability and, when available, the soonest a
-// provider comes back (cooldown expiry or the next UTC midnight budget
-// reset), so an agent knows whether to back off or give up.
+// provider. It names the capability and the ways a provider comes back
+// (cooldown or breaker expiry, the next UTC midnight budget reset), so
+// an agent knows whether to back off or give up.
 func guardEmptyError(capability string) error {
-	return fmt.Errorf("every configured %s provider is over its daily budget or cooling down after a rate limit; retry after a budget resets (UTC midnight) or the cooldown elapses", capability)
+	return fmt.Errorf("every configured %s provider is over its daily budget, cooling down after a rate limit, or fenced off after consecutive failures; retry after a budget resets (UTC midnight) or the cooldown elapses", capability)
 }
 
 // guardRecord is the guard side of a tool's AttemptHook: it always books
-// the attempt's cost against the provider's daily budget, and opens the
-// cooldown window when the attempt failed with a 429. Composed alongside
-// the metrics hook so both observers see every attempt. A nil guard makes
-// this a no-op (the guard methods are nil-safe).
-func guardRecord(g *routing.Guard, capability, provider string, costUSD float64, err error) {
+// the attempt's cost against the provider's daily budget, opens the
+// cooldown window when the attempt failed with a 429, and feeds the
+// outcome to the failure breaker (which opens on a run of timeouts or
+// 5xx and logs the transition once). Composed alongside the metrics
+// hook so both observers see every attempt. A nil guard makes this a
+// no-op (the guard methods are nil-safe).
+func guardRecord(g *routing.Guard, capability, provider string, costUSD float64, err error, logger *slog.Logger) {
 	g.RecordCost(capability, provider, costUSD)
 	var re *routing.Error
 	if errors.As(err, &re) && re.Status == 429 {
 		g.RecordRateLimitFor(capability, provider, re.RetryAfter)
+	}
+	if g.RecordOutcome(capability, provider, err) {
+		threshold, cooldown := g.FailureBreakerSettings()
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Warn("routing breaker: provider fenced off after consecutive failures",
+			"capability", capability, "provider", provider,
+			"threshold", threshold, "cooldown", cooldown, "err", err)
 	}
 }
 
@@ -71,6 +82,6 @@ func composeHook(g *routing.Guard, capability string, inner routing.AttemptHook)
 		if inner != nil {
 			inner(provider, latency, costUSD, won, err)
 		}
-		guardRecord(g, capability, provider, costUSD, err)
+		guardRecord(g, capability, provider, costUSD, err, nil)
 	}
 }

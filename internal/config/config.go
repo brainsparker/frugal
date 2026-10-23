@@ -113,6 +113,20 @@ type RoutingConfig struct {
 	// duration string like "60s" or "2m"; empty or invalid falls back to
 	// the 60s default with a warning at wiring time, same as Cooldown.
 	LoopWindow string `yaml:"loop_window,omitempty"`
+	// FailureThreshold is the failure-breaker rail: how many consecutive
+	// transient failures (timeouts, 5xx, connection errors; not 429, which
+	// has the cooldown) fence a provider off so the chain skips it instead
+	// of paying its request timeout on every call. Absent (nil) means the
+	// product default of 3; an explicit 0 turns the rail off; negative
+	// values fail the load. Top level like Cooldown: an outage is a fact
+	// about the provider, not about which capability called it.
+	FailureThreshold *int `yaml:"failure_threshold,omitempty"`
+	// FailureCooldown is how long an opened breaker keeps the provider
+	// fenced before admitting one more attempt. A Go duration string like
+	// "30s" or "2m"; empty or invalid falls back to Cooldown (the 429
+	// window) with a warning at wiring time, so one setting governs both
+	// windows unless the operator separates them.
+	FailureCooldown string `yaml:"failure_cooldown,omitempty"`
 	// Domains is the optional allow / deny rule for the hosts Frugal will
 	// fetch: enforced on frugal__extract, frugal__browse, and the URL
 	// intents of frugal__execute before any provider is called, and
@@ -141,7 +155,6 @@ type DomainsConfig struct {
 	Allow       []string `yaml:"allow,omitempty"`
 	Deny        []string `yaml:"deny,omitempty"`
 	DenyPrivate bool     `yaml:"deny_private,omitempty"`
-
 }
 
 // RoutePolicy is one capability's routing rule.
@@ -412,6 +425,9 @@ func validateRouting(cfg *Config) error {
 
 	if cfg.Routing.LoopLimit != nil && *cfg.Routing.LoopLimit < 0 {
 		return fmt.Errorf("routing.loop_limit must be non-negative (0 turns the loop guard off)")
+	}
+	if cfg.Routing.FailureThreshold != nil && *cfg.Routing.FailureThreshold < 0 {
+		return fmt.Errorf("routing.failure_threshold must be non-negative (0 turns the failure breaker off)")
 	}
 	for _, c := range []struct {
 		capability string

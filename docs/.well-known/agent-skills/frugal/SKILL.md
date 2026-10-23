@@ -77,7 +77,10 @@ moves on.
 - **`frugal__execute` fall-forward**: if extract reports the page
   likely needs JavaScript, it falls forward to browse automatically.
 - **Guards**: a loop guard refuses repeated identical calls before a
-  provider is paid; an operator domain policy may block some hosts.
+  provider is paid; a failure breaker skips a provider that has timed
+  out or errored several times in a row until a cooldown elapses (the
+  skip and its reason appear in the routing trace); an operator domain
+  policy may block some hosts.
 - **Overall call deadline**: every routed call runs under one
   `call_timeout` (default 60s, operator-configurable) covering the whole
   failover chain; when it expires failover stops and the error starts
