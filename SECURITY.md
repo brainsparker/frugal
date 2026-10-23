@@ -48,8 +48,8 @@ Out of scope:
 
 Operational expectations for deployers:
 
-- Keep search-provider API keys (`SERPER_API_KEY`, `BRAVE_API_KEY`, `YDC_API_KEY`) out
-  of shell history, version control, and CI logs. Frugal reads them from
+- Keep provider API keys (`SERPER_API_KEY`, `BRAVE_API_KEY`, `YDC_API_KEY`,
+  `FIRECRAWL_API_KEY`, `BROWSERLESS_TOKEN`) out of shell history, version control, and CI logs. Frugal reads them from
   the environment and forwards requests upstream.
 - For `frugal mcp serve --http` deployments, run behind a reverse proxy
   that terminates TLS and enforces authentication — Frugal's MCP HTTP

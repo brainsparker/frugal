@@ -79,8 +79,9 @@ func runMCPServe(args []string) int {
 	reqTimeout := fs.Duration("request-timeout", 30*time.Second, "per-request timeout when serving --http (0 disables)")
 	maxRequestBytes := fs.Int64("max-request-bytes", 1<<20, "reject HTTP requests above this Content-Length when serving --http (0 disables)")
 	stateless := fs.Bool("stateless", false, "serve --http without sessions for every client (no Mcp-Session-Id, no GET event stream); required behind a load balancer. Off by default: MCP 2026-07-28 clients are always served statelessly, older clients keep their session")
+	dryRun := fs.Bool("dry-run", false, "print the route plan (which provider would win each capability, and why) and exit without serving anything")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: frugal mcp serve [--http ADDR] [--stateless]")
+		fmt.Fprintln(os.Stderr, "Usage: frugal mcp serve [--http ADDR] [--stateless] [--dry-run]")
 		fmt.Fprintln(os.Stderr, "Run Frugal as an MCP server. Default transport is stdio")
 		fmt.Fprintln(os.Stderr, "(what Claude Desktop, Claude Code, and Cursor consume).")
 		fmt.Fprintln(os.Stderr, "Pass --http ADDR for Streamable HTTP (remote / HTTP clients).")
@@ -103,6 +104,11 @@ func runMCPServe(args []string) int {
 		return 1
 	}
 	slog.Info("mcp serve: config loaded", "source", cfgSrc)
+
+	if *dryRun {
+		printRoutePlan(os.Stdout, cfg, version(), *httpAddr, os.Getenv("FRUGAL_AUTH_TOKEN") != "", *allowAnon)
+		return 0
+	}
 
 	srv := mcp.New("frugal", version(), slog.Default())
 
