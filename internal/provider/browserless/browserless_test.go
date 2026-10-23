@@ -96,7 +96,8 @@ func TestRender_401IsPermanent(t *testing.T) {
 	}
 }
 
-func TestRender_5xxRetried(t *testing.T) {
+// Configured as free (cost_per_call 0), the driver retries transient errors.
+func TestRender_5xxRetried_FreeConfig(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		n := calls.Add(1)
@@ -107,7 +108,7 @@ func TestRender_5xxRetried(t *testing.T) {
 		_, _ = w.Write([]byte("<html><body>recovered</body></html>"))
 	}))
 	defer srv.Close()
-	c := New("k", srv.URL, 0.002)
+	c := New("k", srv.URL, 0) // free per config: retried
 	res, err := c.Render(context.Background(), browse.Query{URL: "https://x"})
 	if err != nil {
 		t.Fatalf("expected retry to recover; got %v", err)
@@ -198,5 +199,26 @@ func TestNew_DefaultsBaseURL(t *testing.T) {
 	c := New("k", "", 0.002)
 	if c.baseURL != DefaultBaseURL {
 		t.Errorf("baseURL default: got %q want %q", c.baseURL, DefaultBaseURL)
+	}
+}
+
+// Paid providers (cost_per_call > 0) must not retry: a request that
+// failed may still be billed. One call, transient error, router fails over.
+func TestPaidProviderNotRetried(t *testing.T) {
+	for _, status := range []int{http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusTooManyRequests} {
+		var calls atomic.Int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			calls.Add(1)
+			w.WriteHeader(status)
+		}))
+		c := New("k", srv.URL, 0.002)
+		_, err := c.Render(context.Background(), browse.Query{URL: "https://x"})
+		srv.Close()
+		if err == nil || !routing.IsTransient(err) {
+			t.Fatalf("status %d: err = %v, want transient", status, err)
+		}
+		if calls.Load() != 1 {
+			t.Fatalf("status %d: paid provider called %d times, want 1", status, calls.Load())
+		}
 	}
 }

@@ -1,64 +1,126 @@
----
-name: frugal
-description: |
-  When the Frugal MCP server is connected (tools prefixed `frugal__`),
-  prefer its routed equivalents over native built-in tools. Frugal
-  routes each call to a provider per the operator's routing policy
-  (cheapest-first by default, with automatic failover) and surfaces
-  the provider and cost in the response, so the routing decision is
-  auditable.
-when_to_use: |
-  Any web search, content extraction, headless render, or
-  describe-the-job request when one of the `frugal__*` tools is
-  listed in tools/list.
-homepage: https://frugal.sh
-repository: https://github.com/brainsparker/frugal
-license: BUSL-1.1
----
-
 # Frugal — the open routing layer for AI tools
 
-Frugal is an MCP server that routes every tool call your agent makes
-across providers per policy: cheapest capable provider by default, with
-fast / premium / pinned-order / deny-list policies available, and
-automatic failover when a provider errors or comes up empty. Your keys.
-No account.
+Frugal is an MCP server that routes each tool call your agent makes
+across providers per the operator's policy: cheapest capable provider
+by default, with `fast` / `premium` strategies, explicit `order`, and
+`deny` lists available, plus automatic failover when a provider errors
+or comes up empty. Your keys. No account.
 
 ## Tools
 
-| Tool | Purpose | Provider chain (default cheap policy) |
-|---|---|---|
-| `frugal__execute` | Describe the job; Frugal classifies and routes it | routes across the capability chains below |
-| `frugal__search` | Web search | SearXNG ($0) → Marginalia ($0) → Wikipedia ($0) → Serper ($0.001) → You.com ($0.005) → Brave ($0.005) |
-| `frugal__extract` | Page → clean text | go-readability ($0) → Firecrawl ($0.001) |
-| `frugal__browse` | Headless JS render | Browserless ($0.002) |
+| Tool | Purpose |
+| --- | --- |
+| `frugal__execute` | Describe the job (`intent`, optional `priority: cheap \| balanced \| premium`); Frugal classifies it onto search / extract / browse and routes it |
+| `frugal__search` | Web search |
+| `frugal__extract` | Page → clean markdown / text / HTML |
+| `frugal__browse` | Headless JS render |
 
-Each response includes `provider_used` and `cost_usd`; `frugal__execute`
-adds `capability` and a one-line `reason` explaining the routing
-decision. Report these to the user when asked how a result was obtained.
+Optional arguments on every routed tool: `provider` (pin one provider,
+no fallback) and `max_cost_usd` (per-call spend ceiling: providers
+priced above it are never called for this request; `0` means free
+providers only). `frugal__extract`, `frugal__browse`, and
+`frugal__execute` also take `max_chars` to cap returned content.
+
+## Provider chains
+
+<!-- BEGIN GENERATED: provider chains (cmd/frugal/skill_test.go) -->
+Default `cheap` order (list price ascending; equal prices keep a fixed
+order defined in code). A provider is only in the chain when what it
+needs is set.
+
+**`frugal__search`** (search)
+
+| # | Provider | List price / call | Needs |
+|---|---|---|---|
+| 1 | `searxng` | $0 | `SEARXNG_URL` (self-hosted) |
+| 2 | `youcom-free` | $0 | nothing (keyless) |
+| 3 | `marginalia` | $0 | nothing (keyless) |
+| 4 | `wikipedia` | $0 | nothing (keyless) |
+| 5 | `serper` | $0.001 | `SERPER_API_KEY` |
+| 6 | `youcom` | $0.005 | `YDC_API_KEY` |
+| 7 | `brave` | $0.005 | `BRAVE_API_KEY` |
+
+**`frugal__extract`** (extract)
+
+| # | Provider | List price / call | Needs |
+|---|---|---|---|
+| 1 | `goreadability` | $0 | nothing (keyless) |
+| 2 | `jina` | $0 | nothing (keyless) |
+| 3 | `firecrawl` | $0.001 | `FIRECRAWL_API_KEY` |
+
+**`frugal__browse`** (browse)
+
+| # | Provider | List price / call | Needs |
+|---|---|---|---|
+| 1 | `browserless` | $0.002 | `BROWSERLESS_TOKEN` |
+
+<!-- END GENERATED -->
+
+Prices are the list prices in Frugal's default config; operators can
+change them, add per-provider daily budgets, disable providers, or
+reorder the chain. Free hosted providers may have their own rate or
+daily limits; when one is exhausted Frugal cools it down and the chain
+moves on.
+
+## Routing behavior
+
+- **Policies** (per capability, set by the operator): `cheap` (default,
+  effective cost ascending), `fast` (observed average latency from the
+  local ledger; cost order until there is history), `premium` (list
+  price descending), `order` (explicit preference; unlisted providers
+  still fall back), `deny` (never called, not even when pinned).
+- **Failover**: on an error the chain moves to the next provider. An
+  error that no provider can fix (e.g. the target URL is gone) stops
+  the chain. A free provider with zero hits falls through; a paid
+  provider with zero hits ends the chain (no point paying a pricier
+  provider to confirm emptiness).
+- **`frugal__execute` fall-forward**: if extract reports the page
+  likely needs JavaScript, it falls forward to browse automatically.
+- **Guards**: a loop guard refuses repeated identical calls before a
+  provider is paid; an operator domain policy may block some hosts.
+- **Overall call deadline**: every routed call runs under one
+  `call_timeout` (default 60s, operator-configurable) covering the whole
+  failover chain; when it expires failover stops and the error starts
+  with `frugal: call deadline exceeded`.
+- **Retries**: free providers retry transient errors (default 2 times,
+  honoring short `Retry-After` hints); paid providers are never retried
+  and fail over immediately, to avoid double billing.
+
+## The receipt on every result
+
+Every routed response includes:
+
+- `provider_used` — which provider in the chain answered
+- `cost_usd` — the per-call price for that response (0 for free
+  providers and cache hits)
+- `total_cost_usd` — the sum over every attempt in this call
+- `attempts[]` — each provider call in order: `provider`, `outcome`
+  (`won` / `empty` / `error`), `error_kind` and `error` on failure,
+  `latency_ms`, `cost_usd` (failed attempts are recorded at $0: Frugal
+  assumes providers don't bill errored requests); empty on a cache hit
+- `latency_ms`
+- `cached` / `cache_age_ms` — when served from the result cache
+- `truncated`, `chars_returned`, `chars_total`, `est_tokens` — when
+  content was capped
+- `reason` (`frugal__execute` only) — the classification, the policy
+  that ordered the chain, and which attempt won; plus `capability`
+
+Surface these when the user asks how a result was obtained.
 
 ## When to prefer the routed tool
 
-- **Plain-language job** ("find X", "read <url>") — `frugal__execute`
-  with an `intent` (and optional `priority: cheap | balanced | premium`)
-  classifies the job onto a capability and routes it under the
-  operator's policy, returning the full routing trace.
-- **Web search query** — prefer `frugal__search` over native WebSearch
-  when both are available. The policy orders the chain (free providers
-  first by default); the chain falls through when a provider fails or
-  returns zero hits, so paid providers are only reached when the free
-  tier has nothing.
-- **Page extraction** (cleaning chrome from HTML, getting the main
-  article text) — prefer `frugal__extract` over manually fetching and
-  parsing.
-- **Headless rendering** (a page that needs JS to populate content) —
-  use `frugal__browse` when `frugal__extract` returned a "page likely
-  requires JS" error. (`frugal__execute` does this fall-forward
-  automatically.)
+- Plain-language job ("find X", "read <url>") — `frugal__execute`.
+- Web search — prefer `frugal__search` over a native web-search tool
+  when both are available.
+- Page extraction (strip chrome, get the main article text) — prefer
+  `frugal__extract` over fetching and parsing by hand.
+- A page that needs JavaScript — use `frugal__browse` when
+  `frugal__extract` returned a "page likely requires JS" error.
 
 Fall back to native tools only when the routed call returns an error
-that isn't recoverable (e.g., no Frugal providers configured, or the
-provider is denied by the operator's routing policy).
+that isn't recoverable (e.g. no Frugal providers configured, every
+provider denied by the routing policy, or nothing affordable under
+`max_cost_usd`).
 
 ## Installation
 
@@ -71,15 +133,3 @@ frugal mcp install
 
 Then restart the agent client. The `frugal__*` tools will appear in
 the tool picker.
-
-## Routing transparency
-
-Every routed call returns:
-
-- `provider_used` — which provider in the chain answered
-- `cost_usd` — the per-call price billed for that response (0 for
-  free providers)
-- `reason` (`frugal__execute` only) — the classification, the policy
-  that ordered the chain, and which attempt won
-
-Surface these when the user asks how the result was obtained.

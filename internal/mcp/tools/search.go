@@ -48,6 +48,11 @@ type SearchInput struct {
 	// policy picks (cheapest-first by default). Use a pin when a specific
 	// provider is known to have materially better recall for this call.
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: searxng | marginalia | youcom-free | wikipedia | serper | youcom | auto"`
+	// MaxCostUSD is the caller's per-call spend ceiling. Providers whose
+	// effective per-call cost exceeds it are removed from the chain before
+	// any call is made; 0 means free rungs only. A pointer so that an
+	// explicit 0 is distinguishable from "not declared".
+	MaxCostUSD *float64 `json:"max_cost_usd,omitempty" jsonschema:"optional per-call spend ceiling in USD: providers priced above it are never called for this request; 0 means free providers only"`
 }
 
 // SearchOutput is the structured-content payload returned to the MCP
@@ -55,10 +60,14 @@ type SearchInput struct {
 // CostUSD + ProviderUsed + LatencyMS are the observability footer that
 // makes the routing decision auditable in agent traces.
 type SearchOutput struct {
-	Results      []search.Item `json:"results"`
-	CostUSD      float64       `json:"cost_usd"`
-	ProviderUsed string        `json:"provider_used"`
-	LatencyMS    int64         `json:"latency_ms"`
+	Results []search.Item `json:"results"`
+	CostUSD float64       `json:"cost_usd"`
+	// TotalCostUSD sums every attempt's cost_usd; Attempts lists each
+	// provider call in order (see Attempt).
+	TotalCostUSD float64   `json:"total_cost_usd"`
+	Attempts     []Attempt `json:"attempts,omitempty"`
+	ProviderUsed string    `json:"provider_used"`
+	LatencyMS    int64     `json:"latency_ms"`
 	// Warnings carries degraded-service notes from the winning provider —
 	// e.g. "freshness window ignored" from drivers without a time filter —
 	// so the agent can react (re-query pinned to serper/youcom) instead of
@@ -100,7 +109,8 @@ func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics 
 		"Run a web search routed across %s. Returns a list of {title, url, snippet} hits "+
 			"plus the actual provider used and cost paid. Provider choice follows the "+
 			"configured routing policy (cheapest-first by default, with automatic failover); "+
-			"pin via the `provider` argument.",
+			"pin via the `provider` argument, or cap this call's spend with `max_cost_usd` "+
+			"(0 = free providers only).",
 		joinNames(searchers),
 	)
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
@@ -113,7 +123,7 @@ func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics 
 			IdempotentHint:  false, // search results can shift between calls
 			OpenWorldHint:   boolPtr(true),
 		},
-	}, makeSearchHandler(searchers, metrics, buildToolOptions(opts)))
+	}, withAttempts(makeSearchHandler(searchers, metrics, buildToolOptions(opts)), func(o *SearchOutput, a []Attempt, t float64) { o.Attempts, o.TotalCostUSD = a, t }))
 }
 
 func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o toolOptions) func(context.Context, *sdkmcp.CallToolRequest, SearchInput) (*sdkmcp.CallToolResult, SearchOutput, error) {
@@ -132,10 +142,17 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 	hook = composeHook(o.guard, "search", hook)
 
 	return func(ctx context.Context, _ *sdkmcp.CallToolRequest, in SearchInput) (*sdkmcp.CallToolResult, SearchOutput, error) {
+		ctx, cancelCall := routing.WithCallDeadline(ctx, o.callTimeout)
+		defer cancelCall()
+		hook := attemptLogFrom(ctx).wrap("", hook)
 		if in.Query == "" {
 			return nil, SearchOutput{}, fmt.Errorf("frugal__search: query is required")
 		}
 		freshness, err := normalizeFreshness(in.Freshness)
+		if err != nil {
+			return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", err)
+		}
+		ceiling, err := routing.CeilingFrom(in.MaxCostUSD)
 		if err != nil {
 			return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", err)
 		}
@@ -184,13 +201,19 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 			searchErr error
 		)
 		if isAuto(provider) {
-			ordered, reason := routing.Apply(searchers, o.policy, o.lat, time.Now())
+			now := time.Now()
+			ordered, reason := routing.Apply(searchers, o.policy, o.lat, now)
 			if len(ordered) == 0 {
 				return nil, SearchOutput{}, fmt.Errorf("frugal__search: every configured provider is denied by the routing policy")
 			}
 			ordered, reason = guardChain(o.guard, "search", ordered, reason, logger)
 			if len(ordered) == 0 {
 				return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", guardEmptyError("search"))
+			}
+			affordable := ordered
+			ordered, reason = routing.ApplyCeiling(ordered, ceiling, reason, now)
+			if len(ordered) == 0 {
+				return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", routing.CeilingEmptyError("search", ceiling, affordable, now))
 			}
 			logger.Debug("search routing", "reason", reason)
 			used, res, searchErr = search.CallInOrder(ctx, ordered, q, logger, hook)
@@ -201,6 +224,10 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 			// Budget / cooldown blocks a pin the same way deny does:
 			// blocked means blocked.
 			return nil, SearchOutput{}, fmt.Errorf("frugal__search: provider %q unavailable: %s", provider, why)
+		} else if ok, why := pinUnderCeiling(searchers, provider, ceiling); !ok {
+			// A pin above the caller's own ceiling is a contradiction in
+			// the request; refuse before spending.
+			return nil, SearchOutput{}, fmt.Errorf("frugal__search: %s", why)
 		} else {
 			used, res, searchErr = search.CallPinned(ctx, searchers, provider, q, logger, hook)
 		}
@@ -215,7 +242,6 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 			Provider: used.Name(),
 			CostUSD:  res.CostUSD,
 		}, res.CostUSD, o.searchTTL)
-
 
 		items, dropped := filterItems(o.domains, res.Items)
 		warnings := res.Warnings

@@ -59,7 +59,7 @@ func guardRecord(g *routing.Guard, capability, provider string, costUSD float64,
 	g.RecordCost(capability, provider, costUSD)
 	var re *routing.Error
 	if errors.As(err, &re) && re.Status == 429 {
-		g.RecordRateLimit(capability, provider)
+		g.RecordRateLimitFor(capability, provider, re.RetryAfter)
 	}
 }
 

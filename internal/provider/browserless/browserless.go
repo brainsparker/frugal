@@ -67,7 +67,7 @@ func (c *Client) Render(ctx context.Context, q browse.Query) (browse.Result, err
 	}
 
 	var out browse.Result
-	err = routing.DoWithRetry(ctx, 1+len(routing.DefaultBackoff), routing.DefaultBackoff, func() error {
+	err = routing.DoWithRetry(ctx, routing.RetryAttemptsFor(c.CostPerCall()), routing.DefaultBackoff, func() error {
 		var attemptErr error
 		out, attemptErr = c.doOnce(ctx, body, q.ReturnFormat)
 		return attemptErr
@@ -110,10 +110,11 @@ func (c *Client) doOnce(ctx context.Context, body []byte, returnFormat string) (
 	if resp.StatusCode != http.StatusOK {
 		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return browse.Result{}, &routing.Error{
-			Provider: c.Name(),
-			Kind:     routing.ClassifyHTTPStatus(resp.StatusCode),
-			Status:   resp.StatusCode,
-			Err:      c.redact(fmt.Errorf("%s", bytes.TrimSpace(snippet))),
+			Provider:   c.Name(),
+			Kind:       routing.ClassifyHTTPStatus(resp.StatusCode),
+			RetryAfter: routing.ParseRetryAfter(resp.Header),
+			Status:     resp.StatusCode,
+			Err:        c.redact(fmt.Errorf("%s", bytes.TrimSpace(snippet))),
 		}
 	}
 

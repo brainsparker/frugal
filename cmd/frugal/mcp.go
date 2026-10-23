@@ -78,6 +78,7 @@ func runMCPServe(args []string) int {
 	rateLimit := fs.Int("rate-limit-rpm", 600, "per-IP request budget per minute when serving --http (0 disables)")
 	reqTimeout := fs.Duration("request-timeout", 30*time.Second, "per-request timeout when serving --http (0 disables)")
 	maxRequestBytes := fs.Int64("max-request-bytes", 1<<20, "reject HTTP requests above this Content-Length when serving --http (0 disables)")
+	callTimeout := fs.Duration("call-timeout", routing.DefaultCallTimeout, "overall deadline per tool call across all failover attempts; overrides limits.call_timeout (0 disables)")
 	stateless := fs.Bool("stateless", false, "serve --http without sessions for every client (no Mcp-Session-Id, no GET event stream); required behind a load balancer. Off by default: MCP 2026-07-28 clients are always served statelessly, older clients keep their session")
 	dryRun := fs.Bool("dry-run", false, "print the route plan (which provider would win each capability, and why) and exit without serving anything")
 	fs.Usage = func() {
@@ -162,6 +163,25 @@ func runMCPServe(args []string) int {
 		slog.Info("mcp serve: default result cap", "max_chars", maxChars)
 	}
 
+	// Overall per-call deadline: flag > limits.call_timeout > default.
+	callDeadline := routing.DefaultCallTimeout
+	if cfg.Limits != nil && cfg.Limits.CallTimeout != nil {
+		callDeadline = *cfg.Limits.CallTimeout
+	}
+	if flagSet(fs, "call-timeout") {
+		callDeadline = *callTimeout
+	}
+	if callDeadline < 0 {
+		callDeadline = 0
+	}
+	// In-driver retries for transient errors: limits.retries, default
+	// routing.DefaultRetries.
+	if cfg.Limits != nil && cfg.Limits.Retries != nil {
+		routing.SetRetries(*cfg.Limits.Retries)
+	}
+	slog.Info("mcp serve: transient retries per provider", "retries", routing.Retries())
+	slog.Info("mcp serve: call deadline", "call_timeout", callDeadline.String())
+
 	// Result cache: one instance shared by every read tool so
 	// frugal__execute and the direct tools hit the same entries. Nil
 	// when the config leaves it off; every cache method is nil-safe,
@@ -177,7 +197,7 @@ func runMCPServe(args []string) int {
 	searchers := buildSearchers(cfg)
 	warnPolicyStrangers("search", policies["search"], searcherNames(searchers))
 	tools.RegisterSearch(srv.Inner, searchers, metrics,
-		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), withCache,
+		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), tools.WithCallTimeout(callDeadline), withCache,
 		tools.WithDomainPolicy(domains))
 	if len(searchers) == 0 {
 		slog.Warn("mcp serve: no search providers configured — frugal__search will not be advertised. " +
@@ -189,7 +209,7 @@ func runMCPServe(args []string) int {
 	extractors := buildExtractors(cfg)
 	warnPolicyStrangers("extract", policies["extract"], extractorNames(extractors))
 	tools.RegisterExtract(srv.Inner, extractors, metrics,
-		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), withCache,
+		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), tools.WithCallTimeout(callDeadline), withCache,
 		tools.WithDomainPolicy(domains))
 	if len(extractors) > 0 {
 		slog.Info("mcp serve: frugal__extract registered", "providers", extractorNames(extractors))
@@ -198,14 +218,14 @@ func runMCPServe(args []string) int {
 	browsers := buildBrowsers(cfg)
 	warnPolicyStrangers("browse", policies["browse"], browserNames(browsers))
 	tools.RegisterBrowse(srv.Inner, browsers, metrics,
-		tools.WithPolicy(policies["browse"]), tools.WithLatencyLookup(latFor("browse")), tools.WithGuard(guard), tools.WithMaxChars(maxChars),
+		tools.WithPolicy(policies["browse"]), tools.WithLatencyLookup(latFor("browse")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), tools.WithCallTimeout(callDeadline),
 		tools.WithDomainPolicy(domains))
 	if len(browsers) > 0 {
 		slog.Info("mcp serve: frugal__browse registered", "providers", browserNames(browsers))
 	}
 
 	tools.RegisterExecute(srv.Inner, searchers, extractors, browsers, metrics,
-		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor), tools.WithGuard(guard), tools.WithMaxChars(maxChars), withCache,
+		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor), tools.WithGuard(guard), tools.WithMaxChars(maxChars), tools.WithCallTimeout(callDeadline), withCache,
 		tools.WithDomainPolicy(domains))
 	if len(searchers) > 0 {
 		slog.Info("mcp serve: frugal__execute registered",
@@ -951,4 +971,15 @@ func buildBrowsers(cfg *config.Config) []browse.Browser {
 		}
 	}
 	return out
+}
+
+// flagSet reports whether name was passed explicitly on the command line.
+func flagSet(fs *flag.FlagSet, name string) bool {
+	set := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			set = true
+		}
+	})
+	return set
 }

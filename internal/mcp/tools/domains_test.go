@@ -22,7 +22,7 @@ func testDomainPolicy(t *testing.T, allow, deny []string, denyPrivate bool) *rou
 	return p
 }
 
-func callTool(t *testing.T, srv *sdkmcp.Server, name string, args map[string]any) *sdkmcp.CallToolResult {
+func domainCallTool(t *testing.T, srv *sdkmcp.Server, name string, args map[string]any) *sdkmcp.CallToolResult {
 	t.Helper()
 	client, cleanup := dialClient(t, srv)
 	defer cleanup()
@@ -39,7 +39,7 @@ func TestExtract_DomainPolicyRefusesBeforeAnyProviderCall(t *testing.T) {
 	RegisterExtract(srv, []extract.Extractor{ex}, nil,
 		WithDomainPolicy(testDomainPolicy(t, nil, []string{"blocked.example"}, false)))
 
-	res := callTool(t, srv, "frugal__extract", map[string]any{"url": "https://www.blocked.example/page"})
+	res := domainCallTool(t, srv, "frugal__extract", map[string]any{"url": "https://www.blocked.example/page"})
 	if !res.IsError {
 		t.Fatalf("expected refusal, got %+v", res.StructuredContent)
 	}
@@ -55,13 +55,13 @@ func TestExtract_DomainPolicyRefusesBeforeAnyProviderCall(t *testing.T) {
 
 	// A pinned provider is refused the same way: the policy is about the
 	// target, not the route.
-	res = callTool(t, srv, "frugal__extract", map[string]any{"url": "https://blocked.example/", "provider": "goreadability"})
+	res = domainCallTool(t, srv, "frugal__extract", map[string]any{"url": "https://blocked.example/", "provider": "goreadability"})
 	if !res.IsError || ex.lastQuery.URL != "" {
 		t.Fatalf("pinned call to a denied host must be refused without a provider call")
 	}
 
 	// An allowed host still flows through unchanged.
-	res = callTool(t, srv, "frugal__extract", map[string]any{"url": "https://fine.example/"})
+	res = domainCallTool(t, srv, "frugal__extract", map[string]any{"url": "https://fine.example/"})
 	if res.IsError {
 		t.Fatalf("allowed host errored: %s", errorText(res))
 	}
@@ -76,7 +76,7 @@ func TestBrowse_DomainPolicyDenyPrivateRefusesLocalTargets(t *testing.T) {
 	RegisterBrowse(srv, []browse.Browser{br}, nil,
 		WithDomainPolicy(testDomainPolicy(t, nil, nil, true)))
 
-	res := callTool(t, srv, "frugal__browse", map[string]any{"url": "http://169.254.169.254/latest/meta-data/"})
+	res := domainCallTool(t, srv, "frugal__browse", map[string]any{"url": "http://169.254.169.254/latest/meta-data/"})
 	if !res.IsError {
 		t.Fatalf("metadata endpoint must be refused under deny_private")
 	}
@@ -87,7 +87,7 @@ func TestBrowse_DomainPolicyDenyPrivateRefusesLocalTargets(t *testing.T) {
 		t.Errorf("provider must not be called; got %q", br.lastQuery.URL)
 	}
 
-	res = callTool(t, srv, "frugal__browse", map[string]any{"url": "https://public.example/"})
+	res = domainCallTool(t, srv, "frugal__browse", map[string]any{"url": "https://public.example/"})
 	if res.IsError {
 		t.Fatalf("public host errored: %s", errorText(res))
 	}
@@ -104,7 +104,7 @@ func TestSearch_DomainPolicyFiltersResultsAndWarns(t *testing.T) {
 	RegisterSearch(srv, []search.Searcher{s}, nil,
 		WithDomainPolicy(testDomainPolicy(t, nil, []string{"reddit.com"}, false)))
 
-	res := callTool(t, srv, "frugal__search", map[string]any{"query": "anything"})
+	res := domainCallTool(t, srv, "frugal__search", map[string]any{"query": "anything"})
 	if res.IsError {
 		t.Fatalf("isError: %s", errorText(res))
 	}
@@ -133,7 +133,7 @@ func TestSearch_DomainPolicyAllowListKeepsOnlyFetchableHosts(t *testing.T) {
 	RegisterSearch(srv, []search.Searcher{s}, nil,
 		WithDomainPolicy(testDomainPolicy(t, []string{"docs.python.org"}, nil, false)))
 
-	res := callTool(t, srv, "frugal__search", map[string]any{"query": "anything"})
+	res := domainCallTool(t, srv, "frugal__search", map[string]any{"query": "anything"})
 	out, err := decodeSearchOutput(res.StructuredContent)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
@@ -153,7 +153,7 @@ func TestSearch_NoDomainPolicyLeavesResultsUntouched(t *testing.T) {
 	}}
 	srv := newServer()
 	RegisterSearch(srv, []search.Searcher{s}, nil)
-	res := callTool(t, srv, "frugal__search", map[string]any{"query": "anything"})
+	res := domainCallTool(t, srv, "frugal__search", map[string]any{"query": "anything"})
 	out, err := decodeSearchOutput(res.StructuredContent)
 	if err != nil {
 		t.Fatalf("decode: %v", err)

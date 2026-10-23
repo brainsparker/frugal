@@ -4,6 +4,14 @@ on:
   push:
     tags:
       - "v*"
+  # Re-run only the npm + MCP Registry publish for an existing tag (e.g.
+  # after a publish-step failure). Builds, signing, and the GitHub release
+  # run only on tag push.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to publish to npm + MCP Registry (e.g. v0.2.0)"
+        required: true
 
 permissions:
   contents: write
@@ -14,21 +22,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-go@v5
+        if: github.event_name == 'push'
         with:
-          go-version: "1.25"
+          go-version-file: go.mod
 
       - name: Run tests
+        if: github.event_name == 'push'
         run: go test ./...
 
       - name: Build release binaries
+        if: github.event_name == 'push'
         run: make release
 
       - name: Install cosign
+        if: github.event_name == 'push'
         uses: sigstore/cosign-installer@v3
 
       - name: Sign binaries and checksums (keyless)
+        if: github.event_name == 'push'
         run: |
           set -euo pipefail
           cd dist
@@ -37,6 +52,7 @@ jobs:
           done
 
       - name: Generate SBOMs (CycloneDX)
+        if: github.event_name == 'push'
         uses: anchore/sbom-action@v0
         with:
           path: .
@@ -44,6 +60,7 @@ jobs:
           output-file: dist/frugal.cdx.json
 
       - name: Create GitHub release
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
@@ -54,23 +71,56 @@ jobs:
       ### GitHub release we just uploaded, so order matters — keep this
       ### after the gh-release step.
 
+      # npm trusted publishing (OIDC): needs id-token: write (above) and
+      # npm >= 11.5.1. No registry-url / NODE_AUTH_TOKEN: a token (even
+      # setup-node's placeholder) takes precedence over OIDC and fails
+      # with EOTP on 2FA accounts.
       - uses: actions/setup-node@v5
         with:
           node-version: "lts/*"
-          registry-url: "https://registry.npmjs.org"
+
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest && npm --version
 
       - name: Stamp version into npm package + server.json
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
-          V="${GITHUB_REF#refs/tags/v}"
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "bad tag: $TAG"; exit 1; }
+          V="${TAG#v}"
           node -e "const f='npm/package.json';const j=require('./'+f);j.version=process.argv[1];require('fs').writeFileSync(f,JSON.stringify(j,null,2)+'\n');" "$V"
           jq --arg v "$V" '.version = $v | .packages[0].version = $v' server.json > server.tmp && mv server.tmp server.json
 
       - name: Publish npm wrapper
         working-directory: npm
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          V="$(node -p "require('./package.json').version")"
+          if [ "$(npm view "frugal-mcp@${V}" version 2>/dev/null || true)" = "$V" ]; then
+            echo "frugal-mcp@${V} is already on npm; skipping publish."
+            exit 0
+          fi
+          npm publish --access public --provenance
+
+      - name: Wait for npm version to be visible
+        run: |
+          set -euo pipefail
+          V="$(node -p "require('./npm/package.json').version")"
+          delay=10; waited=0; limit=600
+          while :; do
+            if [ "$(npm view "frugal-mcp@${V}" version --prefer-online 2>/dev/null || true)" = "$V" ]; then
+              echo "frugal-mcp@${V} visible on npm after ${waited}s."
+              exit 0
+            fi
+            if [ "$waited" -ge "$limit" ]; then
+              echo "::error::frugal-mcp@${V} not visible on npm after ${limit}s; the MCP Registry validates against npm, so not publishing there. Re-dispatch this workflow (tag=v${V}) once it appears."
+              exit 1
+            fi
+            echo "frugal-mcp@${V} not visible yet (waited ${waited}s); retrying in ${delay}s."
+            sleep "$delay"; waited=$((waited + delay))
+            delay=$(( delay * 2 > 120 ? 120 : delay * 2 ))
+          done
 
       ### Publish server metadata to the official MCP Registry. The
       ### Registry verifies the npm package's `mcpName` matches the

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	defaults "github.com/frugalsh/frugal/config"
 )
@@ -774,5 +775,28 @@ func TestParse_RoutingDomainsRejectsUnknownKeys(t *testing.T) {
 	_, err := Parse([]byte("routing:\n  domains:\n    allowed: [example.com]\n"))
 	if err == nil {
 		t.Fatal("unknown key under routing.domains should fail the load")
+	}
+}
+
+func TestParse_LimitsCallTimeout(t *testing.T) {
+	cfg, err := Parse([]byte("limits:\n  call_timeout: 45s\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Limits == nil || cfg.Limits.CallTimeout == nil || *cfg.Limits.CallTimeout != 45*time.Second {
+		t.Fatalf("limits = %+v, want call_timeout 45s", cfg.Limits)
+	}
+	if _, err := Parse([]byte("limits:\n  call_timeout: -1s\n")); err == nil {
+		t.Fatal("negative call_timeout accepted")
+	}
+}
+
+func TestParse_LimitsRetries(t *testing.T) {
+	cfg, err := Parse([]byte("limits:\n  retries: 0\n"))
+	if err != nil || cfg.Limits.Retries == nil || *cfg.Limits.Retries != 0 {
+		t.Fatalf("retries: 0 not parsed: %v %+v", err, cfg)
+	}
+	if _, err := Parse([]byte("limits:\n  retries: -1\n")); err == nil {
+		t.Fatal("negative retries accepted")
 	}
 }

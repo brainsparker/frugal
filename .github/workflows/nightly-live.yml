@@ -1,0 +1,40 @@
+name: Nightly live provider smoke
+
+# Opt-in live calls against real provider APIs: one minimal query per
+# provider. Keyless providers always run; keyed providers skip cleanly
+# when their repository secret is not set. Never runs on PRs or pushes.
+on:
+  schedule:
+    - cron: "17 7 * * *" # daily, 07:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-live
+  cancel-in-progress: true
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Live smoke tests
+        env:
+          FRUGAL_LIVE: "1"
+          SEARXNG_URL: ${{ secrets.SEARXNG_URL }}
+          JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          YDC_API_KEY: ${{ secrets.YDC_API_KEY }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          BROWSERLESS_TOKEN: ${{ secrets.BROWSERLESS_TOKEN }}
+        run: go test -tags live -count=1 -v ./internal/livetest

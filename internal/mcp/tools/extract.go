@@ -34,12 +34,13 @@ type ExtractInput struct {
 	// populate others.
 	Formats []string `json:"formats,omitempty" jsonschema:"output formats: markdown | html | text"`
 	// Provider pins the extract provider for this call ("goreadability",
-	// "goreadability", "jina", "firecrawl", …). Empty / "auto" → the routing policy decides.
+	// "jina", "firecrawl", …). Empty / "auto" → the routing policy decides.
 	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: goreadability | jina | firecrawl | auto"`
 	// MaxChars caps the content returned (markdown + text + html,
 	// shared). Zero falls back to the server's configured default, which
 	// is unlimited unless the operator set limits.max_chars.
-	MaxChars int `json:"max_chars,omitempty" jsonschema:"optional cap on returned content characters (markdown, text, and html combined); the response reports truncated, chars_returned, and chars_total so you can re-call with a larger value; 0 = server default"`
+	MaxChars   int      `json:"max_chars,omitempty" jsonschema:"optional cap on returned content characters (markdown, text, and html combined); the response reports truncated, chars_returned, and chars_total so you can re-call with a larger value; 0 = server default"`
+	MaxCostUSD *float64 `json:"max_cost_usd,omitempty" jsonschema:"optional per-call spend ceiling in USD: providers priced above it are never called for this request; 0 means free providers only"`
 }
 
 // ExtractOutput is the structured-content payload returned to the MCP
@@ -49,15 +50,19 @@ type ExtractInput struct {
 // the size footer (CharsReturned / CharsTotal / Truncated / EstTokens)
 // makes the context cost auditable in the same breath.
 type ExtractOutput struct {
-	Markdown     string   `json:"markdown,omitempty"`
-	HTML         string   `json:"html,omitempty"`
-	Text         string   `json:"text,omitempty"`
-	Title        string   `json:"title,omitempty"`
-	Byline       string   `json:"byline,omitempty"`
-	Links        []string `json:"links,omitempty"`
-	CostUSD      float64  `json:"cost_usd"`
-	ProviderUsed string   `json:"provider_used"`
-	LatencyMS    int64    `json:"latency_ms"`
+	Markdown string   `json:"markdown,omitempty"`
+	HTML     string   `json:"html,omitempty"`
+	Text     string   `json:"text,omitempty"`
+	Title    string   `json:"title,omitempty"`
+	Byline   string   `json:"byline,omitempty"`
+	Links    []string `json:"links,omitempty"`
+	CostUSD  float64  `json:"cost_usd"`
+	// TotalCostUSD sums every attempt's cost_usd; Attempts lists each
+	// provider call in order (see Attempt).
+	TotalCostUSD float64   `json:"total_cost_usd"`
+	Attempts     []Attempt `json:"attempts,omitempty"`
+	ProviderUsed string    `json:"provider_used"`
+	LatencyMS    int64     `json:"latency_ms"`
 	// CharsReturned / CharsTotal / Truncated report what the max_chars
 	// budget did: how much content is in this response, how much the
 	// provider produced, and whether the two differ. EstTokens is the
@@ -104,7 +109,7 @@ func RegisterExtract(server *sdkmcp.Server, extractors []extract.Extractor, metr
 			IdempotentHint:  true, // extracting the same URL twice should yield the same content
 			OpenWorldHint:   boolPtr(true),
 		},
-	}, makeExtractHandler(extractors, metrics, buildToolOptions(opts)))
+	}, withAttempts(makeExtractHandler(extractors, metrics, buildToolOptions(opts)), func(o *ExtractOutput, a []Attempt, t float64) { o.Attempts, o.TotalCostUSD = a, t }))
 }
 
 func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o toolOptions) func(context.Context, *sdkmcp.CallToolRequest, ExtractInput) (*sdkmcp.CallToolResult, ExtractOutput, error) {
@@ -117,11 +122,18 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 	hook = composeHook(o.guard, "extract", hook)
 
 	return func(ctx context.Context, _ *sdkmcp.CallToolRequest, in ExtractInput) (*sdkmcp.CallToolResult, ExtractOutput, error) {
+		ctx, cancelCall := routing.WithCallDeadline(ctx, o.callTimeout)
+		defer cancelCall()
+		hook := attemptLogFrom(ctx).wrap("", hook)
 		if in.URL == "" {
 			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: url is required")
 		}
 		if in.MaxChars < 0 {
 			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: max_chars must be zero (server default) or positive")
+		}
+		ceiling, cerr := routing.CeilingFrom(in.MaxCostUSD)
+		if cerr != nil {
+			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: %w", cerr)
 		}
 		q := extract.Query{URL: in.URL, Formats: in.Formats}
 		logger := slog.Default()
@@ -167,13 +179,19 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 			err  error
 		)
 		if isAuto(provider) {
-			ordered, reason := routing.Apply(extractors, o.policy, o.lat, time.Now())
+			now := time.Now()
+			ordered, reason := routing.Apply(extractors, o.policy, o.lat, now)
 			if len(ordered) == 0 {
 				return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: every configured provider is denied by the routing policy")
 			}
 			ordered, reason = guardChain(o.guard, "extract", ordered, reason, logger)
 			if len(ordered) == 0 {
 				return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: %w", guardEmptyError("extract"))
+			}
+			affordable := ordered
+			ordered, reason = routing.ApplyCeiling(ordered, ceiling, reason, now)
+			if len(ordered) == 0 {
+				return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: %w", routing.CeilingEmptyError("extract", ceiling, affordable, now))
 			}
 			logger.Debug("extract routing", "reason", reason)
 			used, res, err = extract.CallInOrder(ctx, ordered, q, logger, hook)
@@ -183,6 +201,8 @@ func makeExtractHandler(extractors []extract.Extractor, metrics *obs.Metrics, o 
 		} else if ok, why := o.guard.Allow("extract", provider); !ok {
 			// Budget / cooldown blocks a pin the same way deny does.
 			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: provider %q unavailable: %s", provider, why)
+		} else if ok, why := pinUnderCeiling(extractors, provider, ceiling); !ok {
+			return nil, ExtractOutput{}, fmt.Errorf("frugal__extract: %s", why)
 		} else {
 			used, res, err = extract.CallPinned(ctx, extractors, provider, q, logger, hook)
 		}

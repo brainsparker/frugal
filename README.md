@@ -233,6 +233,63 @@ When a guardrail skips a provider it is noted in the routing trace
 in a chain is over budget or cooling down, the call fails with a clear
 message rather than silently doing nothing.
 
+## Per-call deadline: `call_timeout`
+
+Each provider client has its own request timeout (15–90s), but a chain
+that walks several slow providers could still block an agent for
+minutes. Every routed tool call (`frugal__search`, `frugal__extract`,
+`frugal__browse`, `frugal__execute` including its extract-to-browse
+fall-forward) therefore runs under one overall deadline, **60s by
+default**. Each attempt gets only the budget that remains; once it runs
+out, failover stops (no further provider is called or paid) and the call
+fails with `frugal: call deadline exceeded; <capability> failover stopped
+after N attempt(s): ...`, naming every attempt's error.
+
+```yaml
+limits:
+  call_timeout: 45s   # "0s" disables the overall deadline
+```
+
+`frugal mcp serve --call-timeout 30s` overrides the config. Over `--http`,
+the shorter of this and `--request-timeout` (30s by default) wins.
+
+### Retries on transient errors: `retries` (free providers only)
+
+**Free providers** (`cost_per_call: 0` in your config) retry a transient
+error (429, 408, 5xx, timeout, connection reset) **2 times by default**
+before failing over, with short jittered backoff (about 200ms, then
+800ms). **Paid providers** (`cost_per_call > 0`: by default Serper,
+You.com, Brave, Firecrawl, Browserless) are **never retried**: a request
+that timed out or 5xx'd may still have been billed, so Frugal fails over
+to the next provider immediately instead of risking a double charge.
+Paid-ness comes from the configured price, so setting a provider's
+`cost_per_call` to 0 makes it retryable and vice versa.
+
+Permanent errors (401, 402, 403, other 4xx) and errors no provider can
+fix are never retried. A `Retry-After` header is honored: the retry
+waits at least that long if it is 5s or less; a longer hint skips the
+retry and fails over instead. A retry never sleeps past the remaining
+`call_timeout`. A 429 also opens the provider's rate-limit cooldown for
+the configured window, extended to the `Retry-After` hint (capped at 10
+minutes); that applies to paid and free providers alike.
+
+```yaml
+limits:
+  retries: 1   # free providers only; 0 disables (fail over immediately); max 5
+```
+
+## Multi-attempt receipts: `attempts[]` and `total_cost_usd`
+
+`cost_usd` remains the price of the answer you got. Every successful
+routed result also carries `attempts[]` (each provider call in order,
+with `provider`, `outcome` = `won` / `empty` / `error`, `error_kind`,
+`error`, `latency_ms`, `cost_usd`) and `total_cost_usd` (their sum), so
+a call that failed over shows every rung it touched. A failed attempt is
+recorded at `$0`: Frugal assumes a provider does not bill a request that
+errored (no driver reports a charge on failure). A paid provider's
+zero-hit answer is billed and shows its list price. In-driver retries of
+one provider count as one attempt. Cache hits have no attempts.
+
 ## Result size caps and the token receipt
 
 Dollars are one cost of a tool call. The other is the tokens its result
@@ -394,6 +451,37 @@ and a changed argument, `max_results`, `freshness`, `priority`, is a new
 call. The guard holds only hashes of the arguments, in memory, in a
 bounded map; nothing about the query is written anywhere. Trips are
 logged at Warn next to the budget skips.
+## Per-call cost ceilings: `max_cost_usd`
+
+Daily budgets protect your wallet over a day. `max_cost_usd` lets the
+agent decide, per call, what one question is worth. Every routed tool
+(`frugal__search`, `frugal__extract`, `frugal__browse`, and
+`frugal__execute`) accepts it:
+
+```
+frugal__search  {"query": "is this library still maintained", "max_cost_usd": 0.001}
+frugal__execute {"intent": "read https://example.com/post", "max_cost_usd": 0}
+```
+
+- Providers whose effective per-call price is above the ceiling are
+  removed from the chain before anything is called, so they are not
+  reached as fallback rungs either. The rest of the chain routes under
+  your policy as usual.
+- `0` means free providers only. Effective price is quota-aware: a paid
+  provider with free quota left this month counts as free.
+- Pinning a provider priced above your own ceiling is refused before
+  any spend, like pinning a denied or over-budget provider.
+- On `frugal__execute`, the ceiling also governs the extract-to-browse
+  fall-forward. A call capped at `0` never falls forward into a paid
+  render; the empty extract comes back with a warning that says why.
+- Skips are visible in the trace (`; ceiling: skipped youcom (youcom
+  costs $0.0050 per call, above max_cost_usd $0.0010)`). If nothing
+  fits, the error names the cheapest configured provider and its price
+  so the agent can raise the ceiling or move on.
+
+Leave it unset and routing is exactly what it was. The ceiling is a
+request-time knob for the agent; the operator's `daily_budget_usd`,
+`deny`, and `cooldown` still apply on top of it.
 
 ## Describe the job: `frugal__execute`
 
