@@ -800,3 +800,36 @@ func TestParse_LimitsRetries(t *testing.T) {
 		t.Fatal("negative retries accepted")
 	}
 }
+
+func TestParse_FailureBreakerRoundTripsAndValidates(t *testing.T) {
+	// Absent: nil pointer / empty string, so wiring applies the defaults.
+	cfg, err := Parse([]byte("routing:\n  cooldown: 90s\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Routing.FailureThreshold != nil || cfg.Routing.FailureCooldown != "" {
+		t.Fatalf("absent failure breaker must stay nil/empty, got %+v", cfg.Routing)
+	}
+
+	// Explicit values round-trip; 0 is a valid "off".
+	cfg, err = Parse([]byte("routing:\n  failure_threshold: 0\n  failure_cooldown: 2m\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Routing.FailureThreshold == nil || *cfg.Routing.FailureThreshold != 0 || cfg.Routing.FailureCooldown != "2m" {
+		t.Fatalf("routing failure breaker = %+v, want threshold 0 cooldown 2m", cfg.Routing)
+	}
+	cfg, err = Parse([]byte("routing:\n  failure_threshold: 5\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Routing.FailureThreshold == nil || *cfg.Routing.FailureThreshold != 5 {
+		t.Fatalf("routing.failure_threshold = %+v, want 5", cfg.Routing.FailureThreshold)
+	}
+
+	// Negative is rejected at load with a hint about 0.
+	_, err = Parse([]byte("routing:\n  failure_threshold: -1\n"))
+	if err == nil || !strings.Contains(err.Error(), "failure_threshold") {
+		t.Fatalf("want failure_threshold error for a negative threshold, got %v", err)
+	}
+}

@@ -472,7 +472,49 @@ func buildGuard(cfg *config.Config) *routing.Guard {
 	} else {
 		slog.Info("mcp serve: loop guard disabled by routing.loop_limit: 0")
 	}
+
+	// Failure breaker: on by default at the routing package's threshold,
+	// fenced for routing.cooldown unless routing.failure_cooldown says
+	// otherwise; routing.failure_threshold: 0 turns it off.
+	threshold, failCooldown := failureBreakerSettings(cfg)
+	guard.SetFailureBreaker(threshold, failCooldown)
+	if threshold > 0 {
+		_, effective := guard.FailureBreakerSettings()
+		slog.Info("mcp serve: failure breaker", "threshold", threshold, "cooldown", effective)
+	} else {
+		slog.Info("mcp serve: failure breaker disabled by routing.failure_threshold: 0")
+	}
 	return guard
+}
+
+// failureBreakerSettings resolves routing.failure_threshold and
+// routing.failure_cooldown to the values SetFailureBreaker takes. Absent
+// threshold means the product default; an explicit 0 disables. A zero
+// cooldown tells the guard to reuse the rate-limit cooldown; an invalid
+// or non-positive string warns and does the same.
+func failureBreakerSettings(cfg *config.Config) (int, time.Duration) {
+	threshold := routing.DefaultFailureThreshold
+	var cooldown time.Duration
+	if cfg.Routing == nil {
+		return threshold, cooldown
+	}
+	if cfg.Routing.FailureThreshold != nil {
+		threshold = *cfg.Routing.FailureThreshold
+	}
+	if raw := strings.TrimSpace(cfg.Routing.FailureCooldown); raw != "" {
+		d, err := time.ParseDuration(raw)
+		switch {
+		case err != nil:
+			slog.Warn("mcp serve: invalid routing failure_cooldown; using the rate-limit cooldown",
+				"failure_cooldown", raw, "err", err)
+		case d <= 0:
+			slog.Warn("mcp serve: routing failure_cooldown must be positive; using the rate-limit cooldown",
+				"failure_cooldown", raw)
+		default:
+			cooldown = d
+		}
+	}
+	return threshold, cooldown
 }
 
 // loopGuardSettings resolves routing.loop_limit / routing.loop_window to

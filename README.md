@@ -414,6 +414,50 @@ and a changed argument, `max_results`, `freshness`, `priority`, is a new
 call. The guard holds only hashes of the arguments, in memory, in a
 bounded map; nothing about the query is written anywhere. Trips are
 logged at Warn next to the budget skips.
+
+## Failure breaker
+
+The fourth rail covers the failure a provider never announces: an
+outage. A rate limit comes with a 429 and the cooldown above handles it.
+A provider that has simply stopped answering (timeouts, 5xx, connection
+refused) says nothing, and because every driver has its own request
+timeout (15 to 90s) a dead rung at the front of the chain makes every
+call wait that long before failover even starts, for as long as the
+outage lasts. Under the default 60s `call_timeout` that is a quarter to
+all of the deadline spent on a provider that cannot win.
+
+```yaml
+routing:
+  failure_threshold: 3       # consecutive timeouts / 5xx before a provider is fenced (default 3; 0 turns the rail off)
+  failure_cooldown: 60s      # how long it stays fenced (default: same as cooldown)
+```
+
+On by default. After `failure_threshold` consecutive transient failures
+from one provider (per capability, so `search/youcom` and
+`extract/youcom` are tracked apart), the breaker opens and the router
+skips that provider for `failure_cooldown`, falling straight through to
+the next rung at zero cost and zero wait. When the window elapses the
+breaker is half-open: the provider is admitted once more, a success
+closes the breaker and clears the run, and a single further failure
+reopens it for another full window without waiting for the threshold
+again. Any success resets the count, including a zero-hit one, since an
+answer of "nothing" still proves the provider is up.
+
+What counts is deliberately narrow. 429s do not (the cooldown rail owns
+them and honors `Retry-After`). Permanent errors (401, 402, 403, other
+4xx) do not: they fail in milliseconds, cost no deadline, and name a key
+or plan you have to fix, which fencing would only hide. An error no
+provider can fix (the target URL is gone) is about the request, not the
+provider, and is ignored too.
+
+Skips are visible in the trace like budget skips (`; budget: skipped
+serper (circuit open after 3 consecutive failures (last: HTTP 503) until
+2026-10-23T14:02:11Z (41s left))`), the opening of a breaker is logged
+once at Warn with the error that tripped it, and a call that pins a
+fenced provider by name is refused with the same reason, the way a
+denied or over-budget pin is. The state is per process and in memory;
+a restart starts every breaker closed.
+
 ## Per-call cost ceilings: `max_cost_usd`
 
 Daily budgets protect your wallet over a day. `max_cost_usd` lets the

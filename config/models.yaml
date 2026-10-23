@@ -106,6 +106,20 @@
 #     loop_limit: 5
 #     loop_window: 60s
 #
+# Failure breaker (optional, on by default). A provider that times out,
+# returns 5xx, or refuses connections failure_threshold times in a row
+# is fenced off for failure_cooldown, so the chain skips straight to the
+# next rung instead of paying the dead provider's request timeout on
+# every call. After the window one attempt is admitted: a success closes
+# the breaker, one more failure reopens it. 429s are handled by cooldown
+# above and do not count; neither do 401/402/403 (fix the key, not the
+# router). failure_threshold: 0 turns the rail off; failure_cooldown
+# defaults to routing.cooldown when absent or invalid:
+#
+#   routing:
+#     failure_threshold: 3
+#     failure_cooldown: 60s
+#
 # v1.0 ships only the search-tool layer. Chat-model routing and its
 # pricing tables come back in Phase 2 with the frugal__chat MCP tool.
 search_providers:

@@ -2,6 +2,20 @@
 
 All notable changes to Frugal. Versions follow the git tags.
 
+## [Unreleased]
+
+### Routing, limits, and safety
+- **Failure breaker** (`routing.failure_threshold`, default 3;
+  `routing.failure_cooldown`, default the 429 `cooldown`): a provider
+  that times out, returns 5xx, or refuses connections three times in a
+  row is fenced off for the cooldown so the chain skips it at zero wait
+  instead of paying its request timeout on every call. Half-open after
+  the window: one attempt is admitted, a success closes the breaker, one
+  more failure reopens it. 429s (cooldown rail) and 401/402/403 (key or
+  plan problems) do not count. On by default; `failure_threshold: 0`
+  turns it off. Skips appear in the routing trace and pinned calls to a
+  fenced provider are refused with the reason.
+
 ## [0.2.0] - 2026-10-21
 
 First release since v0.1.1 (2026-07-23).
