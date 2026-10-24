@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/frugalsh/frugal/internal/cache"
+	"github.com/frugalsh/frugal/internal/extract"
 	"github.com/frugalsh/frugal/internal/routing"
 )
 
@@ -47,6 +48,14 @@ type toolOptions struct {
 	// across every failover attempt. Zero (the zero value) disables it;
 	// mcp serve sets routing.DefaultCallTimeout unless configured.
 	callTimeout time.Duration
+
+	// readers is the extract chain frugal__search opens top hits with
+	// when the caller sets read_top, under the extract capability's own
+	// policy and latency source (see WithPageReaders). Nil (the default)
+	// leaves read_top unavailable and the search tool unchanged.
+	readers    []extract.Extractor
+	readPolicy routing.Policy
+	readLat    routing.LatencyLookup
 }
 
 // WithCallTimeout bounds each tool call — the whole failover chain — to d.
