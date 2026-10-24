@@ -446,6 +446,57 @@ Leave it unset and routing is exactly what it was. The ceiling is a
 request-time knob for the agent; the operator's `daily_budget_usd`,
 `deny`, and `cooldown` still apply on top of it.
 
+## Search and read in one call: `read_top`
+
+Agents answer from snippets. Measured across current models, they open
+the page behind a search hit somewhere between 3% and 50% of the time,
+and a snippet-only answer is stale several times more often than one
+grounded in the page. The second tool round-trip ("now extract the top
+hit") is exactly the step that gets skipped. `read_top` folds it into
+the search:
+
+```
+frugal__search {"query": "go 1.26 release notes", "read_top": 2}
+frugal__search {"query": "is this library still maintained", "read_top": 3, "page_max_chars": 2000, "max_cost_usd": 0}
+```
+
+The hit list comes back as before, plus `pages[]`: the top N hits (1 to
+5) opened through the extract chain under the extract policy (local
+Readability first by default, then the free hosted render, then a paid
+scrape). Each page carries its own receipt:
+
+- `content` and `content_format` (`markdown`, or `text` when the
+  driver's markdown is really HTML, since plain text is the denser read
+  for a small budget), capped by `page_max_chars` (default 4,000
+  characters, or `limits.max_chars` when configured). `truncated`,
+  `chars_returned`, and `chars_total` say what the cap did; re-read one
+  URL with `frugal__extract` and a larger `max_chars` for the rest.
+- `fetch_status`: `ok`, `error`, or `skipped`. A dead link is listed
+  with `error_kind: fatal` and the status, not silently dropped, so the
+  agent knows the hit exists but the page is gone.
+- `provider_used`, `cost_usd`, `latency_ms`, and `cached` when the
+  page came from the result cache (pages share the extract cache with
+  `frugal__extract`, in both directions).
+- `age_days` from the search provider's `published_at`, or
+  `undated: true` when there is none, so an undated page is weighed as
+  such rather than assumed current.
+
+`pages_read` and `pages_failed` summarize; `est_tokens` includes the
+pages. `cost_usd` stays the search provider's price; the page costs are
+on each page, in `attempts[]` (labeled `capability: extract`), and in
+`total_cost_usd`.
+
+Pages run under the same `call_timeout` as the search and the same
+`max_cost_usd`: whatever the ceiling has left after the search is split
+evenly across the pages, so the call as a whole never spends more than
+the caller allowed. A page the deadline reaches first is reported as an
+error naming the deadline; the hits you already paid for are never
+lost. Up to three pages are fetched at once, which keeps a five-page
+read fast without tripping a keyless provider's per-minute limit.
+
+Leave `read_top` unset and `frugal__search` is byte-for-byte what it
+was.
+
 ## Describe the job: `frugal__execute`
 
 Instead of picking a tool, an agent can state the intent and a priority.
@@ -566,6 +617,8 @@ One MCP server, four tools, nine providers:
   credit, so `daily_budget_usd: 0.16` keeps light use inside it).  When a free provider returns zero hits the chain falls through to the
   next rung; a paid provider returning zero hits ends the chain (the
   query has no hits — no point paying a pricier provider to confirm).
+  `read_top` opens the top hits through the extract chain in the same
+  call and returns them under `pages[]` with per-page receipts.
 - **`frugal__extract`** — **shipping**. Routed across **go-readability**
   (free, pure-Go local Readability), **Jina Reader** (free, hosted
   headless render: 20 requests/min keyless, 500 with a free `JINA_API_KEY`),

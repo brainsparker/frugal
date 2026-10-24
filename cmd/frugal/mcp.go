@@ -189,10 +189,15 @@ func runMCPServe(args []string) int {
 	// than refusing to serve.
 	domains := buildDomainPolicy(cfg)
 	searchers := buildSearchers(cfg)
+	// Extractors are built before the search tool is registered because
+	// frugal__search opens top hits through the extract chain on
+	// read_top, under the extract capability's own policy.
+	extractors := buildExtractors(cfg)
 	warnPolicyStrangers("search", policies["search"], searcherNames(searchers))
 	tools.RegisterSearch(srv.Inner, searchers, metrics,
 		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), tools.WithCallTimeout(callDeadline), withCache,
-		tools.WithDomainPolicy(domains))
+		tools.WithDomainPolicy(domains),
+		tools.WithPageReaders(extractors, policies["extract"], latFor("extract")))
 	if len(searchers) == 0 {
 		slog.Warn("mcp serve: no search providers configured — frugal__search will not be advertised. " +
 			"Set SEARXNG_URL (free, self-hosted), SERPER_API_KEY, BRAVE_API_KEY, or YDC_API_KEY to enable.")
@@ -200,7 +205,6 @@ func runMCPServe(args []string) int {
 		slog.Info("mcp serve: frugal__search registered", "providers", searcherNames(searchers))
 	}
 
-	extractors := buildExtractors(cfg)
 	warnPolicyStrangers("extract", policies["extract"], extractorNames(extractors))
 	tools.RegisterExtract(srv.Inner, extractors, metrics,
 		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), tools.WithCallTimeout(callDeadline), withCache,

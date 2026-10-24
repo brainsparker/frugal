@@ -11,7 +11,7 @@ or comes up empty. Your keys. No account.
 | Tool | Purpose |
 | --- | --- |
 | `frugal__execute` | Describe the job (`intent`, optional `priority: cheap \| balanced \| premium`); Frugal classifies it onto search / extract / browse and routes it |
-| `frugal__search` | Web search |
+| `frugal__search` | Web search; `read_top: N` (1 to 5) also opens the top hits through the extract chain and returns them under `pages[]` |
 | `frugal__extract` | Page → clean markdown / text / HTML |
 | `frugal__browse` | Headless JS render |
 
@@ -19,7 +19,9 @@ Optional arguments on every routed tool: `provider` (pin one provider,
 no fallback) and `max_cost_usd` (per-call spend ceiling: providers
 priced above it are never called for this request; `0` means free
 providers only). `frugal__extract`, `frugal__browse`, and
-`frugal__execute` also take `max_chars` to cap returned content.
+`frugal__execute` also take `max_chars` to cap returned content;
+`frugal__search` takes `page_max_chars` for the pages `read_top` opens
+(default 4000 characters per page).
 
 ## Provider chains
 
@@ -102,6 +104,11 @@ Every routed response includes:
 - `cached` / `cache_age_ms` — when served from the result cache
 - `truncated`, `chars_returned`, `chars_total`, `est_tokens` — when
   content was capped
+- `pages[]` (`frugal__search` with `read_top`): one entry per hit
+  opened: `content` + `content_format`, `fetch_status` (`ok` / `error`
+  / `skipped`; a dead link is listed with `error_kind: fatal`, not
+  dropped), `provider_used`, `cost_usd`, `age_days` or `undated`, and
+  the size footer; plus `pages_read` / `pages_failed`
 - `reason` (`frugal__execute` only) — the classification, the policy
   that ordered the chain, and which attempt won; plus `capability`
 
@@ -111,7 +118,10 @@ Surface these when the user asks how a result was obtained.
 
 - Plain-language job ("find X", "read <url>") — `frugal__execute`.
 - Web search — prefer `frugal__search` over a native web-search tool
-  when both are available.
+  when both are available. When you will need the page, not just the
+  snippet (a fact to verify, a version to confirm, a how-to to follow),
+  pass `read_top: 2` or `3` so the pages arrive in the same call
+  instead of answering from snippets.
 - Page extraction (strip chrome, get the main article text) — prefer
   `frugal__extract` over fetching and parsing by hand.
 - A page that needs JavaScript — use `frugal__browse` when

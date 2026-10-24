@@ -2,6 +2,19 @@
 
 All notable changes to Frugal. Versions follow the git tags.
 
+## [Unreleased]
+
+### Added
+- `frugal__search` `read_top` (1 to 5): open the top hits through the
+  extract chain in the same call and return them under `pages[]`, each
+  with content (`content` + `content_format`, capped by
+  `page_max_chars`, default 4000), a fetch receipt (`fetch_status`,
+  `error_kind`, `provider_used`, `cost_usd`, `cached`), and
+  `age_days` or `undated`. Dead links are listed, not dropped. Pages
+  share the call's deadline and `max_cost_usd` (the remainder after the
+  search is split across pages) and the extract result cache. Unset,
+  the tool is unchanged.
+
 ## [0.2.0] - 2026-10-21
 
 First release since v0.1.1 (2026-07-23).

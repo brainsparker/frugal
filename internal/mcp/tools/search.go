@@ -53,6 +53,15 @@ type SearchInput struct {
 	// any call is made; 0 means free rungs only. A pointer so that an
 	// explicit 0 is distinguishable from "not declared".
 	MaxCostUSD *float64 `json:"max_cost_usd,omitempty" jsonschema:"optional per-call spend ceiling in USD: providers priced above it are never called for this request; 0 means free providers only"`
+	// ReadTop asks for the top N hits to be opened through the extract
+	// chain in this same call, so the agent reads the pages instead of
+	// answering from snippets. 0 (the default) keeps the snippets-only
+	// behavior byte-for-byte. See readtop.go.
+	ReadTop int `json:"read_top,omitempty" jsonschema:"optional: also read the top N result pages (1 to 5) through the extract chain in this call and return their content under pages[], each with a fetch receipt (provider, cost, chars, truncated, age_days or undated); the pages share this call's deadline and max_cost_usd; 0 (default) returns snippets only"`
+	// PageMaxChars caps each page's returned markdown when ReadTop is
+	// set. Zero resolves to the operator's limits.max_chars, then to
+	// DefaultPageMaxChars; a page read is never unlimited.
+	PageMaxChars int `json:"page_max_chars,omitempty" jsonschema:"optional per-page cap on returned markdown characters when read_top is set (default 4000, or the server's limits.max_chars when configured); each page reports truncated, chars_returned, and chars_total so you can re-read one URL with frugal__extract and a larger max_chars"`
 }
 
 // SearchOutput is the structured-content payload returned to the MCP
@@ -80,10 +89,20 @@ type SearchOutput struct {
 	Cached     bool  `json:"cached,omitempty" jsonschema:"true when served from the local result cache without a provider call"`
 	CacheAgeMS int64 `json:"cache_age_ms,omitempty" jsonschema:"age of the cached result in milliseconds (cache hits only)"`
 	// EstTokens is the approximate context cost of the result list
-	// (titles, URLs, snippets), so the agent can see what a wide
-	// max_results actually buys. Search results are never truncated;
-	// max_results is the size knob for this tool.
+	// (titles, URLs, snippets) plus any pages read, so the agent can see
+	// what a wide max_results or read_top actually buys. Search results
+	// are never truncated; max_results is the size knob for the list and
+	// page_max_chars for the pages.
 	EstTokens int `json:"est_tokens"`
+	// Pages holds the top hits read through the extract chain when the
+	// caller set read_top, in result order, one entry per hit attempted
+	// (including the ones that failed, with fetch_status "error").
+	// PagesRead / PagesFailed summarize them. cost_usd above stays the
+	// search provider's price; page costs are on each Page and in
+	// total_cost_usd and attempts[] (capability "extract").
+	Pages       []Page `json:"pages,omitempty" jsonschema:"top results read through the extract chain (read_top only), each with content and a fetch receipt; a page that could not be fetched is listed with fetch_status error rather than dropped"`
+	PagesRead   int    `json:"pages_read,omitempty" jsonschema:"number of pages whose content was fetched (read_top only)"`
+	PagesFailed int    `json:"pages_failed,omitempty" jsonschema:"number of pages that could not be fetched (read_top only)"`
 }
 
 // RegisterSearch wires frugal__search onto the given MCP server. searchers
@@ -100,9 +119,13 @@ func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics 
 	if len(searchers) == 0 {
 		return
 	}
+	o := buildToolOptions(opts)
 	if metrics != nil {
 		for _, s := range searchers {
 			metrics.EnsureProvider(s.Name(), "search")
+		}
+		for _, e := range o.readers {
+			metrics.EnsureProvider(e.Name(), "extract")
 		}
 	}
 	desc := fmt.Sprintf(
@@ -113,6 +136,15 @@ func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics 
 			"(0 = free providers only).",
 		joinNames(searchers),
 	)
+	if len(o.readers) > 0 {
+		desc += fmt.Sprintf(
+			" Set `read_top` (1 to %d) to also open the top hits through the extract chain (%s) "+
+				"in the same call: `pages[]` returns each page's markdown (capped by `page_max_chars`, "+
+				"default %d) with a fetch receipt, so you can answer from the page rather than the "+
+				"snippet; dead links are reported, not dropped.",
+			MaxReadTop, joinExtractorNames(o.readers), DefaultPageMaxChars,
+		)
+	}
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        "frugal__search",
 		Title:       "Web search (routed)",
@@ -123,7 +155,7 @@ func RegisterSearch(server *sdkmcp.Server, searchers []search.Searcher, metrics 
 			IdempotentHint:  false, // search results can shift between calls
 			OpenWorldHint:   boolPtr(true),
 		},
-	}, withAttempts(makeSearchHandler(searchers, metrics, buildToolOptions(opts)), func(o *SearchOutput, a []Attempt, t float64) { o.Attempts, o.TotalCostUSD = a, t }))
+	}, withAttempts(makeSearchHandler(searchers, metrics, o), func(o *SearchOutput, a []Attempt, t float64) { o.Attempts, o.TotalCostUSD = a, t }))
 }
 
 func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o toolOptions) func(context.Context, *sdkmcp.CallToolRequest, SearchInput) (*sdkmcp.CallToolResult, SearchOutput, error) {
@@ -140,11 +172,19 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 	// hook so every attempt books spend and trips the cooldown. Nil guard
 	// makes this a pass-through (the guard methods are nil-safe).
 	hook = composeHook(o.guard, "search", hook)
+	// Page reads book under the extract capability: metrics, budgets,
+	// and the cooldown all see them as what they are.
+	var pageHook routing.AttemptHook
+	if metrics != nil {
+		pageHook = func(provider string, latency time.Duration, costUSD float64, won bool, err error) {
+			metrics.RecordCall(provider, latency, costUSD, won, err)
+		}
+	}
+	pageHook = composeHook(o.guard, "extract", pageHook)
 
 	return func(ctx context.Context, _ *sdkmcp.CallToolRequest, in SearchInput) (*sdkmcp.CallToolResult, SearchOutput, error) {
 		ctx, cancelCall := routing.WithCallDeadline(ctx, o.callTimeout)
 		defer cancelCall()
-		hook := attemptLogFrom(ctx).wrap("", hook)
 		if in.Query == "" {
 			return nil, SearchOutput{}, fmt.Errorf("frugal__search: query is required")
 		}
@@ -156,6 +196,25 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 		if err != nil {
 			return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", err)
 		}
+		readTop, err := normalizeReadTop(in.ReadTop)
+		if err != nil {
+			return nil, SearchOutput{}, fmt.Errorf("frugal__search: %w", err)
+		}
+		if readTop > 0 && len(o.readers) == 0 {
+			return nil, SearchOutput{}, fmt.Errorf("frugal__search: read_top needs an extract provider and none is configured; go-readability is built in, so this server was started without extract support")
+		}
+		if in.PageMaxChars < 0 {
+			return nil, SearchOutput{}, fmt.Errorf("frugal__search: page_max_chars must be zero (default) or positive")
+		}
+		// With pages in the receipt, label the search attempts too, so
+		// attempts[] reads unambiguously. Snippets-only calls keep the
+		// historical unlabeled entries.
+		attemptCapability := ""
+		if readTop > 0 {
+			attemptCapability = "search"
+		}
+		hook := attemptLogFrom(ctx).wrap(attemptCapability, hook)
+		pageHook := attemptLogFrom(ctx).wrap("extract", pageHook)
 		q := search.Query{
 			Text:       in.Query,
 			MaxResults: in.MaxResults,
@@ -168,10 +227,12 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 		// provider is paid for it. Keyed on the normalized input, so
 		// whitespace and provider spelling don't split a loop.
 		if err := admitCall(o.guard, "frugal__search", SearchInput{
-			Query:      strings.TrimSpace(in.Query),
-			MaxResults: in.MaxResults,
-			Freshness:  freshness,
-			Provider:   provider,
+			Query:        strings.TrimSpace(in.Query),
+			MaxResults:   in.MaxResults,
+			Freshness:    freshness,
+			Provider:     provider,
+			ReadTop:      readTop,
+			PageMaxChars: in.PageMaxChars,
 		}, logger); err != nil {
 			return nil, SearchOutput{}, err
 		}
@@ -180,18 +241,25 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 		// Result cache: an identical call inside the TTL is answered
 		// from memory, costing nothing. Key covers every argument that
 		// changes what a provider would return. Nil cache is a no-op.
+		// read_top is not part of the key: the hit list is the same
+		// either way, and the pages are read (or served from the extract
+		// cache) below.
 		key := cache.SearchKey(provider, in.Query, in.MaxResults, freshness)
 		if v, age, ok := o.resultCache.Get(key); ok {
 			if hit, isSearch := v.(cachedSearch); isSearch {
-				return nil, SearchOutput{
+				out := SearchOutput{
 					Results:      hit.Items,
 					CostUSD:      0,
 					ProviderUsed: hit.Provider,
-					LatencyMS:    time.Since(start).Milliseconds(),
 					Warnings:     hit.Warnings,
 					Cached:       true,
 					CacheAgeMS:   age.Milliseconds(),
-				}, nil
+				}
+				if readTop > 0 {
+					attachPages(ctx, &out, o, readTop, in.PageMaxChars, ceiling, pageHook, logger)
+				}
+				out.LatencyMS = time.Since(start).Milliseconds()
+				return nil, out, nil
 			}
 		}
 
@@ -257,8 +325,26 @@ func makeSearchHandler(searchers []search.Searcher, metrics *obs.Metrics, o tool
 			Warnings:     warnings,
 			EstTokens:    limit.EstTokens(itemChars(items)),
 		}
+		if readTop > 0 {
+			attachPages(ctx, &out, o, readTop, in.PageMaxChars, ceiling, pageHook, logger)
+			out.LatencyMS = time.Since(start).Milliseconds()
+		}
 		return nil, out, nil
 	}
+}
+
+// attachPages runs the read_top step on a finished search output: it
+// opens the top n hits, fills pages[] and the page counters, and folds
+// the page content into est_tokens. The ceiling passed in is the
+// caller's for the whole call; what the search spent comes off first.
+func attachPages(ctx context.Context, out *SearchOutput, o toolOptions, n int, pageMaxChars int, ceiling routing.Ceiling, hook routing.AttemptHook, logger *slog.Logger) {
+	if n > len(out.Results) {
+		n = len(out.Results)
+	}
+	pages := readTopPages(ctx, o, out.Results, n, o.effectivePageMaxChars(pageMaxChars), pageCeiling(ceiling, out.CostUSD, n), hook, logger)
+	out.Pages = pages
+	out.PagesRead, out.PagesFailed = countPages(pages)
+	out.EstTokens = limit.EstTokens(itemChars(out.Results) + pageChars(pages))
 }
 
 // isAuto reports whether the caller wants auto-routing (the default).
