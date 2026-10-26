@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/frugalsh/frugal/internal/cache"
+	"github.com/frugalsh/frugal/internal/inject"
 	"github.com/frugalsh/frugal/internal/routing"
 )
 
@@ -42,6 +43,13 @@ type toolOptions struct {
 	// Consulted before routing on every URL-taking call and applied to
 	// search result lists. Nil allows everything.
 	domains *routing.DomainPolicy
+
+	// scanner is the prompt-injection scanner run over every routed
+	// read (extract, browse, execute page content, search titles and
+	// snippets) before the size cap. Nil or ModeOff disables it; the
+	// scanner methods are nil-safe so the handlers call it
+	// unconditionally. See internal/inject.
+	scanner *inject.Scanner
 
 	// callTimeout is the overall wall-clock budget for one tool call,
 	// across every failover attempt. Zero (the zero value) disables it;
