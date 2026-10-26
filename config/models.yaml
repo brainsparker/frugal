@@ -106,6 +106,20 @@
 #     loop_limit: 5
 #     loop_window: 60s
 #
+# Injection scan (optional, on by default in flag mode). Every routed
+# read (extract, browse, execute page content, search titles and
+# snippets) is checked for text aimed at the model rather than the
+# reader: "ignore previous instructions", fake SYSTEM turns, tool and
+# shell bait, hidden HTML elements and comments, invisible Unicode,
+# base64-encoded instructions. flag reports findings in an `injection`
+# block on the receipt and leaves content untouched; redact also removes
+# hidden elements, strips invisible characters, and replaces matched
+# spans with a visible marker; off disables the scan. An unknown value
+# fails the config load so a typo cannot silently disable the rail:
+#
+#   routing:
+#     injection_scan: flag
+#
 # v1.0 ships only the search-tool layer. Chat-model routing and its
 # pricing tables come back in Phase 2 with the frugal__chat MCP tool.
 search_providers:

@@ -2,6 +2,20 @@
 
 All notable changes to Frugal. Versions follow the git tags.
 
+## [Unreleased]
+
+### Routing, limits, and safety
+- **Injection scan** on every routed read (`routing.injection_scan`:
+  `flag` by default, `redact`, or `off`). Fetched pages and search
+  snippets are checked, with no model call and no new dependency, for
+  instruction overrides, fake SYSTEM turns, tool and shell bait,
+  hidden HTML elements and comments, invisible Unicode runs, and
+  base64-encoded instructions. Findings land in an `injection` block
+  (`risk`, `findings[]`, `action`) on extract, browse, execute, and
+  search receipts, plus a `warnings` line on search and execute. Redact
+  mode removes the payload and leaves a visible marker. Runs before the
+  `max_chars` cap and on cache hits; every hit is logged at Warn.
+
 ## [0.2.0] - 2026-10-21
 
 First release since v0.1.1 (2026-07-23).

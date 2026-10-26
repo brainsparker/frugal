@@ -21,6 +21,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	defaults "github.com/frugalsh/frugal/config"
+	"github.com/frugalsh/frugal/internal/inject"
 	"github.com/frugalsh/frugal/internal/routing"
 )
 
@@ -120,6 +121,29 @@ type RoutingConfig struct {
 	// capability: whether a host may be read is a fact about the host.
 	// Absent means every host is fetchable, the historical behavior.
 	Domains *DomainsConfig `yaml:"domains,omitempty"`
+	// InjectionScan is the prompt-injection scanner mode applied to
+	// every routed read: "flag" (the default: scan, report on the
+	// receipt, leave content as returned), "redact" (also strip hidden
+	// HTML, invisible Unicode, and matched instruction spans, leaving a
+	// visible marker), or "off". An unknown value fails the load: a
+	// typo must not silently disable a safety rail. Top level like
+	// Domains: what counts as an injection does not depend on which
+	// capability fetched the page.
+	InjectionScan string `yaml:"injection_scan,omitempty"`
+}
+
+// InjectionMode resolves routing.injection_scan to an inject.Mode,
+// applying the default when the key is absent. Validation has already
+// rejected unknown values, so the error path here is defensive.
+func (c *Config) InjectionMode() inject.Mode {
+	if c == nil || c.Routing == nil {
+		return inject.DefaultMode
+	}
+	m, err := inject.ParseMode(c.Routing.InjectionScan)
+	if err != nil {
+		return inject.DefaultMode
+	}
+	return m
 }
 
 // DomainsConfig declares which hosts may be fetched.
@@ -412,6 +436,9 @@ func validateRouting(cfg *Config) error {
 
 	if cfg.Routing.LoopLimit != nil && *cfg.Routing.LoopLimit < 0 {
 		return fmt.Errorf("routing.loop_limit must be non-negative (0 turns the loop guard off)")
+	}
+	if _, err := inject.ParseMode(cfg.Routing.InjectionScan); err != nil {
+		return fmt.Errorf("routing.%w", err)
 	}
 	for _, c := range []struct {
 		capability string

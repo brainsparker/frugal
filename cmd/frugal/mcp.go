@@ -19,6 +19,7 @@ import (
 	"github.com/frugalsh/frugal/internal/cache"
 	"github.com/frugalsh/frugal/internal/config"
 	"github.com/frugalsh/frugal/internal/extract"
+	"github.com/frugalsh/frugal/internal/inject"
 	"github.com/frugalsh/frugal/internal/install"
 	"github.com/frugalsh/frugal/internal/ledger"
 	"github.com/frugalsh/frugal/internal/mcp"
@@ -188,11 +189,17 @@ func runMCPServe(args []string) int {
 	// not an operator mistake; log it and run without the rail rather
 	// than refusing to serve.
 	domains := buildDomainPolicy(cfg)
+	// Injection scan: every routed read is checked for content aimed at
+	// the model rather than the reader. On (flag) by default; the mode
+	// is logged so an operator can see from the startup log whether
+	// payloads are only reported or also removed.
+	scanner := buildInjectionScanner(cfg)
+	withScan := tools.WithInjectionScanner(scanner)
 	searchers := buildSearchers(cfg)
 	warnPolicyStrangers("search", policies["search"], searcherNames(searchers))
 	tools.RegisterSearch(srv.Inner, searchers, metrics,
 		tools.WithPolicy(policies["search"]), tools.WithLatencyLookup(latFor("search")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), tools.WithCallTimeout(callDeadline), withCache,
-		tools.WithDomainPolicy(domains))
+		tools.WithDomainPolicy(domains), withScan)
 	if len(searchers) == 0 {
 		slog.Warn("mcp serve: no search providers configured — frugal__search will not be advertised. " +
 			"Set SEARXNG_URL (free, self-hosted), SERPER_API_KEY, BRAVE_API_KEY, or YDC_API_KEY to enable.")
@@ -204,7 +211,7 @@ func runMCPServe(args []string) int {
 	warnPolicyStrangers("extract", policies["extract"], extractorNames(extractors))
 	tools.RegisterExtract(srv.Inner, extractors, metrics,
 		tools.WithPolicy(policies["extract"]), tools.WithLatencyLookup(latFor("extract")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), tools.WithCallTimeout(callDeadline), withCache,
-		tools.WithDomainPolicy(domains))
+		tools.WithDomainPolicy(domains), withScan)
 	if len(extractors) > 0 {
 		slog.Info("mcp serve: frugal__extract registered", "providers", extractorNames(extractors))
 	}
@@ -213,14 +220,14 @@ func runMCPServe(args []string) int {
 	warnPolicyStrangers("browse", policies["browse"], browserNames(browsers))
 	tools.RegisterBrowse(srv.Inner, browsers, metrics,
 		tools.WithPolicy(policies["browse"]), tools.WithLatencyLookup(latFor("browse")), tools.WithGuard(guard), tools.WithMaxChars(maxChars), tools.WithCallTimeout(callDeadline),
-		tools.WithDomainPolicy(domains))
+		tools.WithDomainPolicy(domains), withScan)
 	if len(browsers) > 0 {
 		slog.Info("mcp serve: frugal__browse registered", "providers", browserNames(browsers))
 	}
 
 	tools.RegisterExecute(srv.Inner, searchers, extractors, browsers, metrics,
 		tools.WithPolicies(policies), tools.WithLatencyLookupFor(latFor), tools.WithGuard(guard), tools.WithMaxChars(maxChars), tools.WithCallTimeout(callDeadline), withCache,
-		tools.WithDomainPolicy(domains))
+		tools.WithDomainPolicy(domains), withScan)
 	if len(searchers) > 0 {
 		slog.Info("mcp serve: frugal__execute registered",
 			"search", len(searchers), "extract", len(extractors), "browse", len(browsers))
@@ -588,6 +595,19 @@ func buildDomainPolicy(cfg *config.Config) *routing.DomainPolicy {
 		slog.Info("mcp serve: domain policy", "rules", p.Describe())
 	}
 	return p
+}
+
+// buildInjectionScanner resolves routing.injection_scan to the scanner
+// every routed read runs through. Nil when the operator turned it off,
+// which the tool options treat as a no-op.
+func buildInjectionScanner(cfg *config.Config) *inject.Scanner {
+	mode := cfg.InjectionMode()
+	if mode == inject.ModeOff {
+		slog.Info("mcp serve: injection scan disabled by routing.injection_scan: off")
+		return nil
+	}
+	slog.Info("mcp serve: injection scan", "mode", mode)
+	return inject.New(mode)
 }
 
 // denyNames renders a deny set as a sorted slice for logging.

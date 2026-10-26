@@ -9,6 +9,8 @@ import (
 	"time"
 
 	defaults "github.com/frugalsh/frugal/config"
+
+	"github.com/frugalsh/frugal/internal/inject"
 )
 
 func TestLoad_StarterModelsYAMLLoads(t *testing.T) {
@@ -798,5 +800,41 @@ func TestParse_LimitsRetries(t *testing.T) {
 	}
 	if _, err := Parse([]byte("limits:\n  retries: -1\n")); err == nil {
 		t.Fatal("negative retries accepted")
+	}
+}
+
+func TestParse_InjectionScanRoundTripsAndValidates(t *testing.T) {
+	// Absent: default mode (flag), so an existing config gains the
+	// scanner without a rewrite.
+	cfg, err := Parse([]byte("routing:\n  cooldown: 90s\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Routing.InjectionScan != "" || cfg.InjectionMode() != inject.ModeFlag {
+		t.Fatalf("absent injection_scan: raw %q mode %q, want \"\" / flag", cfg.Routing.InjectionScan, cfg.InjectionMode())
+	}
+	// No routing block at all also means the default.
+	cfg, err = Parse([]byte("search_providers: {}\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.InjectionMode() != inject.ModeFlag {
+		t.Fatalf("no routing block: mode %q, want flag", cfg.InjectionMode())
+	}
+
+	for raw, want := range map[string]inject.Mode{"off": inject.ModeOff, "flag": inject.ModeFlag, "redact": inject.ModeRedact, "Redact": inject.ModeRedact} {
+		cfg, err = Parse([]byte("routing:\n  injection_scan: " + raw + "\n"))
+		if err != nil {
+			t.Fatalf("Parse(%q): %v", raw, err)
+		}
+		if cfg.InjectionMode() != want {
+			t.Errorf("injection_scan %q -> %q, want %q", raw, cfg.InjectionMode(), want)
+		}
+	}
+
+	// A typo must fail the load, not silently disable the rail.
+	_, err = Parse([]byte("routing:\n  injection_scan: quarantine\n"))
+	if err == nil || !strings.Contains(err.Error(), "injection_scan") {
+		t.Fatalf("want injection_scan error for an unknown mode, got %v", err)
 	}
 }
