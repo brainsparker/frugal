@@ -48,6 +48,7 @@ Common environment:
                                   then ~/.frugal/config/models.yaml, then built-in defaults)
   FRUGAL_LOG_LEVEL                debug | info | warn | error
   FRUGAL_LOG_FORMAT               text | json
+  DEEPSEEK_API_KEY                Cheapest-paid web search + page fetch (DeepSeek)
   SERPER_API_KEY                  Cheap-paid web search (Serper)
   BRAVE_API_KEY                   Independent-index web search (Brave Search)
   YDC_API_KEY                     Premium web search (You.com)

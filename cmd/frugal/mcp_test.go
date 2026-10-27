@@ -5,7 +5,9 @@ import (
 	"time"
 
 	"github.com/frugalsh/frugal/internal/config"
+	"github.com/frugalsh/frugal/internal/extract"
 	"github.com/frugalsh/frugal/internal/routing"
+	"github.com/frugalsh/frugal/internal/search"
 )
 
 func boolPtr(b bool) *bool { return &b }
@@ -255,5 +257,55 @@ func TestBuildSearchers_BraveGatesOnKeyAndSortsAfterYoucom(t *testing.T) {
 	}
 	if !wireableProviders["search"]["brave"] {
 		t.Errorf("brave must be wireable so rack rates and policy warnings recognize it")
+	}
+}
+
+func TestBuild_DeepSeekGatesOnKeyAndSortsAsCheapestPaidRung(t *testing.T) {
+	// DeepSeek is one key for two tables: with DEEPSEEK_API_KEY unset
+	// neither the search rung (Search API) nor the extract rung (Fetch
+	// API) registers; with it set both do, under the stable name
+	// "deepseek". At the $0.00075 list price it is the cheapest paid rung
+	// in each table, so OrderByCost puts it after every free provider and
+	// ahead of Serper / Firecrawl.
+	cfg := &config.Config{
+		SearchProviders: map[string]config.SearchProviderConfig{
+			"deepseek":  {APIKeyEnv: "FRUGAL_TEST_DEEPSEEK_KEY", CostPerCall: 0.00075},
+			"serper":    {APIKeyEnv: "FRUGAL_TEST_SERPER_KEY", CostPerCall: 0.001},
+			"wikipedia": {CostPerCall: 0},
+		},
+		ExtractProviders: map[string]config.SearchProviderConfig{
+			"deepseek":      {APIKeyEnv: "FRUGAL_TEST_DEEPSEEK_KEY", CostPerCall: 0.00075},
+			"firecrawl":     {APIKeyEnv: "FRUGAL_TEST_FIRECRAWL_KEY", CostPerCall: 0.001},
+			"goreadability": {CostPerCall: 0},
+		},
+	}
+	t.Setenv("FRUGAL_TEST_SERPER_KEY", "s")
+	t.Setenv("FRUGAL_TEST_FIRECRAWL_KEY", "f")
+
+	t.Setenv("FRUGAL_TEST_DEEPSEEK_KEY", "")
+	if names := searcherNames(buildSearchers(cfg)); len(names) != 2 || names[0] != "wikipedia" || names[1] != "serper" {
+		t.Fatalf("keyless deepseek must not register for search; got %v", names)
+	}
+	if names := extractorNames(buildExtractors(cfg)); len(names) != 2 || names[0] != "goreadability" || names[1] != "firecrawl" {
+		t.Fatalf("keyless deepseek must not register for extract; got %v", names)
+	}
+
+	t.Setenv("FRUGAL_TEST_DEEPSEEK_KEY", "ds-token")
+	searchers := buildSearchers(cfg)
+	if names := searcherNames(searchers); len(names) != 3 || names[0] != "wikipedia" || names[1] != "deepseek" || names[2] != "serper" {
+		t.Fatalf("expected [wikipedia deepseek serper] in canonical order; got %v", names)
+	}
+	if got := search.OrderByCost(searchers); searcherNames(got)[1] != "deepseek" {
+		t.Errorf("deepseek must be the first paid search rung by cost; got %v", searcherNames(got))
+	}
+	extractors := buildExtractors(cfg)
+	if names := extractorNames(extractors); len(names) != 3 || names[0] != "goreadability" || names[1] != "deepseek" || names[2] != "firecrawl" {
+		t.Fatalf("expected [goreadability deepseek firecrawl]; got %v", names)
+	}
+	if got := extract.OrderByCost(extractors); extractorNames(got)[1] != "deepseek" {
+		t.Errorf("deepseek must be the first paid extract rung by cost; got %v", extractorNames(got))
+	}
+	if !wireableProviders["search"]["deepseek"] || !wireableProviders["extract"]["deepseek"] {
+		t.Errorf("deepseek must be wireable in both tables so rack rates and policy warnings recognize it")
 	}
 }

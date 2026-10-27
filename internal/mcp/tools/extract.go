@@ -35,7 +35,7 @@ type ExtractInput struct {
 	Formats []string `json:"formats,omitempty" jsonschema:"output formats: markdown | html | text"`
 	// Provider pins the extract provider for this call ("goreadability",
 	// "jina", "firecrawl", …). Empty / "auto" → the routing policy decides.
-	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: goreadability | jina | firecrawl | auto"`
+	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: goreadability | jina | deepseek | firecrawl | auto"`
 	// MaxChars caps the content returned (markdown + text + html,
 	// shared). Zero falls back to the server's configured default, which
 	// is unlimited unless the operator set limits.max_chars.

@@ -32,6 +32,16 @@ func TestLoad_StarterModelsYAMLLoads(t *testing.T) {
 	if _, ok := cfg.SearchProviders["serper"]; !ok {
 		t.Errorf("expected 'serper' in SearchProviders, got %+v", cfg.SearchProviders)
 	}
+	for table, m := range map[string]map[string]SearchProviderConfig{"search": cfg.SearchProviders, "extract": cfg.ExtractProviders} {
+		sp, ok := m["deepseek"]
+		if !ok {
+			t.Errorf("expected 'deepseek' in %s providers, got %+v", table, m)
+			continue
+		}
+		if sp.APIKeyEnv != "DEEPSEEK_API_KEY" || sp.CostPerCall != 0.00075 {
+			t.Errorf("%s deepseek should be keyed on DEEPSEEK_API_KEY at the $0.00075 list price, got %+v", table, sp)
+		}
+	}
 }
 
 func TestLoad_MissingFile(t *testing.T) {

@@ -47,7 +47,7 @@ type SearchInput struct {
 	// "youcom", "brave", …). When empty or "auto", the configured routing
 	// policy picks (cheapest-first by default). Use a pin when a specific
 	// provider is known to have materially better recall for this call.
-	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: searxng | marginalia | youcom-free | wikipedia | serper | youcom | auto"`
+	Provider string `json:"provider,omitempty" jsonschema:"optional provider override: searxng | marginalia | youcom-free | wikipedia | deepseek | serper | youcom | brave | auto"`
 	// MaxCostUSD is the caller's per-call spend ceiling. Providers whose
 	// effective per-call cost exceeds it are removed from the chain before
 	// any call is made; 0 means free rungs only. A pointer so that an

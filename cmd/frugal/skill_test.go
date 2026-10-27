@@ -52,9 +52,9 @@ func needs(sp config.SearchProviderConfig) string {
 // cheapChain mirrors what mcp serve does: register in
 // canonicalProviderOrder (sortedProviderNames), then stable-sort by list
 // price — the default `cheap` policy.
-func cheapChain(m map[string]config.SearchProviderConfig) []string {
+func cheapChain(capability string, m map[string]config.SearchProviderConfig) []string {
 	var names []string
-	for _, n := range sortedProviderNames(m) {
+	for _, n := range sortedProviderNames(capability, m) {
 		if !m[n].Disabled() {
 			names = append(names, n)
 		}
@@ -84,7 +84,7 @@ func renderSkillChains(t *testing.T) string {
 	} {
 		fmt.Fprintf(&b, "**`%s`** (%s)\n\n", c.tool, c.capability)
 		b.WriteString("| # | Provider | List price / call | Needs |\n|---|---|---|---|\n")
-		for i, n := range cheapChain(c.m) {
+		for i, n := range cheapChain(c.capability, c.m) {
 			sp := c.m[n]
 			fmt.Fprintf(&b, "| %d | `%s` | %s | %s |\n", i+1, n, skillUSD(sp.CostPerCall), needs(sp))
 		}
