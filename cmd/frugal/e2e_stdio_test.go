@@ -45,6 +45,7 @@ func writeSmokeConfig(t *testing.T, searx, serper, firecrawl, browserless string
   serper: {api_key_env: FRUGAL_TEST_SERPER_KEY, base_url: %q, cost_per_call: 0.001}
   youcom: {enabled: false}
   brave: {enabled: false}
+  deepseek: {enabled: false}
   youcom-free: {enabled: false}
   marginalia: {enabled: false}
   wikipedia: {enabled: false}
@@ -52,6 +53,7 @@ extract_providers:
   firecrawl: {api_key_env: FRUGAL_TEST_FIRECRAWL_KEY, base_url: %q, cost_per_call: 0.001}
   goreadability: {enabled: false}
   jina: {enabled: false}
+  deepseek: {enabled: false}
 browse_providers:
   browserless: {api_key_env: FRUGAL_TEST_BROWSERLESS_KEY, base_url: %q, cost_per_call: 0.002}
 limits:
@@ -76,7 +78,7 @@ func TestE2E_StdioSmoke(t *testing.T) {
 	t.Setenv("FRUGAL_TEST_FIRECRAWL_KEY", "k")
 	t.Setenv("FRUGAL_TEST_BROWSERLESS_KEY", "k")
 	t.Setenv("SEARXNG_URL", "")
-	for _, k := range []string{"SERPER_API_KEY", "BRAVE_API_KEY", "YDC_API_KEY", "FIRECRAWL_API_KEY", "BROWSERLESS_TOKEN"} {
+	for _, k := range []string{"DEEPSEEK_API_KEY", "SERPER_API_KEY", "BRAVE_API_KEY", "YDC_API_KEY", "FIRECRAWL_API_KEY", "BROWSERLESS_TOKEN"} {
 		t.Setenv(k, "")
 	}
 

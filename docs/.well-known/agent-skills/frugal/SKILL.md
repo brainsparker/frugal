@@ -36,9 +36,10 @@ needs is set.
 | 2 | `youcom-free` | $0 | nothing (keyless) |
 | 3 | `marginalia` | $0 | nothing (keyless) |
 | 4 | `wikipedia` | $0 | nothing (keyless) |
-| 5 | `serper` | $0.001 | `SERPER_API_KEY` |
-| 6 | `youcom` | $0.005 | `YDC_API_KEY` |
-| 7 | `brave` | $0.005 | `BRAVE_API_KEY` |
+| 5 | `deepseek` | $0.00075 | `DEEPSEEK_API_KEY` |
+| 6 | `serper` | $0.001 | `SERPER_API_KEY` |
+| 7 | `youcom` | $0.005 | `YDC_API_KEY` |
+| 8 | `brave` | $0.005 | `BRAVE_API_KEY` |
 
 **`frugal__extract`** (extract)
 
@@ -46,7 +47,8 @@ needs is set.
 |---|---|---|---|
 | 1 | `goreadability` | $0 | nothing (keyless) |
 | 2 | `jina` | $0 | nothing (keyless) |
-| 3 | `firecrawl` | $0.001 | `FIRECRAWL_API_KEY` |
+| 3 | `deepseek` | $0.00075 | `DEEPSEEK_API_KEY` |
+| 4 | `firecrawl` | $0.001 | `FIRECRAWL_API_KEY` |
 
 **`frugal__browse`** (browse)
 

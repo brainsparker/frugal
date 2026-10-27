@@ -127,8 +127,9 @@ essays, docs, blogs, and niche technical writing, and weak on mainstream
 news and product pages; Wikipedia covers entities and reference topics.
 Zero-key mode is a real workflow for research and local extraction, but
 it is not unlimited. One env var changes that: `SEARXNG_URL` (free,
-self-hosted), `SERPER_API_KEY` ($0.001/call), or `YDC_API_KEY` (the keyed
-You.com tier, no daily cap) gives the chain a stronger rung to fall to.
+self-hosted), `DEEPSEEK_API_KEY` ($0.00075/call, the cheapest paid rung),
+`SERPER_API_KEY` ($0.001/call), or `YDC_API_KEY` (the keyed You.com tier,
+no daily cap) gives the chain a stronger rung to fall to.
 Prefer to keep queries off You.com entirely? Add `youcom-free: {enabled:
 false}` under `search_providers` and the chain is Marginalia and
 Wikipedia again.
@@ -221,8 +222,8 @@ the shorter of this and `--request-timeout` (30s by default) wins.
 **Free providers** (`cost_per_call: 0` in your config) retry a transient
 error (429, 408, 5xx, timeout, connection reset) **2 times by default**
 before failing over, with short jittered backoff (about 200ms, then
-800ms). **Paid providers** (`cost_per_call > 0`: by default Serper,
-You.com, Brave, Firecrawl, Browserless) are **never retried**: a request
+800ms). **Paid providers** (`cost_per_call > 0`: by default DeepSeek,
+Serper, You.com, Brave, Firecrawl, Browserless) are **never retried**: a request
 that timed out or 5xx'd may still have been billed, so Frugal fails over
 to the next provider immediately instead of risking a double charge.
 Paid-ness comes from the configured price, so setting a provider's
@@ -515,6 +516,7 @@ environment and only registers tools whose providers are configured:
 ```bash
 # Search — frugal__search
 export SEARXNG_URL=...           # free, self-hosted (You.com free tier, Marginalia, Wikipedia need no key)
+export DEEPSEEK_API_KEY=...      # cheapest paid ($0.75 per 1,000); also enables the deepseek extract rung
 export SERPER_API_KEY=...        # cheap paid
 export BRAVE_API_KEY=...         # independent index (Brave Search), $5/mo credit
 export YDC_API_KEY=...           # premium paid (You.com)
@@ -522,6 +524,7 @@ export YDC_API_KEY=...           # premium paid (You.com)
 # Extract — frugal__extract (goreadability + Jina Reader are free, no key)
 export JINA_API_KEY=...          # optional: lifts Jina Reader from 20 to 500 requests/min
                                  # (also add api_key_env: JINA_API_KEY to the jina entry)
+export DEEPSEEK_API_KEY=...      # cheap paid hosted Markdown fetch (same key as search)
 export FIRECRAWL_API_KEY=...     # premium paid (anti-bot pages, PDFs)
 
 # Browse — frugal__browse
@@ -534,12 +537,14 @@ configured get registered.
 ## The routing table
 
 Tool prices haven't fallen the way model prices have. You.com at $0.005/call
-is 5× Serper at $0.001/call. SearXNG, running on your own machine, is free.
+is 5× Serper at $0.001/call, and DeepSeek's October 2026 Search API, at
+$0.00075/call, is the first paid rung to undercut Serper. SearXNG, running
+on your own machine, is free.
 
 | Capability | Free / local | Cheap paid | Premium paid | Status |
 |---|---|---|---|---|
-| Search | **SearXNG** · **You.com free tier** · **Marginalia** · **Wikipedia** | **Serper** $0.001/call | **You.com** $0.005/call · **Brave** $0.005/call | **shipping** |
-| Extract | **go-readability** (local) · **Jina Reader** (hosted JS render) | — | **Firecrawl** $0.001/page | **shipping** |
+| Search | **SearXNG** · **You.com free tier** · **Marginalia** · **Wikipedia** | **DeepSeek** $0.00075/call · **Serper** $0.001/call | **You.com** $0.005/call · **Brave** $0.005/call | **shipping** |
+| Extract | **go-readability** (local) · **Jina Reader** (hosted JS render) | **DeepSeek Fetch** $0.00075/page | **Firecrawl** $0.001/page | **shipping** |
 | Browse | local Playwright *(deferred)* | **Browserless** $0.002/render | Browserbase *(planned)* | *partial* || Code exec | local Docker | E2B ~$0.10/hr (2 vCPU) | Modal | planned |
 | Embeddings | nomic-embed-text, bge-large | text-embedding-3-small $0.02/1M tok | 3-large, Voyage-3, Cohere | planned |
 | Transcription | whisper.cpp | Deepgram Nova $0.0043/min | OpenAI Whisper $0.006/min | planned |
@@ -551,7 +556,7 @@ one with a receipt.
 
 ## What ships today
 
-One MCP server, four tools, nine providers:
+One MCP server, four tools, twelve providers:
 
 - **`frugal__execute`** — **shipping**. Describe the job (`intent`,
   optional `priority`); heuristic classification onto a capability, then
@@ -560,7 +565,10 @@ One MCP server, four tools, nine providers:
 - **`frugal__search`** — **shipping**. Routed across **SearXNG** (free,
   self-hosted), **You.com free tier** (`youcom-free`: free, public,
   hosted MCP, ~100 queries/day), **Marginalia** (free, public),
-  **Wikipedia** (free, public), **Serper** (`$0.001/call`),
+  **Wikipedia** (free, public), **DeepSeek Search** (`$0.00075/call`,
+  DeepSeek's in-house index; the cheapest paid rung, freshness mapped
+  onto its `after:` operator, 128-character query cap reported in
+  `warnings` when it bites), **Serper** (`$0.001/call`),
   **You.com** (`$0.005/call`), and **Brave Search** (`$0.005/call`,
   Brave's own independent index; every plan carries $5 of monthly
   credit, so `daily_budget_usd: 0.16` keeps light use inside it).  When a free provider returns zero hits the chain falls through to the
@@ -569,13 +577,15 @@ One MCP server, four tools, nine providers:
 - **`frugal__extract`** — **shipping**. Routed across **go-readability**
   (free, pure-Go local Readability), **Jina Reader** (free, hosted
   headless render: 20 requests/min keyless, 500 with a free `JINA_API_KEY`),
-  and **Firecrawl** (`~$0.001/page`, anti-bot defenses and PDFs). The
-  local pass runs first, so a static page never leaves your machine;
-  only a page that renders its content with JavaScript reaches the
-  hosted rung, and only when that also comes up empty does the chain
-  spend a paid scrape. Jina receives the target URL, nothing else; set
-  `jina: {enabled: false}` under `extract_providers` to keep extraction
-  fully local.
+  **DeepSeek Fetch** (`$0.00075/page`, hosted Markdown reader on the
+  same `DEEPSEEK_API_KEY` as the search rung), and **Firecrawl**
+  (`~$0.001/page`, anti-bot defenses and PDFs). The local pass runs
+  first, so a static page never leaves your machine; only a page that
+  renders its content with JavaScript reaches the hosted rungs, and
+  only when the free ones also come up empty does the chain spend a
+  paid fetch, cheapest first. Jina and DeepSeek receive the target URL,
+  nothing else; set `jina: {enabled: false}` and `deepseek: {enabled:
+  false}` under `extract_providers` to keep extraction fully local.
 - **`frugal__browse`** — *partial*. **Browserless** (`~$0.002/render`,
   headless Chrome) shipping; local Playwright deferred.
 - **Routing policies** — **shipping**. Per-capability `strategy`

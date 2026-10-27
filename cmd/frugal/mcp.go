@@ -26,6 +26,7 @@ import (
 	"github.com/frugalsh/frugal/internal/obs"
 	"github.com/frugalsh/frugal/internal/provider/brave"
 	"github.com/frugalsh/frugal/internal/provider/browserless"
+	"github.com/frugalsh/frugal/internal/provider/deepseek"
 	"github.com/frugalsh/frugal/internal/provider/firecrawl"
 	"github.com/frugalsh/frugal/internal/provider/goreadability"
 	"github.com/frugalsh/frugal/internal/provider/jina"
@@ -195,7 +196,7 @@ func runMCPServe(args []string) int {
 		tools.WithDomainPolicy(domains))
 	if len(searchers) == 0 {
 		slog.Warn("mcp serve: no search providers configured — frugal__search will not be advertised. " +
-			"Set SEARXNG_URL (free, self-hosted), SERPER_API_KEY, BRAVE_API_KEY, or YDC_API_KEY to enable.")
+			"Set SEARXNG_URL (free, self-hosted), DEEPSEEK_API_KEY, SERPER_API_KEY, BRAVE_API_KEY, or YDC_API_KEY to enable.")
 	} else {
 		slog.Info("mcp serve: frugal__search registered", "providers", searcherNames(searchers))
 	}
@@ -371,7 +372,7 @@ func runMCPInstall(args []string) int {
 		fmt.Fprintln(os.Stderr, "  1. Claude Code spawns frugal from your shell, so it inherits your")
 		fmt.Fprintln(os.Stderr, "     exported keys live — nothing needed baking into a config file")
 	default:
-		fmt.Fprintln(os.Stderr, "  1. optional: export SERPER_API_KEY, BRAVE_API_KEY, and/or YDC_API_KEY, then re-run")
+		fmt.Fprintln(os.Stderr, "  1. optional: export DEEPSEEK_API_KEY, SERPER_API_KEY, BRAVE_API_KEY, and/or YDC_API_KEY, then re-run")
 		fmt.Fprintln(os.Stderr, "     `frugal mcp install` so GUI clients get the keys too — zero-key")
 		fmt.Fprintln(os.Stderr, "     search via You.com's free tier, Marginalia, and Wikipedia works")
 		fmt.Fprintln(os.Stderr, "     without this step")
@@ -430,7 +431,7 @@ func policyFor(rc *config.RoutingConfig, capability string) routing.Policy {
 func buildGuard(cfg *config.Config) *routing.Guard {
 	caps := map[string]float64{}
 	add := func(capability string, providers map[string]config.SearchProviderConfig) {
-		for _, name := range sortedProviderNames(providers) {
+		for _, name := range sortedProviderNames(capability, providers) {
 			sp := providers[name]
 			if sp.Disabled() || sp.DailyBudgetUSD <= 0 {
 				continue
@@ -659,12 +660,18 @@ func (c *latencyCache) lookup(tool string) routing.LatencyLookup {
 // canonicalProviderOrder fixes the tie-break between same-cost providers:
 // self-hosted first (the operator stood that instance up deliberately),
 // then in-process, then public-free, then paid by ascending list price.
-// YAML maps don't preserve file order, so this list — not the config
-// file — is what makes registration (and therefore OrderByCost's stable
+// YAML maps don't preserve file order, so this table, not the config
+// file, is what makes registration (and therefore OrderByCost's stable
 // ties) deterministic. For extract that means goreadability (local)
 // runs before jina (free, hosted): a static page never leaves the
 // machine, and only a JS-rendered page reaches the hosted rung.
-// Providers not listed here sort last, by name.
+// Providers not listed for a capability sort last, by name.
+//
+// The order is per capability because one provider name can back rungs
+// in two tables with different neighbors: "deepseek" is a paid search
+// rung (Search API) and a paid extract rung (Fetch API), both at the
+// $0.00075 list price, and in each table it belongs after that table's
+// free rungs. A flat list could not place it correctly in both.
 //
 // Among the public-free search rungs: youcom-free first (a general
 // major-index SERP, about 100 keyless queries per day), then Marginalia
@@ -673,15 +680,15 @@ func (c *latencyCache) lookup(tool string) routing.LatencyLookup {
 // can't see "weak"), then Wikipedia (reference entities). Marginalia and
 // Wikipedia are the rungs that keep serving once the youcom-free daily
 // allowance is spent and the guard cools it down.
-var canonicalProviderOrder = []string{
-	"searxng", "youcom-free", "marginalia", "wikipedia", "serper", "youcom", "brave", // search
-	"goreadability", "jina", "firecrawl", // extract
-	"browserless", // browse
+var canonicalProviderOrder = map[string][]string{
+	"search":  {"searxng", "youcom-free", "marginalia", "wikipedia", "deepseek", "serper", "youcom", "brave"},
+	"extract": {"goreadability", "jina", "deepseek", "firecrawl"},
+	"browse":  {"browserless"},
 }
 
 var wireableProviders = map[string]map[string]bool{
-	"search":  {"searxng": true, "marginalia": true, "youcom-free": true, "wikipedia": true, "serper": true, "youcom": true, "brave": true},
-	"extract": {"goreadability": true, "jina": true, "firecrawl": true},
+	"search":  {"searxng": true, "marginalia": true, "youcom-free": true, "wikipedia": true, "deepseek": true, "serper": true, "youcom": true, "brave": true},
+	"extract": {"goreadability": true, "jina": true, "deepseek": true, "firecrawl": true},
 	"browse":  {"browserless": true},
 }
 
@@ -703,9 +710,13 @@ func rackRates(cfg *config.Config) map[string]float64 {
 	return out
 }
 
-func sortedProviderNames(providers map[string]config.SearchProviderConfig) []string {
-	rank := make(map[string]int, len(canonicalProviderOrder))
-	for i, n := range canonicalProviderOrder {
+// sortedProviderNames returns the provider names of one capability table
+// in canonical registration order (see canonicalProviderOrder). Names the
+// table does not list sort last, alphabetically.
+func sortedProviderNames(capability string, providers map[string]config.SearchProviderConfig) []string {
+	order := canonicalProviderOrder[capability]
+	rank := make(map[string]int, len(order))
+	for i, n := range order {
 		rank[n] = i
 	}
 	names := make([]string, 0, len(providers))
@@ -831,7 +842,7 @@ func logMetricsPeriodically(ctx context.Context, m *obs.Metrics, interval time.D
 
 func buildSearchers(cfg *config.Config) []search.Searcher {
 	var out []search.Searcher
-	for _, name := range sortedProviderNames(cfg.SearchProviders) {
+	for _, name := range sortedProviderNames("search", cfg.SearchProviders) {
 		sp := cfg.SearchProviders[name]
 		if sp.Disabled() {
 			continue
@@ -857,6 +868,13 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 				continue
 			}
 			out = append(out, serper.New(key, base, sp.CostPerCall))
+		case "deepseek":
+			// DeepSeek Search API: keyed, $0.00075 list, the cheapest paid
+			// search rung. The same key also drives the extract rung below.
+			if key == "" {
+				continue
+			}
+			out = append(out, deepseek.NewSearch(key, base, sp.CostPerCall))
 		case "brave":
 			if key == "" {
 				continue
@@ -893,7 +911,7 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 // Unknown names log a warning and are skipped.
 func buildExtractors(cfg *config.Config) []extract.Extractor {
 	var out []extract.Extractor
-	for _, name := range sortedProviderNames(cfg.ExtractProviders) {
+	for _, name := range sortedProviderNames("extract", cfg.ExtractProviders) {
 		sp := cfg.ExtractProviders[name]
 		if sp.Disabled() {
 			continue
@@ -923,6 +941,14 @@ func buildExtractors(cfg *config.Config) []extract.Extractor {
 			}
 			slog.Info("mcp serve: jina reader tier", "tier", tier)
 			out = append(out, c)
+		case "deepseek":
+			// DeepSeek Fetch API: keyed, $0.00075 list, a hosted Markdown
+			// reader between the free rungs and Firecrawl. Gates on the
+			// same DEEPSEEK_API_KEY as the search rung.
+			if key == "" {
+				continue
+			}
+			out = append(out, deepseek.NewFetch(key, base, sp.CostPerCall))
 		case "firecrawl":
 			if key == "" {
 				continue
@@ -938,7 +964,7 @@ func buildExtractors(cfg *config.Config) []extract.Extractor {
 
 func buildBrowsers(cfg *config.Config) []browse.Browser {
 	var out []browse.Browser
-	for _, name := range sortedProviderNames(cfg.BrowseProviders) {
+	for _, name := range sortedProviderNames("browse", cfg.BrowseProviders) {
 		sp := cfg.BrowseProviders[name]
 		if sp.Disabled() {
 			continue

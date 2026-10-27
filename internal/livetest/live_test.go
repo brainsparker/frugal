@@ -19,6 +19,7 @@ import (
 	"github.com/frugalsh/frugal/internal/extract"
 	"github.com/frugalsh/frugal/internal/provider/brave"
 	"github.com/frugalsh/frugal/internal/provider/browserless"
+	"github.com/frugalsh/frugal/internal/provider/deepseek"
 	"github.com/frugalsh/frugal/internal/provider/firecrawl"
 	"github.com/frugalsh/frugal/internal/provider/goreadability"
 	"github.com/frugalsh/frugal/internal/provider/jina"
@@ -95,9 +96,18 @@ func checkBrowse(t *testing.T, b browse.Browser) {
 }
 
 // Keyless / free.
-func TestLive_YouComFree(t *testing.T) { gate(t); checkSearch(t, youcomfree.New(youcomfree.DefaultBaseURL)) }
-func TestLive_Marginalia(t *testing.T) { gate(t); checkSearch(t, marginalia.New(marginalia.DefaultBaseURL)) }
-func TestLive_Wikipedia(t *testing.T)  { gate(t); checkSearch(t, wikipedia.New(wikipedia.DefaultBaseURL)) }
+func TestLive_YouComFree(t *testing.T) {
+	gate(t)
+	checkSearch(t, youcomfree.New(youcomfree.DefaultBaseURL))
+}
+func TestLive_Marginalia(t *testing.T) {
+	gate(t)
+	checkSearch(t, marginalia.New(marginalia.DefaultBaseURL))
+}
+func TestLive_Wikipedia(t *testing.T) {
+	gate(t)
+	checkSearch(t, wikipedia.New(wikipedia.DefaultBaseURL))
+}
 func TestLive_GoReadability(t *testing.T) {
 	gate(t)
 	checkExtract(t, goreadability.New())
@@ -123,6 +133,14 @@ func TestLive_YouCom(t *testing.T) {
 func TestLive_Brave(t *testing.T) {
 	v := gate(t, "BRAVE_API_KEY")
 	checkSearch(t, brave.New(v[0], brave.DefaultBaseURL, 0.005))
+}
+func TestLive_DeepSeekSearch(t *testing.T) {
+	v := gate(t, "DEEPSEEK_API_KEY")
+	checkSearch(t, deepseek.NewSearch(v[0], deepseek.DefaultBaseURL, deepseek.DefaultCostPerCall))
+}
+func TestLive_DeepSeekFetch(t *testing.T) {
+	v := gate(t, "DEEPSEEK_API_KEY")
+	checkExtract(t, deepseek.NewFetch(v[0], deepseek.DefaultBaseURL, deepseek.DefaultCostPerCall))
 }
 func TestLive_Firecrawl(t *testing.T) {
 	v := gate(t, "FIRECRAWL_API_KEY")

@@ -2,6 +2,19 @@
 
 All notable changes to Frugal. Versions follow the git tags.
 
+## [Unreleased]
+
+### Providers
+- **DeepSeek (`deepseek`)**: one `DEEPSEEK_API_KEY` adds two rungs. The
+  Search API joins `frugal__search` at $0.00075 per call, the cheapest
+  paid search rung (below Serper), with freshness mapped onto DeepSeek's
+  `after:` operator and the 128-character query cap reported in
+  `warnings` when it bites. The Fetch API joins `frugal__extract` at
+  $0.00075 per page as a hosted Markdown reader between Jina Reader and
+  Firecrawl. Both are paid, so neither is retried in-driver; 429s feed the
+  cooldown guard and a 402 (insufficient balance) falls through. DeepSeek
+  bills from October 31, 2026 (16:00 UTC).
+
 ## [0.2.0] - 2026-10-21
 
 First release since v0.1.1 (2026-07-23).

@@ -149,6 +149,20 @@ search_providers:
     wikipedia:
         base_url: https://en.wikipedia.org
         cost_per_call: 0.0
+    # Cheapest paid rung: DeepSeek Search API, DeepSeek's in-house web
+    # index. List price is $0.75 per 1,000 successful calls, below
+    # Serper, so with a key set this is the first paid provider the
+    # cheap chain reaches after the free rungs. The same key also
+    # enables the deepseek extract rung below (Fetch API). Freshness
+    # maps onto the after: query operator exactly; queries longer than
+    # 128 characters are cut on a word boundary and the cut is reported
+    # in warnings. Billing starts October 31, 2026 (16:00 UTC); keys from
+    # https://platform.deepseek.com. Not retried in-driver (paid), 429s
+    # feed the cooldown guard, a 402 (insufficient balance) falls through.
+    deepseek:
+        api_key_env: DEEPSEEK_API_KEY
+        base_url: https://api.deepseek.com
+        cost_per_call: 0.00075
     # Cheap paid fallback.
     serper:
         api_key_env: SERPER_API_KEY
@@ -209,6 +223,19 @@ extract_providers:
     jina:
         base_url: https://r.jina.ai
         cost_per_call: 0.0
+    # Cheap paid: DeepSeek Fetch API returns one page as Markdown at
+    # $0.75 per 1,000 calls, a hosted reader for the pages the two free
+    # rungs come up empty on. It does not claim JS rendering or anti-bot
+    # handling, so Firecrawl stays the rung of last resort. Shares
+    # DEEPSEEK_API_KEY with the search rung; a daily_budget_usd here is
+    # independent of the one under search_providers. A 404 from Fetch is
+    # ambiguous (dead URL or just unextractable), so the chain falls
+    # through rather than stopping. Sends the target URL to a third
+    # party: tombstone with `enabled: false` to keep extraction local.
+    deepseek:
+        api_key_env: DEEPSEEK_API_KEY
+        base_url: https://api.deepseek.com
+        cost_per_call: 0.00075
     # Premium paid: handles JS-rendered pages, anti-bot defenses, and
     # PDF / binary content. Operators set FIRECRAWL_API_KEY to enable.
     firecrawl:
