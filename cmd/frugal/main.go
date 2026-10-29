@@ -25,6 +25,8 @@ func main() {
 		os.Exit(runMCP(os.Args[2:]))
 	case "stats":
 		os.Exit(runStats(os.Args[2:]))
+	case "doctor":
+		os.Exit(runDoctor(os.Args[2:]))
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q. Run 'frugal --help' for usage.\n", os.Args[1])
 		os.Exit(2)
@@ -40,6 +42,9 @@ Usage:
   frugal mcp install [--client]   Install Frugal as an MCP server in agent clients
   frugal mcp serve [--http ADDR]  Run Frugal as an MCP server (stdio default)
   frugal stats [--all] [--json]   Show this month's tool-call savings receipt
+  frugal doctor [--probe] [--json]
+                                  Check config, provider keys, budgets, and MCP
+                                  clients before routing traffic (--probe: live)
   frugal -v | --version           Print the build version
   frugal -h | --help              Show this help
 
