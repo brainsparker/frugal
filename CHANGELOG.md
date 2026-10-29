@@ -2,6 +2,21 @@
 
 All notable changes to Frugal. Versions follow the git tags.
 
+## [Unreleased]
+
+### Added
+- `frugal doctor`: a preflight command that reports every configured
+  provider's registration state, key hygiene (whitespace, quotes, a
+  pasted `Bearer ` prefix, placeholders, set-but-empty env vars), list
+  price, and today's spend against `daily_budget_usd` from the local
+  ledger, alongside the resolved `limits`, cooldown, loop guard, cache,
+  and domain policy and which MCP clients on the machine have frugal
+  configured. `--probe` makes one live request per free provider
+  through the real drivers and classifies the outcome (auth and billing
+  rejections fail, provider-side timeouts and 5xx warn); paid providers
+  are only called with `--probe-paid`, with the spend printed. `--json`
+  for CI, `--strict` to fail on warnings; exit 0 / 1 / 2.
+
 ## [0.2.0] - 2026-10-21
 
 First release since v0.1.1 (2026-07-23).

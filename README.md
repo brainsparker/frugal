@@ -507,6 +507,82 @@ you saved                      $0.0060   (100%)
 Only the call that actually produced your result earns rack credit —
 fallback attempts and zero-hit whiffs don't inflate the number.
 
+## Preflight: `frugal doctor`
+
+An MCP server has nowhere to tell you that a key is wrong, a daily
+budget ran out at lunch, or a free rung quietly started answering 401.
+The agent sees a failover to a narrower index or an empty result and
+keeps going. `frugal doctor` runs the same config parsing and provider
+constructors as `mcp serve` and prints the state of every rung before
+you route traffic through it:
+
+```
+frugal doctor
+
+frugal doctor · v0.2.0
+config: /Users/you/.frugal/config/models.yaml
+────────────────────────────────────────────────────────────────
+tool     provider       status              price       budget
+search   searxng        missing_url          free            -  -
+         set SEARXNG_URL to enable
+search   youcom-free    ready                free            -  ok
+search   marginalia     ready                free            -  ok
+search   wikipedia      ready                free            -  ok
+search   serper         ready             $0.0010  $0.0020/$0.0020  warn
+         daily budget $0.0020 exhausted today; skipped until UTC midnight
+search   brave          ready             $0.0050            -  warn
+         BRAVE_API_KEY has leading or trailing whitespace; most APIs reject it
+extract  goreadability  ready                free            -  ok
+extract  jina           ready                free            -  ok
+────────────────────────────────────────────────────────────────
+ok   config    source             /Users/you/.frugal/config/models.yaml
+ok   limits    call_timeout       1m0s
+...
+warn clients   cursor             detected, frugal not configured; run `frugal mcp install --client cursor`
+────────────────────────────────────────────────────────────────
+probes: none (pass --probe for a live check of every free provider)
+14 ok · 3 warning(s) · 0 failure(s)
+verdict: healthy, with warnings worth a look.
+```
+
+- **Provider rows** show the registration verdict (`ready`,
+  `missing_key`, `missing_url`, `disabled`, `unknown_driver`,
+  `invalid_url`), the list price, and today's spend against
+  `daily_budget_usd` from the local ledger, so an exhausted cap is
+  visible before the router silently skips the provider. Key hygiene
+  is checked too: surrounding whitespace, shell quotes, a pasted
+  `Bearer ` prefix, placeholder values, and env vars that are set but
+  empty all get a line, since each of them otherwise surfaces as a
+  confusing 401.
+- **Config checks** report `call_timeout`, `retries`, `max_chars`,
+  cooldown, loop guard, cache TTLs, and the domain policy as the
+  server would resolve them, including the fallbacks `mcp serve` only
+  logs (an invalid `cooldown: soon` is a warning here instead of a
+  line in a log nobody reads). Policy `order` / `deny` entries that
+  name a provider which is not ready are flagged.
+- **Clients** lists Claude Desktop, Cursor, AnythingLLM, and Claude
+  Code: detected or not, and whether `frugal` is in their server list.
+- **`--probe`** makes one real request per **free** provider through
+  the same driver code the tools use (a one-word search; an extract of
+  `--probe-url`, `https://example.com/` by default) and reports
+  latency, HTTP status, and a plain-language reason on failure. Paid
+  providers are never called unless you pass **`--probe-paid`**, which
+  spends one `cost_per_call` each and prints the total. An auth or
+  billing rejection (401, 402, 403) is a failure; a timeout, 5xx, or
+  429 is a warning, since that is the provider's problem today rather
+  than something in your config.
+- **`--json`** emits the whole report for CI. Exit code is `0` when
+  healthy (warnings allowed), `1` on any failure, `2` on a usage
+  error. **`--strict`** turns warnings into a `1` as well.
+
+```bash
+frugal doctor --probe --strict --json > doctor.json   # CI gate, free rungs only
+frugal doctor --probe-paid                            # one billed call per paid provider
+```
+
+Doctor never writes anything: no config, no ledger, no client files.
+The probes are the only side effect, and only when asked for.
+
 ## Set your keys (optional)
 
 Add keys to unlock stronger paid providers. Frugal reads them from your
@@ -584,6 +660,9 @@ One MCP server, four tools, nine providers:
   `deny_private` for every fetch, enforced before a provider is called
   and applied to search results.
 - **`frugal stats`** — the local savings receipt (see above).
+- **`frugal doctor`**: preflight: every provider's key, budget, and
+  (with `--probe`) live reachability, plus config and client checks,
+  with exit codes for CI (see above).
 - Stdio + Streamable HTTP transports. HTTP serves MCP 2026-07-28
   (stateless) and the session-based revisions before it on one endpoint;
   `--stateless` for load-balanced replicas; `ttlMs` cache hints on the
