@@ -46,12 +46,14 @@ func writeSmokeConfig(t *testing.T, searx, serper, firecrawl, browserless string
   youcom: {enabled: false}
   brave: {enabled: false}
   youcom-free: {enabled: false}
+  exa-free: {enabled: false}
   marginalia: {enabled: false}
   wikipedia: {enabled: false}
 extract_providers:
   firecrawl: {api_key_env: FRUGAL_TEST_FIRECRAWL_KEY, base_url: %q, cost_per_call: 0.001}
   goreadability: {enabled: false}
   jina: {enabled: false}
+  exa-free: {enabled: false}
 browse_providers:
   browserless: {api_key_env: FRUGAL_TEST_BROWSERLESS_KEY, base_url: %q, cost_per_call: 0.002}
 limits:

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -114,6 +115,59 @@ func TestBuildExtractors_JinaRegistersKeylessAndKeyed(t *testing.T) {
 	k, ok := got[0].(keyed)
 	if !ok || !k.Keyed() {
 		t.Errorf("jina should report the keyed tier when its api_key_env is set")
+	}
+}
+
+func TestBuildSearchers_ExaFreeIsKeylessAndFollowsYoucomFree(t *testing.T) {
+	// exa-free needs no key and no URL, so a bare entry registers. The
+	// canonical order places it right after youcom-free (so a chain that
+	// predates it keeps its order) and ahead of Marginalia and
+	// Wikipedia (so a real web index is still serving once the You.com
+	// daily allowance is spent).
+	cfg := &config.Config{
+		SearchProviders: map[string]config.SearchProviderConfig{
+			"wikipedia":   {BaseURL: "https://en.wikipedia.org"},
+			"marginalia":  {BaseURL: "https://api.marginalia.nu"},
+			"exa-free":    {},
+			"youcom-free": {},
+		},
+	}
+	var names []string
+	for _, s := range buildSearchers(cfg) {
+		names = append(names, s.Name())
+		if s.CostPerCall() != 0 {
+			t.Errorf("%s: keyless rungs must be free; got cost %v", s.Name(), s.CostPerCall())
+		}
+	}
+	want := []string{"youcom-free", "exa-free", "marginalia", "wikipedia"}
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Fatalf("registration order %v, want %v", names, want)
+	}
+	if !wireableProviders["search"]["exa-free"] || !wireableProviders["extract"]["exa-free"] {
+		t.Errorf("exa-free must be wireable under search and extract so rack-rate accounting and the switches agree")
+	}
+}
+
+func TestBuildExtractors_ExaFreeSitsAfterJinaBeforeFirecrawl(t *testing.T) {
+	// The fetch rung is keyless and registers bare, after the local pass
+	// and the established hosted reader, and (by price) before the paid
+	// Firecrawl tier.
+	t.Setenv("FIRECRAWL_TEST_KEY", "fc-abc")
+	cfg := &config.Config{
+		ExtractProviders: map[string]config.SearchProviderConfig{
+			"firecrawl":     {APIKeyEnv: "FIRECRAWL_TEST_KEY", CostPerCall: 0.001},
+			"exa-free":      {},
+			"jina":          {BaseURL: "https://r.jina.ai"},
+			"goreadability": {},
+		},
+	}
+	var names []string
+	for _, e := range buildExtractors(cfg) {
+		names = append(names, e.Name())
+	}
+	want := []string{"goreadability", "jina", "exa-free", "firecrawl"}
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Fatalf("extract order = %v, want %v", names, want)
 	}
 }
 

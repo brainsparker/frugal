@@ -489,14 +489,15 @@ func validateDomains(d *DomainsConfig) error {
 
 // keylessDefaults names the providers whose drivers need no endpoint
 // config, PER capability scope: goreadability is pure in-process, and
-// marginalia / youcom-free / wikipedia default their public base URL in
-// code. The scoping matters: a bare `wikipedia:` under
+// marginalia / youcom-free / exa-free / wikipedia default their public
+// base URL in code (exa-free under both scopes: one hosted server, a
+// search tool and a fetch tool). The scoping matters: a bare `wikipedia:` under
 // extract_providers is a misplaced entry that would silently do nothing
 // at runtime, so it must fail validation there, not slide through a
 // scope-blind whitelist.
 var keylessDefaults = map[string]map[string]bool{
-	"search_providers":  {"marginalia": true, "youcom-free": true, "wikipedia": true},
-	"extract_providers": {"goreadability": true},
+	"search_providers":  {"marginalia": true, "youcom-free": true, "exa-free": true, "wikipedia": true},
+	"extract_providers": {"goreadability": true, "exa-free": true},
 }
 
 // defaultScopeNames lists the provider names the embedded default

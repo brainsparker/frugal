@@ -2,6 +2,20 @@
 
 All notable changes to Frugal. Versions follow the git tags.
 
+## [Unreleased]
+
+### Providers
+- **Exa free tier (`exa-free`)**: keyless search and extract rungs over
+  Exa's hosted MCP endpoint (`https://mcp.exa.ai/mcp`, no key, no
+  account, free-tier rate limits). Search registers after `youcom-free`
+  so existing chains keep their order and a real web index keeps serving
+  once the You.com daily allowance is spent; extract registers after
+  `jina` and before paid Firecrawl. Both ride the keyless default overlay,
+  so existing installs gain the rungs on upgrade; tombstone with
+  `exa-free: {enabled: false}` under either table to opt out. Internal:
+  the canonical provider order is now keyed by capability so one name
+  can serve two chains.
+
 ## [0.2.0] - 2026-10-21
 
 First release since v0.1.1 (2026-07-23).

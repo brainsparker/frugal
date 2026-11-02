@@ -26,6 +26,7 @@ import (
 	"github.com/frugalsh/frugal/internal/obs"
 	"github.com/frugalsh/frugal/internal/provider/brave"
 	"github.com/frugalsh/frugal/internal/provider/browserless"
+	"github.com/frugalsh/frugal/internal/provider/exafree"
 	"github.com/frugalsh/frugal/internal/provider/firecrawl"
 	"github.com/frugalsh/frugal/internal/provider/goreadability"
 	"github.com/frugalsh/frugal/internal/provider/jina"
@@ -430,7 +431,7 @@ func policyFor(rc *config.RoutingConfig, capability string) routing.Policy {
 func buildGuard(cfg *config.Config) *routing.Guard {
 	caps := map[string]float64{}
 	add := func(capability string, providers map[string]config.SearchProviderConfig) {
-		for _, name := range sortedProviderNames(providers) {
+		for _, name := range sortedProviderNames(capability, providers) {
 			sp := providers[name]
 			if sp.Disabled() || sp.DailyBudgetUSD <= 0 {
 				continue
@@ -664,24 +665,29 @@ func (c *latencyCache) lookup(tool string) routing.LatencyLookup {
 // ties) deterministic. For extract that means goreadability (local)
 // runs before jina (free, hosted): a static page never leaves the
 // machine, and only a JS-rendered page reaches the hosted rung.
-// Providers not listed here sort last, by name.
+// Providers not listed here sort last, by name. The list is keyed by
+// capability because one provider name can serve two capabilities
+// (exa-free is a search rung and an extract rung) at different ranks.
 //
 // Among the public-free search rungs: youcom-free first (a general
-// major-index SERP, about 100 keyless queries per day), then Marginalia
-// (indie-web index; strong on long-tail essays and docs, but it returns
-// weak non-zero hits on mainstream queries, and zero-hit fall-through
-// can't see "weak"), then Wikipedia (reference entities). Marginalia and
-// Wikipedia are the rungs that keep serving once the youcom-free daily
-// allowance is spent and the guard cools it down.
-var canonicalProviderOrder = []string{
-	"searxng", "youcom-free", "marginalia", "wikipedia", "serper", "youcom", "brave", // search
-	"goreadability", "jina", "firecrawl", // extract
-	"browserless", // browse
+// major-index SERP, about 100 keyless queries per day), then exa-free
+// (Exa's neural index through its keyless hosted MCP; added after
+// youcom-free so existing chains keep their order, and it is the rung
+// that keeps a real web index serving once the You.com allowance is
+// spent), then Marginalia (indie-web index; strong on long-tail essays
+// and docs, but it returns weak non-zero hits on mainstream queries, and
+// zero-hit fall-through can't see "weak"), then Wikipedia (reference
+// entities). For extract the same exa-free server's fetch tool sits after
+// jina (the established free hosted reader) and before paid Firecrawl.
+var canonicalProviderOrder = map[string][]string{
+	"search":  {"searxng", "youcom-free", "exa-free", "marginalia", "wikipedia", "serper", "youcom", "brave"},
+	"extract": {"goreadability", "jina", "exa-free", "firecrawl"},
+	"browse":  {"browserless"},
 }
 
 var wireableProviders = map[string]map[string]bool{
-	"search":  {"searxng": true, "marginalia": true, "youcom-free": true, "wikipedia": true, "serper": true, "youcom": true, "brave": true},
-	"extract": {"goreadability": true, "jina": true, "firecrawl": true},
+	"search":  {"searxng": true, "marginalia": true, "youcom-free": true, "exa-free": true, "wikipedia": true, "serper": true, "youcom": true, "brave": true},
+	"extract": {"goreadability": true, "jina": true, "exa-free": true, "firecrawl": true},
 	"browse":  {"browserless": true},
 }
 
@@ -703,9 +709,10 @@ func rackRates(cfg *config.Config) map[string]float64 {
 	return out
 }
 
-func sortedProviderNames(providers map[string]config.SearchProviderConfig) []string {
-	rank := make(map[string]int, len(canonicalProviderOrder))
-	for i, n := range canonicalProviderOrder {
+func sortedProviderNames(capability string, providers map[string]config.SearchProviderConfig) []string {
+	order := canonicalProviderOrder[capability]
+	rank := make(map[string]int, len(order))
+	for i, n := range order {
 		rank[n] = i
 	}
 	names := make([]string, 0, len(providers))
@@ -831,7 +838,7 @@ func logMetricsPeriodically(ctx context.Context, m *obs.Metrics, interval time.D
 
 func buildSearchers(cfg *config.Config) []search.Searcher {
 	var out []search.Searcher
-	for _, name := range sortedProviderNames(cfg.SearchProviders) {
+	for _, name := range sortedProviderNames("search", cfg.SearchProviders) {
 		sp := cfg.SearchProviders[name]
 		if sp.Disabled() {
 			continue
@@ -874,6 +881,11 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 			// endpoint). Always registers if the YAML entry exists. The
 			// keyed REST tier is the separate "youcom" provider.
 			out = append(out, youcomfree.New(base))
+		case "exa-free":
+			// Exa's hosted MCP endpoint on its keyless tier; no API key,
+			// no required URL (driver defaults to the public endpoint).
+			// Always registers if the YAML entry exists.
+			out = append(out, exafree.New(base))
 		case "wikipedia":
 			out = append(out, wikipedia.New(base))
 		default:
@@ -893,7 +905,7 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 // Unknown names log a warning and are skipped.
 func buildExtractors(cfg *config.Config) []extract.Extractor {
 	var out []extract.Extractor
-	for _, name := range sortedProviderNames(cfg.ExtractProviders) {
+	for _, name := range sortedProviderNames("extract", cfg.ExtractProviders) {
 		sp := cfg.ExtractProviders[name]
 		if sp.Disabled() {
 			continue
@@ -923,6 +935,10 @@ func buildExtractors(cfg *config.Config) []extract.Extractor {
 			}
 			slog.Info("mcp serve: jina reader tier", "tier", tier)
 			out = append(out, c)
+		case "exa-free":
+			// The fetch tool of the same keyless Exa server that serves
+			// the exa-free search rung. No key, defaults its endpoint.
+			out = append(out, exafree.New(base))
 		case "firecrawl":
 			if key == "" {
 				continue
@@ -938,7 +954,7 @@ func buildExtractors(cfg *config.Config) []extract.Extractor {
 
 func buildBrowsers(cfg *config.Config) []browse.Browser {
 	var out []browse.Browser
-	for _, name := range sortedProviderNames(cfg.BrowseProviders) {
+	for _, name := range sortedProviderNames("browse", cfg.BrowseProviders) {
 		sp := cfg.BrowseProviders[name]
 		if sp.Disabled() {
 			continue
