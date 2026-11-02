@@ -21,6 +21,7 @@ import (
 	"github.com/frugalsh/frugal/internal/provider/browserless"
 	"github.com/frugalsh/frugal/internal/provider/firecrawl"
 	"github.com/frugalsh/frugal/internal/provider/goreadability"
+	"github.com/frugalsh/frugal/internal/provider/exafree"
 	"github.com/frugalsh/frugal/internal/provider/jina"
 	"github.com/frugalsh/frugal/internal/provider/marginalia"
 	"github.com/frugalsh/frugal/internal/provider/searxng"
@@ -96,11 +97,16 @@ func checkBrowse(t *testing.T, b browse.Browser) {
 
 // Keyless / free.
 func TestLive_YouComFree(t *testing.T) { gate(t); checkSearch(t, youcomfree.New(youcomfree.DefaultBaseURL)) }
+func TestLive_ExaFree(t *testing.T)   { gate(t); checkSearch(t, exafree.New(exafree.DefaultBaseURL)) }
 func TestLive_Marginalia(t *testing.T) { gate(t); checkSearch(t, marginalia.New(marginalia.DefaultBaseURL)) }
 func TestLive_Wikipedia(t *testing.T)  { gate(t); checkSearch(t, wikipedia.New(wikipedia.DefaultBaseURL)) }
 func TestLive_GoReadability(t *testing.T) {
 	gate(t)
 	checkExtract(t, goreadability.New())
+}
+func TestLive_ExaFreeFetch(t *testing.T) {
+	gate(t)
+	checkExtract(t, exafree.New(exafree.DefaultBaseURL))
 }
 func TestLive_Jina(t *testing.T) {
 	gate(t)

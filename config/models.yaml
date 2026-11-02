@@ -4,7 +4,7 @@
 # when the tool is called without an explicit `provider` argument.
 #
 # Free, keyless providers missing from an operator's copy of this file
-# (wikipedia, marginalia, goreadability, jina — entries with no
+# (wikipedia, marginalia, youcom-free, exa-free, goreadability, jina — entries with no
 # api_key_env / base_url_env) are filled in from the defaults embedded in the binary at
 # load time, so upgrades that ship a new zero-key provider reach existing
 # installs without a config rewrite. Keyed and self-hosted providers are
@@ -140,6 +140,22 @@ search_providers:
     youcom-free:
         base_url: https://api.you.com/mcp
         cost_per_call: 0.0
+    # Free / public: Exa's hosted MCP endpoint on its keyless tier
+    # (https://mcp.exa.ai/mcp, no key, no account, free-tier rate
+    # limits). Exa's own neural index, so it answers differently from
+    # the Google-shaped and You.com rungs, and it returns highlight
+    # passages rather than one-line descriptions. Sits after youcom-free
+    # in the canonical order so an existing chain keeps its order; it is
+    # the rung that keeps a real web index serving once the You.com daily
+    # allowance is spent, before the narrower Marginalia and Wikipedia
+    # indexes. Prefer it with `routing.search.order: [exa-free]`. On a
+    # rate limit the router cools it down and falls through. Sends the
+    # query to a third party: set `enabled: false` to keep searches off
+    # Exa. The same server's fetch tool is the exa-free extract rung
+    # below; the two entries are independent (separate deny, budget).
+    exa-free:
+        base_url: https://mcp.exa.ai/mcp
+        cost_per_call: 0.0
     # Free / public: Wikimedia REST search. No API key required; the
     # driver identifies itself via User-Agent per the Wikimedia robot
     # policy. Covers the mainstream entity / reference queries
@@ -208,6 +224,20 @@ extract_providers:
     # routing.extract) to keep extraction fully local.
     jina:
         base_url: https://r.jina.ai
+        cost_per_call: 0.0
+    # Free / hosted: the fetch tool of Exa's keyless hosted MCP server
+    # (the same endpoint as the exa-free search rung). Exa fetches the
+    # page server-side from its own crawl and returns clean Markdown, so
+    # a page Jina Reader cannot render still gets a free attempt before
+    # the chain spends a paid Firecrawl call. Sits after jina in the
+    # canonical order (local first, then the established hosted reader,
+    # then this one). Free-tier rate limits apply; on a limit the router
+    # cools it down and falls through. A target Exa's crawler reports as
+    # not found stops the chain, same as a 404 from the site. Sends the
+    # target URL to a third party: set `enabled: false` (or deny it under
+    # routing.extract) to keep extraction off Exa.
+    exa-free:
+        base_url: https://mcp.exa.ai/mcp
         cost_per_call: 0.0
     # Premium paid: handles JS-rendered pages, anti-bot defenses, and
     # PDF / binary content. Operators set FIRECRAWL_API_KEY to enable.

@@ -283,6 +283,18 @@ search_providers:
 	} else if sp.CostPerCall != 0 || sp.APIKeyEnv != "" {
 		t.Errorf("youcom-free default must be keyless and free; got %+v", sp)
 	}
+	// exa-free ships the same way under BOTH scopes: one keyless hosted
+	// server, a search tool and a fetch tool, each an independent entry.
+	if sp, ok := cfg.SearchProviders["exa-free"]; !ok {
+		t.Errorf("exa-free should be defaulted into search_providers; got %+v", cfg.SearchProviders)
+	} else if sp.CostPerCall != 0 || sp.APIKeyEnv != "" {
+		t.Errorf("exa-free search default must be keyless and free; got %+v", sp)
+	}
+	if sp, ok := cfg.ExtractProviders["exa-free"]; !ok {
+		t.Errorf("exa-free should be defaulted into extract_providers; got %+v", cfg.ExtractProviders)
+	} else if sp.CostPerCall != 0 || sp.APIKeyEnv != "" {
+		t.Errorf("exa-free extract default must be keyless and free; got %+v", sp)
+	}
 	// Keyless in-process defaults fill omitted capability maps too.
 	if _, ok := cfg.ExtractProviders["goreadability"]; !ok {
 		t.Errorf("extract_providers should gain the keyless embedded defaults; got %+v", cfg.ExtractProviders)
@@ -339,6 +351,9 @@ func TestParse_BareKeylessEntryIsValid(t *testing.T) {
 		"search_providers:\n    marginalia: {}\n",
 		"search_providers:\n    youcom-free: {}\n",
 		"search_providers:\n    youcom-free:\n        enabled: false\n",
+		"search_providers:\n    exa-free: {}\n",
+		"extract_providers:\n    exa-free: {}\n",
+		"extract_providers:\n    exa-free:\n        enabled: false\n",
 	} {
 		if _, err := Parse([]byte(y)); err != nil {
 			t.Errorf("bare keyless entry should validate; got %v (yaml: %q)", err, y)
