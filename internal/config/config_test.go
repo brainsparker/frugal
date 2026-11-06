@@ -283,6 +283,18 @@ search_providers:
 	} else if sp.CostPerCall != 0 || sp.APIKeyEnv != "" {
 		t.Errorf("youcom-free default must be keyless and free; got %+v", sp)
 	}
+	// parallel-free rides the same overlay under both capability maps:
+	// one keyless hosted server, a search rung and an extract rung.
+	if sp, ok := cfg.SearchProviders["parallel-free"]; !ok {
+		t.Errorf("parallel-free should be defaulted in from the embedded models.yaml; got %+v", cfg.SearchProviders)
+	} else if sp.CostPerCall != 0 || sp.APIKeyEnv != "" {
+		t.Errorf("parallel-free search default must be keyless and free; got %+v", sp)
+	}
+	if sp, ok := cfg.ExtractProviders["parallel-free"]; !ok {
+		t.Errorf("parallel-free should be defaulted in under extract_providers too; got %+v", cfg.ExtractProviders)
+	} else if sp.CostPerCall != 0 || sp.APIKeyEnv != "" {
+		t.Errorf("parallel-free extract default must be keyless and free; got %+v", sp)
+	}
 	// Keyless in-process defaults fill omitted capability maps too.
 	if _, ok := cfg.ExtractProviders["goreadability"]; !ok {
 		t.Errorf("extract_providers should gain the keyless embedded defaults; got %+v", cfg.ExtractProviders)
@@ -319,6 +331,7 @@ func TestParse_MisplacedEntriesFailFast(t *testing.T) {
 		"extract_providers:\n    wikipedia:\n        enabled: false\n",
 		"search_providers:\n    goreadability: {}\n",
 		"search_providers:\n    jina: {}\n",
+		"browse_providers:\n    parallel-free: {}\n",
 	} {
 		if _, err := Parse([]byte(y)); err == nil {
 			t.Errorf("misplaced entry should fail validation (yaml: %q)", y)
@@ -339,6 +352,9 @@ func TestParse_BareKeylessEntryIsValid(t *testing.T) {
 		"search_providers:\n    marginalia: {}\n",
 		"search_providers:\n    youcom-free: {}\n",
 		"search_providers:\n    youcom-free:\n        enabled: false\n",
+		"search_providers:\n    parallel-free: {}\n",
+		"extract_providers:\n    parallel-free: {}\n",
+		"extract_providers:\n    parallel-free:\n        enabled: false\n",
 	} {
 		if _, err := Parse([]byte(y)); err != nil {
 			t.Errorf("bare keyless entry should validate; got %v (yaml: %q)", err, y)
