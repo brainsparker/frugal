@@ -79,11 +79,14 @@ FRUGAL_AUTH_TOKEN=... frugal mcp serve --http 0.0.0.0:8765 --stateless
 Search and extract work out of the box: **You.com free tier**
 (`youcom-free`: the same major web index as the keyed You.com provider,
 reached through You.com's hosted MCP endpoint with no key and no account,
-about 100 queries per day), **Marginalia** (free index of the indie /
-non-commercial web), **Wikipedia** (free Wikimedia REST search),
-**go-readability** (free, pure-Go local extractor), and **Jina Reader**
-(free hosted render for pages that paint their content with JavaScript)
-ship enabled with zero configuration. This is the default `cheap` policy
+about 100 queries per day), **Parallel free tier** (`parallel-free`:
+Parallel's web index and page fetch through its keyless hosted MCP
+server, no key and no account, rate-limited), **Marginalia** (free index
+of the indie / non-commercial web), **Wikipedia** (free Wikimedia REST
+search), **go-readability** (free, pure-Go local extractor), **Jina
+Reader** (free hosted render for pages that paint their content with
+JavaScript), and Parallel's fetch tool again as a third free extract
+rung ship enabled with zero configuration. This is the default `cheap` policy
 at work — free and local rungs first, failover when a provider comes up
 empty. Captured from a live zero-key run:
 ```
@@ -122,16 +125,22 @@ frugal__search {"query": "AI agent framework comparison", "max_results": 3}
 ```
 
 Honest limits: `youcom-free` is a general web index but is capped at
-roughly 100 queries a day per IP; Marginalia is genuinely good for
-essays, docs, blogs, and niche technical writing, and weak on mainstream
-news and product pages; Wikipedia covers entities and reference topics.
+roughly 100 queries a day per IP; `parallel-free` is a second general
+web index behind it, rate-limited on the keyless tier (Parallel
+publishes no number), with no freshness filter (a `freshness` window is
+passed as a preference in the search objective and flagged in
+`warnings`) and a full-page fetch capped at about 25,000 characters;
+Marginalia is genuinely good for essays, docs, blogs, and niche
+technical writing, and weak on mainstream news and product pages;
+Wikipedia covers entities and reference topics.
 Zero-key mode is a real workflow for research and local extraction, but
 it is not unlimited. One env var changes that: `SEARXNG_URL` (free,
 self-hosted), `SERPER_API_KEY` ($0.001/call), or `YDC_API_KEY` (the keyed
 You.com tier, no daily cap) gives the chain a stronger rung to fall to.
-Prefer to keep queries off You.com entirely? Add `youcom-free: {enabled:
-false}` under `search_providers` and the chain is Marginalia and
-Wikipedia again.
+Prefer to keep queries off You.com or Parallel? Add `youcom-free:
+{enabled: false}` or `parallel-free: {enabled: false}` under
+`search_providers` (and under `extract_providers` for Parallel's fetch
+rung) and the chain is Marginalia and Wikipedia again.
 
 ## Routing policies
 
@@ -514,12 +523,12 @@ environment and only registers tools whose providers are configured:
 
 ```bash
 # Search — frugal__search
-export SEARXNG_URL=...           # free, self-hosted (You.com free tier, Marginalia, Wikipedia need no key)
+export SEARXNG_URL=...           # free, self-hosted (You.com free tier, Parallel free tier, Marginalia, Wikipedia need no key)
 export SERPER_API_KEY=...        # cheap paid
 export BRAVE_API_KEY=...         # independent index (Brave Search), $5/mo credit
 export YDC_API_KEY=...           # premium paid (You.com)
 
-# Extract — frugal__extract (goreadability + Jina Reader are free, no key)
+# Extract — frugal__extract (goreadability, Jina Reader, Parallel free tier are free, no key)
 export JINA_API_KEY=...          # optional: lifts Jina Reader from 20 to 500 requests/min
                                  # (also add api_key_env: JINA_API_KEY to the jina entry)
 export FIRECRAWL_API_KEY=...     # premium paid (anti-bot pages, PDFs)
@@ -538,8 +547,8 @@ is 5× Serper at $0.001/call. SearXNG, running on your own machine, is free.
 
 | Capability | Free / local | Cheap paid | Premium paid | Status |
 |---|---|---|---|---|
-| Search | **SearXNG** · **You.com free tier** · **Marginalia** · **Wikipedia** | **Serper** $0.001/call | **You.com** $0.005/call · **Brave** $0.005/call | **shipping** |
-| Extract | **go-readability** (local) · **Jina Reader** (hosted JS render) | — | **Firecrawl** $0.001/page | **shipping** |
+| Search | **SearXNG** · **You.com free tier** · **Parallel free tier** · **Marginalia** · **Wikipedia** | **Serper** $0.001/call | **You.com** $0.005/call · **Brave** $0.005/call | **shipping** |
+| Extract | **go-readability** (local) · **Jina Reader** (hosted JS render) · **Parallel free tier** (hosted fetch) | — | **Firecrawl** $0.001/page | **shipping** |
 | Browse | local Playwright *(deferred)* | **Browserless** $0.002/render | Browserbase *(planned)* | *partial* || Code exec | local Docker | E2B ~$0.10/hr (2 vCPU) | Modal | planned |
 | Embeddings | nomic-embed-text, bge-large | text-embedding-3-small $0.02/1M tok | 3-large, Voyage-3, Cohere | planned |
 | Transcription | whisper.cpp | Deepgram Nova $0.0043/min | OpenAI Whisper $0.006/min | planned |
@@ -551,7 +560,7 @@ one with a receipt.
 
 ## What ships today
 
-One MCP server, four tools, nine providers:
+One MCP server, four tools, ten providers:
 
 - **`frugal__execute`** — **shipping**. Describe the job (`intent`,
   optional `priority`); heuristic classification onto a capability, then
@@ -559,7 +568,9 @@ One MCP server, four tools, nine providers:
   `provider_used`, `cost_usd`, `reason`).
 - **`frugal__search`** — **shipping**. Routed across **SearXNG** (free,
   self-hosted), **You.com free tier** (`youcom-free`: free, public,
-  hosted MCP, ~100 queries/day), **Marginalia** (free, public),
+  hosted MCP, ~100 queries/day), **Parallel free tier** (`parallel-free`:
+  free, public, hosted MCP, rate-limited, excerpts and publish dates per
+  hit), **Marginalia** (free, public),
   **Wikipedia** (free, public), **Serper** (`$0.001/call`),
   **You.com** (`$0.005/call`), and **Brave Search** (`$0.005/call`,
   Brave's own independent index; every plan carries $5 of monthly
@@ -569,13 +580,16 @@ One MCP server, four tools, nine providers:
 - **`frugal__extract`** — **shipping**. Routed across **go-readability**
   (free, pure-Go local Readability), **Jina Reader** (free, hosted
   headless render: 20 requests/min keyless, 500 with a free `JINA_API_KEY`),
-  and **Firecrawl** (`~$0.001/page`, anti-bot defenses and PDFs). The
-  local pass runs first, so a static page never leaves your machine;
-  only a page that renders its content with JavaScript reaches the
-  hosted rung, and only when that also comes up empty does the chain
-  spend a paid scrape. Jina receives the target URL, nothing else; set
-  `jina: {enabled: false}` under `extract_providers` to keep extraction
-  fully local.
+  **Parallel free tier** (`parallel-free`: free, hosted fetch from
+  Parallel's page cache with live fallback, Markdown capped at about
+  25k characters per page), and **Firecrawl** (`~$0.001/page`, anti-bot
+  defenses and PDFs). The local pass runs first, so a static page never
+  leaves your machine; only a page that renders its content with
+  JavaScript reaches the hosted rungs, and only when those also come up
+  empty does the chain spend a paid scrape. Jina and Parallel receive
+  the target URL, nothing else; set `jina: {enabled: false}` and
+  `parallel-free: {enabled: false}` under `extract_providers` to keep
+  extraction fully local.
 - **`frugal__browse`** — *partial*. **Browserless** (`~$0.002/render`,
   headless Chrome) shipping; local Playwright deferred.
 - **Routing policies** — **shipping**. Per-capability `strategy`

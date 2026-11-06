@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -68,6 +69,110 @@ func TestBuildSearchers_YoucomFreeIsKeylessAndOrdered(t *testing.T) {
 	}
 	if !wireableProviders["search"]["youcom-free"] {
 		t.Errorf("youcom-free must be wireable so rack-rate accounting and the switch agree")
+	}
+}
+
+func TestBuildSearchers_ParallelFreeIsKeylessAndOrderedAfterYoucomFree(t *testing.T) {
+	// parallel-free needs no key and no URL, so a bare entry registers.
+	// The canonical order places it right after youcom-free and ahead
+	// of Marginalia and Wikipedia: existing zero-key chains keep their
+	// first rung, and a second general web index serves before the
+	// narrower free indexes once the You.com allowance is spent.
+	t.Setenv("YDC_API_KEY", "")
+	cfg := &config.Config{
+		SearchProviders: map[string]config.SearchProviderConfig{
+			"wikipedia":     {BaseURL: "https://en.wikipedia.org"},
+			"parallel-free": {},
+			"youcom-free":   {},
+			"marginalia":    {BaseURL: "https://api.marginalia.nu"},
+			"youcom":        {APIKeyEnv: "YDC_API_KEY", CostPerCall: 0.005},
+		},
+	}
+	var names []string
+	for _, s := range buildSearchers(cfg) {
+		names = append(names, s.Name())
+		if s.CostPerCall() != 0 {
+			t.Errorf("%s: keyless rungs must be free; got cost %v", s.Name(), s.CostPerCall())
+		}
+	}
+	want := []string{"youcom-free", "parallel-free", "marginalia", "wikipedia"}
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Fatalf("registration order %v, want %v", names, want)
+	}
+	if !wireableProviders["search"]["parallel-free"] {
+		t.Errorf("parallel-free must be wireable under search so rack-rate accounting and the switch agree")
+	}
+	// A tombstone keeps it out.
+	cfg.SearchProviders["parallel-free"] = config.SearchProviderConfig{Enabled: boolPtr(false)}
+	for _, s := range buildSearchers(cfg) {
+		if s.Name() == "parallel-free" {
+			t.Errorf("enabled: false must not register parallel-free")
+		}
+	}
+}
+
+func TestBuildExtractors_ParallelFreeRegistersKeylessAfterJina(t *testing.T) {
+	// The same provider name serves extract. Order: local goreadability,
+	// then the free hosted renders (jina, then parallel-free), then paid
+	// firecrawl, which stays gated on its key.
+	t.Setenv("FIRECRAWL_API_KEY", "")
+	cfg := &config.Config{
+		ExtractProviders: map[string]config.SearchProviderConfig{
+			"firecrawl":     {APIKeyEnv: "FIRECRAWL_API_KEY", BaseURL: "https://api.firecrawl.dev", CostPerCall: 0.001},
+			"parallel-free": {},
+			"jina":          {BaseURL: "https://r.jina.ai"},
+			"goreadability": {},
+		},
+	}
+	var names []string
+	for _, e := range buildExtractors(cfg) {
+		names = append(names, e.Name())
+		if e.CostPerCall() != 0 {
+			t.Errorf("%s: free rungs must report cost 0; got %v", e.Name(), e.CostPerCall())
+		}
+	}
+	want := []string{"goreadability", "jina", "parallel-free"}
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Fatalf("registration order %v, want %v", names, want)
+	}
+	if !wireableProviders["extract"]["parallel-free"] {
+		t.Errorf("parallel-free must be wireable under extract")
+	}
+}
+
+func TestCanonicalProviderOrder_IsPerCapability(t *testing.T) {
+	// One name, two ranks: parallel-free is third among search rungs
+	// and third among extract rungs, and sortedProviderNames must
+	// consult the right list for each capability.
+	search := sortedProviderNames("search", map[string]config.SearchProviderConfig{
+		"marginalia": {}, "parallel-free": {}, "youcom-free": {}, "searxng": {},
+	})
+	if strings.Join(search, ",") != "searxng,youcom-free,parallel-free,marginalia" {
+		t.Errorf("search order = %v", search)
+	}
+	ext := sortedProviderNames("extract", map[string]config.SearchProviderConfig{
+		"firecrawl": {}, "parallel-free": {}, "goreadability": {}, "jina": {},
+	})
+	if strings.Join(ext, ",") != "goreadability,jina,parallel-free,firecrawl" {
+		t.Errorf("extract order = %v", ext)
+	}
+	for capability, order := range canonicalProviderOrder {
+		for _, name := range order {
+			if !wireableProviders[capability][name] {
+				t.Errorf("%s/%s is in the canonical order but not wireable", capability, name)
+			}
+		}
+		for name := range wireableProviders[capability] {
+			found := false
+			for _, n := range order {
+				if n == name {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("%s/%s is wireable but has no canonical rank", capability, name)
+			}
+		}
 	}
 }
 

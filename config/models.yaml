@@ -4,7 +4,7 @@
 # when the tool is called without an explicit `provider` argument.
 #
 # Free, keyless providers missing from an operator's copy of this file
-# (wikipedia, marginalia, goreadability, jina — entries with no
+# (wikipedia, marginalia, youcom-free, parallel-free, goreadability, jina: entries with no
 # api_key_env / base_url_env) are filled in from the defaults embedded in the binary at
 # load time, so upgrades that ship a new zero-key provider reach existing
 # installs without a config rewrite. Keyed and self-hosted providers are
@@ -140,6 +140,21 @@ search_providers:
     youcom-free:
         base_url: https://api.you.com/mcp
         cost_per_call: 0.0
+    # Free / public: Parallel's hosted MCP server on its keyless tier
+    # (Parallel MCP 2.0, November 2026). The `web_search` tool is
+    # Parallel's Search API in fast mode: a general web index with
+    # per-hit excerpts and publish dates, no key, no account, at reduced
+    # rate limits Parallel does not publish a number for. Sits right
+    # after youcom-free in the canonical order, so a keyless install has
+    # a second general web index before the chain drops to Marginalia
+    # and Wikipedia. The keyless tool has no freshness filter; the
+    # driver passes a freshness window as a preference in the search
+    # objective and says so in `warnings`. Sends only the query, never
+    # a session id or client model. Set `enabled: false` to keep every
+    # query off Parallel.
+    parallel-free:
+        base_url: https://mcp.parallel.ai/mcp
+        cost_per_call: 0.0
     # Free / public: Wikimedia REST search. No API key required; the
     # driver identifies itself via User-Agent per the Wikimedia robot
     # policy. Covers the mainstream entity / reference queries
@@ -208,6 +223,18 @@ extract_providers:
     # routing.extract) to keep extraction fully local.
     jina:
         base_url: https://r.jina.ai
+        cost_per_call: 0.0
+    # Free / hosted: the `web_fetch` tool of the same keyless Parallel
+    # MCP server that serves the parallel-free search rung. Returns the
+    # page as Markdown from Parallel's page cache with a live fetch
+    # fallback. Sits after jina in the canonical order: Jina returns the
+    # whole page, Parallel's keyless full-content fetch is capped at
+    # about 25,000 characters per URL with no marker when a page is
+    # longer. Still a third free try before any paid scrape. Sends the
+    # target URL to a third party: tombstone with `enabled: false` (or
+    # deny it under routing.extract) to keep extraction fully local.
+    parallel-free:
+        base_url: https://mcp.parallel.ai/mcp
         cost_per_call: 0.0
     # Premium paid: handles JS-rendered pages, anti-bot defenses, and
     # PDF / binary content. Operators set FIRECRAWL_API_KEY to enable.

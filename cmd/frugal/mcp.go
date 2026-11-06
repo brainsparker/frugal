@@ -30,6 +30,7 @@ import (
 	"github.com/frugalsh/frugal/internal/provider/goreadability"
 	"github.com/frugalsh/frugal/internal/provider/jina"
 	"github.com/frugalsh/frugal/internal/provider/marginalia"
+	"github.com/frugalsh/frugal/internal/provider/parallelfree"
 	"github.com/frugalsh/frugal/internal/provider/searxng"
 	"github.com/frugalsh/frugal/internal/provider/serper"
 	"github.com/frugalsh/frugal/internal/provider/wikipedia"
@@ -430,7 +431,7 @@ func policyFor(rc *config.RoutingConfig, capability string) routing.Policy {
 func buildGuard(cfg *config.Config) *routing.Guard {
 	caps := map[string]float64{}
 	add := func(capability string, providers map[string]config.SearchProviderConfig) {
-		for _, name := range sortedProviderNames(providers) {
+		for _, name := range sortedProviderNames(capability, providers) {
 			sp := providers[name]
 			if sp.Disabled() || sp.DailyBudgetUSD <= 0 {
 				continue
@@ -659,29 +660,37 @@ func (c *latencyCache) lookup(tool string) routing.LatencyLookup {
 // canonicalProviderOrder fixes the tie-break between same-cost providers:
 // self-hosted first (the operator stood that instance up deliberately),
 // then in-process, then public-free, then paid by ascending list price.
-// YAML maps don't preserve file order, so this list — not the config
-// file — is what makes registration (and therefore OrderByCost's stable
+// YAML maps don't preserve file order, so this list, not the config
+// file, is what makes registration (and therefore OrderByCost's stable
 // ties) deterministic. For extract that means goreadability (local)
 // runs before jina (free, hosted): a static page never leaves the
 // machine, and only a JS-rendered page reaches the hosted rung.
-// Providers not listed here sort last, by name.
+// Providers not listed here sort last, by name. The list is keyed by
+// capability because one provider name can serve two capabilities
+// (parallel-free is a search rung and an extract rung) at different
+// ranks.
 //
 // Among the public-free search rungs: youcom-free first (a general
-// major-index SERP, about 100 keyless queries per day), then Marginalia
-// (indie-web index; strong on long-tail essays and docs, but it returns
-// weak non-zero hits on mainstream queries, and zero-hit fall-through
-// can't see "weak"), then Wikipedia (reference entities). Marginalia and
-// Wikipedia are the rungs that keep serving once the youcom-free daily
-// allowance is spent and the guard cools it down.
-var canonicalProviderOrder = []string{
-	"searxng", "youcom-free", "marginalia", "wikipedia", "serper", "youcom", "brave", // search
-	"goreadability", "jina", "firecrawl", // extract
-	"browserless", // browse
+// major-index SERP, about 100 keyless queries per day), then
+// parallel-free (Parallel's web index through its keyless hosted MCP;
+// placed after youcom-free so existing chains keep their first rung,
+// and it is the rung that keeps a general web index serving once the
+// You.com allowance is spent), then Marginalia (indie-web index; strong
+// on long-tail essays and docs, but it returns weak non-zero hits on
+// mainstream queries, and zero-hit fall-through can't see "weak"), then
+// Wikipedia (reference entities). For extract the same parallel-free
+// server's fetch tool sits after jina (the established free hosted
+// render, which returns the whole page where Parallel caps at about
+// 25k characters) and before paid Firecrawl.
+var canonicalProviderOrder = map[string][]string{
+	"search":  {"searxng", "youcom-free", "parallel-free", "marginalia", "wikipedia", "serper", "youcom", "brave"},
+	"extract": {"goreadability", "jina", "parallel-free", "firecrawl"},
+	"browse":  {"browserless"},
 }
 
 var wireableProviders = map[string]map[string]bool{
-	"search":  {"searxng": true, "marginalia": true, "youcom-free": true, "wikipedia": true, "serper": true, "youcom": true, "brave": true},
-	"extract": {"goreadability": true, "jina": true, "firecrawl": true},
+	"search":  {"searxng": true, "marginalia": true, "youcom-free": true, "parallel-free": true, "wikipedia": true, "serper": true, "youcom": true, "brave": true},
+	"extract": {"goreadability": true, "jina": true, "parallel-free": true, "firecrawl": true},
 	"browse":  {"browserless": true},
 }
 
@@ -703,9 +712,10 @@ func rackRates(cfg *config.Config) map[string]float64 {
 	return out
 }
 
-func sortedProviderNames(providers map[string]config.SearchProviderConfig) []string {
-	rank := make(map[string]int, len(canonicalProviderOrder))
-	for i, n := range canonicalProviderOrder {
+func sortedProviderNames(capability string, providers map[string]config.SearchProviderConfig) []string {
+	order := canonicalProviderOrder[capability]
+	rank := make(map[string]int, len(order))
+	for i, n := range order {
 		rank[n] = i
 	}
 	names := make([]string, 0, len(providers))
@@ -831,7 +841,7 @@ func logMetricsPeriodically(ctx context.Context, m *obs.Metrics, interval time.D
 
 func buildSearchers(cfg *config.Config) []search.Searcher {
 	var out []search.Searcher
-	for _, name := range sortedProviderNames(cfg.SearchProviders) {
+	for _, name := range sortedProviderNames("search", cfg.SearchProviders) {
 		sp := cfg.SearchProviders[name]
 		if sp.Disabled() {
 			continue
@@ -874,6 +884,11 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 			// endpoint). Always registers if the YAML entry exists. The
 			// keyed REST tier is the separate "youcom" provider.
 			out = append(out, youcomfree.New(base))
+		case "parallel-free":
+			// Parallel's hosted MCP endpoint on its keyless tier; no API
+			// key, no required URL (driver defaults to the public
+			// endpoint). Always registers if the YAML entry exists.
+			out = append(out, parallelfree.New(base))
 		case "wikipedia":
 			out = append(out, wikipedia.New(base))
 		default:
@@ -893,7 +908,7 @@ func buildSearchers(cfg *config.Config) []search.Searcher {
 // Unknown names log a warning and are skipped.
 func buildExtractors(cfg *config.Config) []extract.Extractor {
 	var out []extract.Extractor
-	for _, name := range sortedProviderNames(cfg.ExtractProviders) {
+	for _, name := range sortedProviderNames("extract", cfg.ExtractProviders) {
 		sp := cfg.ExtractProviders[name]
 		if sp.Disabled() {
 			continue
@@ -923,6 +938,11 @@ func buildExtractors(cfg *config.Config) []extract.Extractor {
 			}
 			slog.Info("mcp serve: jina reader tier", "tier", tier)
 			out = append(out, c)
+		case "parallel-free":
+			// The fetch tool of the same keyless Parallel server that
+			// serves the parallel-free search rung. No key, defaults its
+			// endpoint, always registers if the YAML entry exists.
+			out = append(out, parallelfree.New(base))
 		case "firecrawl":
 			if key == "" {
 				continue
@@ -938,7 +958,7 @@ func buildExtractors(cfg *config.Config) []extract.Extractor {
 
 func buildBrowsers(cfg *config.Config) []browse.Browser {
 	var out []browse.Browser
-	for _, name := range sortedProviderNames(cfg.BrowseProviders) {
+	for _, name := range sortedProviderNames("browse", cfg.BrowseProviders) {
 		sp := cfg.BrowseProviders[name]
 		if sp.Disabled() {
 			continue

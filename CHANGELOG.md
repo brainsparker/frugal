@@ -2,6 +2,27 @@
 
 All notable changes to Frugal. Versions follow the git tags.
 
+## [Unreleased]
+
+### Providers
+- **Parallel free tier (`parallel-free`)**: keyless search and extract
+  rungs through Parallel's hosted MCP server (Parallel MCP 2.0,
+  2026-11-05). `web_search` registers under `search_providers` right
+  after `youcom-free`, so a zero-key install has a second general web
+  index before the chain drops to Marginalia and Wikipedia. `web_fetch`
+  registers under `extract_providers` after `jina` and before paid
+  Firecrawl. No key, no account, no session id or client model sent.
+  Honest limits: Parallel publishes no keyless rate-limit number; the
+  search tool has no freshness filter (the window is passed as a
+  preference and flagged in `warnings`); full-page fetch is capped at
+  about 25,000 characters per URL. Existing installs gain both rungs on
+  the next start through the config default overlay; `enabled: false`
+  under either table opts out.
+
+### Internal
+- `canonicalProviderOrder` is now keyed by capability so one provider
+  name can hold a different rank under search and extract.
+
 ## [0.2.0] - 2026-10-21
 
 First release since v0.1.1 (2026-07-23).
